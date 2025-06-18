@@ -6,10 +6,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import Navigation from "@/components/layout/Navigation";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Calendar from "./pages/Calendar";
 import LessonReport from "./pages/LessonReport";
+import Courses from "./pages/Courses";
+import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,7 +30,10 @@ const App = () => (
               path="/" 
               element={
                 <ProtectedRoute>
-                  <Index />
+                  <>
+                    <Navigation />
+                    <Index />
+                  </>
                 </ProtectedRoute>
               } 
             />
@@ -35,7 +41,10 @@ const App = () => (
               path="/calendar" 
               element={
                 <ProtectedRoute>
-                  <Calendar />
+                  <>
+                    <Navigation />
+                    <Calendar />
+                  </>
                 </ProtectedRoute>
               } 
             />
@@ -43,7 +52,32 @@ const App = () => (
               path="/lesson-report" 
               element={
                 <ProtectedRoute>
-                  <LessonReport />
+                  <>
+                    <Navigation />
+                    <LessonReport />
+                  </>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/courses" 
+              element={
+                <ProtectedRoute>
+                  <>
+                    <Navigation />
+                    <Courses />
+                  </>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/reports" 
+              element={
+                <ProtectedRoute>
+                  <>
+                    <Navigation />
+                    <Reports />
+                  </>
                 </ProtectedRoute>
               } 
             />
