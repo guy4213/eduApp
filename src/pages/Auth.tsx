@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/components/auth/AuthProvider';
 import { toast } from '@/components/ui/use-toast';
 import { Eye, EyeOff, GraduationCap } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const Auth = () => {
   const { user, signIn, signUp } = useAuth();
@@ -18,6 +19,8 @@ const Auth = () => {
     email: '',
     password: '',
     fullName: '',
+    role: 'instructor',
+    phone: '',
   });
 
   // Redirect if already authenticated
@@ -56,7 +59,13 @@ const Auth = () => {
           return;
         }
         
-        const { error } = await signUp(formData.email, formData.password, formData.fullName);
+        const { error } = await signUp(
+          formData.email, 
+          formData.password, 
+          formData.fullName, 
+          formData.role,
+          formData.phone
+        );
         if (error) {
           toast({
             title: 'שגיאה ברישום',
@@ -90,6 +99,13 @@ const Auth = () => {
     });
   };
 
+  const handleRoleChange = (value: string) => {
+    setFormData({
+      ...formData,
+      role: value,
+    });
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
@@ -110,18 +126,46 @@ const Auth = () => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">שם מלא</Label>
-                <Input
-                  id="fullName"
-                  name="fullName"
-                  type="text"
-                  value={formData.fullName}
-                  onChange={handleInputChange}
-                  placeholder="הכנס שם מלא"
-                  required={!isLogin}
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">שם מלא</Label>
+                  <Input
+                    id="fullName"
+                    name="fullName"
+                    type="text"
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                    placeholder="הכנס שם מלא"
+                    required={!isLogin}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">טלפון</Label>
+                  <Input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    placeholder="מספר טלפון"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">תפקיד</Label>
+                  <Select value={formData.role} onValueChange={handleRoleChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="בחר תפקיד" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="instructor">מדריך/מרצה</SelectItem>
+                      <SelectItem value="pedagogical_manager">מנהל פדגוגי</SelectItem>
+                      <SelectItem value="admin">מנהל מערכת</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
             
             <div className="space-y-2">
@@ -175,7 +219,7 @@ const Auth = () => {
               variant="link"
               onClick={() => {
                 setIsLogin(!isLogin);
-                setFormData({ email: '', password: '', fullName: '' });
+                setFormData({ email: '', password: '', fullName: '', role: 'instructor', phone: '' });
               }}
               className="text-sm"
             >
