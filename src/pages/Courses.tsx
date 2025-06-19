@@ -66,102 +66,93 @@ const Courses = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <BookOpen className="h-8 w-8 text-primary ml-3" />
-              <h1 className="text-xl font-semibold text-gray-900">ניהול קורסים</h1>
-            </div>
-            <Button className="flex items-center space-x-2">
-              <Plus className="h-4 w-4" />
-              <span>קורס חדש</span>
-            </Button>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">הקורסים שלי</h2>
-          <p className="text-gray-600">ניהול וצפייה בכל הקורסים שאתה מעביר</p>
+        {/* Header Section */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">ניהול קורסים</h1>
+            <p className="text-gray-600 text-lg">ניהול וצפייה בכל הקורסים שאתה מעביר</p>
+          </div>
+          <Button className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg">
+            <Plus className="h-4 w-4" />
+            <span>קורס חדש</span>
+          </Button>
         </div>
 
         {courses.length === 0 ? (
-          <Card className="text-center py-12">
+          <Card className="text-center py-16 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardContent>
-              <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">אין קורסים עדיין</h3>
-              <p className="text-gray-600 mb-4">התחל ליצור את הקורס הראשון שלך</p>
-              <Button>
-                <Plus className="h-4 w-4 ml-2" />
+              <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">אין קורסים עדיין</h3>
+              <p className="text-gray-600 mb-6 text-lg">התחל ליצור את הקורס הראשון שלך</p>
+              <Button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg">
+                <Plus className="h-4 w-4 mr-2" />
                 צור קורס חדש
               </Button>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {courses.map((course) => (
-              <Card key={course.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
+              <Card key={course.id} className="hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:scale-105">
+                <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="text-lg mb-1">{course.name}</CardTitle>
-                      <CardDescription>{course.institution_name}</CardDescription>
+                      <CardTitle className="text-xl mb-2 text-white">{course.name}</CardTitle>
+                      <CardDescription className="text-blue-100 text-base">{course.institution_name}</CardDescription>
                     </div>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" className="text-white hover:bg-white/20">
                       <Edit className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 p-6">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">תוכנית לימודים:</span>
-                    <Badge variant="secondary">{course.curriculum_name}</Badge>
+                    <span className="text-sm text-gray-600 font-medium">תוכנית לימודים:</span>
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">{course.curriculum_name}</Badge>
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">כיתה:</span>
-                    <span className="text-sm font-medium">{course.grade_level}</span>
+                    <span className="text-sm text-gray-600 font-medium">כיתה:</span>
+                    <span className="text-sm font-semibold text-gray-900">{course.grade_level}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">משתתפים מקסימום:</span>
+                    <span className="text-sm text-gray-600 font-medium">משתתפים מקסימום:</span>
                     <div className="flex items-center">
-                      <Users className="h-4 w-4 ml-1" />
-                      <span className="text-sm font-medium">{course.max_participants}</span>
+                      <Users className="h-4 w-4 mr-1 text-gray-500" />
+                      <span className="text-sm font-semibold text-gray-900">{course.max_participants}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">מחיר לשיעור:</span>
-                    <span className="text-sm font-medium">₪{course.price_per_lesson}</span>
+                    <span className="text-sm text-gray-600 font-medium">מחיר לשיעור:</span>
+                    <span className="text-sm font-semibold text-green-600">₪{course.price_per_lesson}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">שיעורים:</span>
+                    <span className="text-sm text-gray-600 font-medium">שיעורים:</span>
                     <div className="flex items-center">
-                      <Calendar className="h-4 w-4 ml-1" />
-                      <span className="text-sm font-medium">{course.lesson_count}</span>
+                      <Calendar className="h-4 w-4 mr-1 text-gray-500" />
+                      <span className="text-sm font-semibold text-gray-900">{course.lesson_count}</span>
                     </div>
                   </div>
 
-                  <div className="pt-4 space-y-2">
-                    <Button className="w-full" size="sm">
+                  <div className="pt-6 space-y-3">
+                    <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" size="sm">
                       צפה בפרטים
                     </Button>
-                    <Button variant="outline" className="w-full" size="sm">
-                      <Calendar className="h-4 w-4 ml-2" />
+                    <Button variant="outline" className="w-full border-blue-300 text-blue-700 hover:bg-blue-50" size="sm">
+                      <Calendar className="h-4 w-4 mr-2" />
                       מערכת השעות
                     </Button>
                   </div>

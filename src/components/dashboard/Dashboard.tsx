@@ -1,10 +1,11 @@
+
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatsCard } from './StatsCard';
 import { Progress } from '@/components/ui/progress';
-import { Calendar, Users, BookOpen, BarChart3, Settings, LogOut, Clock, MapPin, Star, Award } from 'lucide-react';
+import { Calendar, Users, BookOpen, BarChart3, Settings, Clock, MapPin, Star, Award, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface DashboardStats {
@@ -17,7 +18,7 @@ interface DashboardStats {
 }
 
 const Dashboard = () => {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalLessons: 0,
     activeStudents: 0,
@@ -55,9 +56,9 @@ const Dashboard = () => {
 
         setStats({
           totalLessons: thisWeekLessons.length,
-          activeStudents: 45, // Mock data - would calculate from actual enrollments
+          activeStudents: 45,
           activeCourses: courses?.length || 0,
-          monthlyEarnings: 4350, // Mock data - would calculate from actual payments
+          monthlyEarnings: 4350,
           upcomingLessons: thisWeekLessons.slice(0, 3),
           recentActivity: lessons?.slice(-3) || []
         });
@@ -71,10 +72,6 @@ const Dashboard = () => {
     fetchDashboardData();
   }, [user]);
 
-  const handleSignOut = async () => {
-    await signOut();
-  };
-
   const menuItems = [
     { icon: Calendar, title: 'יומן אישי', description: 'צפייה במערכת השעות והשיעורים הקרובים', path: '/calendar' },
     { icon: BookOpen, title: 'דיווח שיעור', description: 'דיווח על שיעור שהתקיים או בתהליך', path: '/lesson-report' },
@@ -85,44 +82,20 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <BookOpen className="h-8 w-8 text-primary ml-3" />
-              <h1 className="text-xl font-semibold text-gray-900">מערכת ניהול מנחים</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">שלום, {user?.user_metadata?.full_name || user?.email}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSignOut}
-                className="flex items-center space-x-2"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>יציאה</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">דשבורד מנהל פדגוגי</h2>
-          <p className="text-gray-600">ברוך הבא למערכת ניהול המנחים והמרצים</p>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">דשבורד מנהל פדגוגי</h2>
+          <p className="text-gray-600 text-lg">ברוך הבא למערכת ניהול המנחים והמרצים</p>
         </div>
 
         {/* Stats Grid */}
@@ -131,96 +104,104 @@ const Dashboard = () => {
             title="תלמידים פעילים"
             value={stats.activeStudents}
             icon={Users}
-            color="bg-orange-500"
+            color="bg-gradient-to-r from-orange-500 to-red-500"
           />
           <StatsCard
             title="הושלמו"
             value="1"
             icon={Award}
-            color="bg-green-500"
+            color="bg-gradient-to-r from-green-500 to-emerald-500"
           />
           <StatsCard
             title="שיעורים כללים"
             value="3"
             icon={BookOpen}
-            color="bg-blue-500"
+            color="bg-gradient-to-r from-blue-500 to-cyan-500"
           />
           <StatsCard
             title="מבוצע בבניינים"
             value="45"
             icon={BarChart3}
-            color="bg-blue-600"
+            color="bg-gradient-to-r from-purple-500 to-indigo-500"
           />
         </div>
 
-        {/* Upcoming Lessons */}
+        {/* Main Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Calendar className="h-5 w-5 ml-2" />
-                יומן יומי - 18.6.2025
-              </CardTitle>
-              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white">
-                הוסף שיעור +
-              </Button>
+          {/* Daily Calendar */}
+          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
+              <div className="flex justify-between items-center">
+                <CardTitle className="flex items-center text-xl">
+                  <Calendar className="h-6 w-6 mr-3" />
+                  יומן יומי - 18.6.2025
+                </CardTitle>
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white shadow-md">
+                  <Plus className="h-4 w-4 mr-2" />
+                  הוסף שיעור
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                {/* Lesson 1 */}
-                <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border-r-4 border-blue-500">
-                  <div className="flex items-center space-x-3">
-                    <Button size="sm" variant="outline" className="text-blue-600 border-blue-600">
+            <CardContent className="p-6 space-y-4">
+              {/* Lesson 1 */}
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border-r-4 border-blue-500 shadow-sm">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-3 space-x-reverse">
+                    <Button size="sm" variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50">
                       החזר שיעור
                     </Button>
                     <div>
-                      <p className="font-medium">בית ספר אשלים ראשון לציון</p>
+                      <p className="font-semibold text-gray-900">בית ספר אשלים ראשון לציון</p>
                       <p className="text-sm text-gray-600">שעת בגו גלי-ח-כ</p>
-                      <p className="text-sm text-gray-600">משתתפים: 12 מתלמידים</p>
+                      <p className="text-sm text-gray-600">משתתפים: 12 תלמידים</p>
                     </div>
                   </div>
                   <div className="text-left">
                     <p className="text-lg font-bold text-blue-600">09:00-10:30</p>
-                    <span className="inline-block px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">כביש</span>
+                    <span className="inline-block px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full font-medium">כביש</span>
                     <p className="text-sm text-gray-500 mt-1">תל אביב יפו 21 דקות מכאן</p>
                   </div>
                 </div>
+              </div>
 
-                {/* Lesson 2 */}
-                <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border-r-4 border-green-500">
-                  <div className="flex items-center space-x-3">
-                    <Button size="sm" variant="outline" className="text-green-600 border-green-600">
+              {/* Lesson 2 */}
+              <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border-r-4 border-green-500 shadow-sm">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-3 space-x-reverse">
+                    <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50">
                       דווח מופעים
                     </Button>
                     <div>
-                      <p className="font-medium">גימע רמות</p>
+                      <p className="font-semibold text-gray-900">גימע רמות</p>
                       <p className="text-sm text-gray-600">שעת בגו גלי-ח-כ</p>
-                      <p className="text-sm text-gray-600">משתתפים: 12 מתלמידים</p>
+                      <p className="text-sm text-gray-600">משתתפים: 12 תלמידים</p>
                     </div>
                   </div>
                   <div className="text-left">
                     <p className="text-lg font-bold text-green-600">11:00-12:30</p>
-                    <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded">הושלם</span>
+                    <span className="inline-block px-3 py-1 text-xs bg-green-100 text-green-800 rounded-full font-medium">הושלם</span>
                     <p className="text-sm text-gray-500 mt-1">תל אביב יפו 2 דקות מכאן</p>
                   </div>
                 </div>
+              </div>
 
-                {/* Lesson 3 */}
-                <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border-r-4 border-purple-500">
-                  <div className="flex items-center space-x-3">
-                    <Button size="sm" variant="outline" className="text-purple-600 border-purple-600">
+              {/* Lesson 3 */}
+              <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 border-r-4 border-purple-500 shadow-sm">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-3 space-x-reverse">
+                    <Button size="sm" variant="outline" className="text-purple-600 border-purple-600 hover:bg-purple-50">
                       דווח מופעים
                     </Button>
-                    <span className="text-sm text-purple-600 font-medium">התחל שיעור</span>
+                    <span className="text-sm text-purple-600 font-medium bg-purple-100 px-2 py-1 rounded">התחל שיעור</span>
                     <div>
-                      <p className="font-medium">דת שלום רמות</p>
+                      <p className="font-semibold text-gray-900">דת שלום רמות</p>
                       <p className="text-sm text-gray-600">שעת בגו גלי-א-כ</p>
-                      <p className="text-sm text-gray-600">משתתפים: 18 מתלמידים</p>
+                      <p className="text-sm text-gray-600">משתתפים: 18 תלמידים</p>
                     </div>
                   </div>
                   <div className="text-left">
                     <p className="text-lg font-bold text-purple-600">14:00-15:30</p>
-                    <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">עוד מעט</span>
+                    <span className="inline-block px-3 py-1 text-xs bg-purple-100 text-purple-800 rounded-full font-medium">עוד מעט</span>
                     <p className="text-sm text-gray-500 mt-1">תל אביב יפו מקום קבוע</p>
                   </div>
                 </div>
@@ -229,54 +210,65 @@ const Dashboard = () => {
           </Card>
 
           {/* Performance Statistics */}
-          <Card>
-            <CardHeader>
-              <CardTitle>ביצועים מדדדים 📊</CardTitle>
+          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-t-lg">
+              <CardTitle className="text-xl">ביצועים מדדדים 📊</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="p-6 space-y-6">
               {/* Performance Metrics */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">דבר כהן</span>
-                  <span className="text-right">
-                    <div className="text-sm text-gray-600">⭐ שיעורי החירדני 24 מ 4.8</div>
-                    <div className="text-sm font-bold">4.8/5</div>
-                  </span>
+              <div className="space-y-6">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-gray-700">דבר כהן</span>
+                    <div className="text-left">
+                      <div className="text-sm text-gray-600 flex items-center">
+                        <Star className="h-4 w-4 text-yellow-500 ml-1" />
+                        שיעורי החירדני 24 מ 4.8
+                      </div>
+                      <div className="text-lg font-bold text-gray-900">4.8/5</div>
+                    </div>
+                  </div>
+                  <Progress value={96} className="h-3 bg-gray-200" />
+                  <div className="flex justify-between text-xs text-gray-600 mt-2">
+                    <span>96%</span>
+                    <span>דירוג כללי</span>
+                  </div>
                 </div>
-                <Progress value={96} className="h-2" />
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>דירוג כללי</span>
-                  <span>96%</span>
-                </div>
-              </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">שרה לוי</span>
-                  <span className="text-right">
-                    <div className="text-sm text-gray-600">⭐ שיעורי החירדני 19 מ 4.5</div>
-                    <div className="text-sm font-bold">4.5/5</div>
-                  </span>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-gray-700">שרה לוי</span>
+                    <div className="text-left">
+                      <div className="text-sm text-gray-600 flex items-center">
+                        <Star className="h-4 w-4 text-yellow-500 ml-1" />
+                        שיעורי החירדני 19 מ 4.5
+                      </div>
+                      <div className="text-lg font-bold text-gray-900">4.5/5</div>
+                    </div>
+                  </div>
+                  <Progress value={92} className="h-3 bg-gray-200" />
+                  <div className="flex justify-between text-xs text-gray-600 mt-2">
+                    <span>92%</span>
+                    <span>דירוג כללי</span>
+                  </div>
                 </div>
-                <Progress value={92} className="h-2" />
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>דירוג כללי</span>
-                  <span>92%</span>
-                </div>
-              </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">מיכל אברהם</span>
-                  <span className="text-right">
-                    <div className="text-sm text-gray-600">⭐ שיעורי החירדני 21 מ 4.3</div>
-                    <div className="text-sm font-bold">4.3/5</div>
-                  </span>
-                </div>
-                <Progress value={88} className="h-2" />
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>דירוג כללי</span>
-                  <span>88%</span>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-gray-700">מיכל אברהם</span>
+                    <div className="text-left">
+                      <div className="text-sm text-gray-600 flex items-center">
+                        <Star className="h-4 w-4 text-yellow-500 ml-1" />
+                        שיעורי החירדני 21 מ 4.3
+                      </div>
+                      <div className="text-lg font-bold text-gray-900">4.3/5</div>
+                    </div>
+                  </div>
+                  <Progress value={88} className="h-3 bg-gray-200" />
+                  <div className="flex justify-between text-xs text-gray-600 mt-2">
+                    <span>88%</span>
+                    <span>דירוג כללי</span>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -284,14 +276,14 @@ const Dashboard = () => {
         </div>
 
         {/* Summary Card */}
-        <Card className="bg-gradient-to-l from-yellow-100 to-yellow-200 border-yellow-300">
-          <CardContent className="p-6 text-center">
+        <Card className="bg-gradient-to-l from-yellow-100 to-amber-100 border-yellow-300 shadow-lg mb-8">
+          <CardContent className="p-8 text-center">
             <div className="flex items-center justify-center mb-4">
-              <Award className="h-8 w-8 text-yellow-600 ml-2" />
-              <span className="text-2xl font-bold text-yellow-800">₪4,350</span>
+              <Award className="h-10 w-10 text-yellow-600 mr-3" />
+              <span className="text-3xl font-bold text-yellow-800">₪4,350</span>
             </div>
-            <p className="text-yellow-700 font-medium">סטר נפש</p>
-            <p className="text-sm text-yellow-600 mt-2">
+            <p className="text-yellow-700 font-semibold text-lg">סטר נפש</p>
+            <p className="text-sm text-yellow-600 mt-2 font-medium">
               🏆 ב-2 שפעילות בלכלי מפיסד התמרמר ב-שירי בפולטי
             </p>
             <p className="text-xs text-yellow-600 mt-1">ב שנים ותשרת בצרכים</p>
@@ -299,17 +291,19 @@ const Dashboard = () => {
         </Card>
 
         {/* Menu Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {menuItems.map((item, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
+            <Card key={index} className="hover:shadow-xl transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:scale-105">
+              <CardHeader className="pb-4">
                 <div className="flex items-center">
-                  <item.icon className="h-8 w-8 text-primary ml-4" />
-                  <CardTitle className="text-lg">{item.title}</CardTitle>
+                  <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg mr-4">
+                    <item.icon className="h-6 w-6 text-white" />
+                  </div>
+                  <CardTitle className="text-lg text-gray-900">{item.title}</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <CardDescription className="text-sm">
+                <CardDescription className="text-sm text-gray-600 leading-relaxed">
                   {item.description}
                 </CardDescription>
               </CardContent>

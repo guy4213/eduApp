@@ -24,66 +24,68 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  <>
-                    <Navigation />
-                    <Index />
-                  </>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/calendar" 
-              element={
-                <ProtectedRoute>
-                  <>
-                    <Navigation />
-                    <Calendar />
-                  </>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/lesson-report" 
-              element={
-                <ProtectedRoute>
-                  <>
-                    <Navigation />
-                    <LessonReport />
-                  </>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/courses" 
-              element={
-                <ProtectedRoute>
-                  <>
-                    <Navigation />
-                    <Courses />
-                  </>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/reports" 
-              element={
-                <ProtectedRoute>
-                  <>
-                    <Navigation />
-                    <Reports />
-                  </>
-                </ProtectedRoute>
-              } 
-            />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route 
+                path="/" 
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen">
+                      <Navigation />
+                      <Index />
+                    </div>
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/calendar" 
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen">
+                      <Navigation />
+                      <Calendar />
+                    </div>
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/lesson-report" 
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen">
+                      <Navigation />
+                      <LessonReport />
+                    </div>
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/courses" 
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen">
+                      <Navigation />
+                      <Courses />
+                    </div>
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/reports" 
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen">
+                      <Navigation />
+                      <Reports />
+                    </div>
+                  </ProtectedRoute>
+                } 
+              />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </div>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

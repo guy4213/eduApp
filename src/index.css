@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -99,5 +100,40 @@
 
   body {
     @apply bg-background text-foreground;
+    direction: rtl;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  html {
+    direction: rtl;
+  }
+
+  /* Fix for buttons and interactive elements */
+  button, input, select, textarea {
+    direction: rtl;
+  }
+
+  /* Ensure proper text alignment for Hebrew */
+  p, h1, h2, h3, h4, h5, h6, span, div {
+    text-align: right;
+  }
+}
+
+/* Custom RTL utilities */
+@layer utilities {
+  .rtl {
+    direction: rtl;
+  }
+  
+  .ltr {
+    direction: ltr;
+  }
+  
+  .text-start-rtl {
+    text-align: right;
+  }
+  
+  .text-end-rtl {
+    text-align: left;
   }
 }
