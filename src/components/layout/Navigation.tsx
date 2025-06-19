@@ -29,13 +29,26 @@ const Navigation = () => {
       <header className="hidden md:block bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg border-b border-blue-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Logo & Hamburger Menu */}
-            <div className="flex items-center space-x-8">
-              {/* Logo */}
-              <div className="flex items-center">
-                <BookOpen className="h-8 w-8 text-blue-200 ml-3" />
-                <h1 className="text-xl font-bold text-white">מערכת ניהול מנחים</h1>
-              </div>
+            {/* Logo */}
+            <div className="flex items-center">
+              <BookOpen className="h-8 w-8 text-blue-200 ml-3" />
+              <h1 className="text-xl font-bold text-white">מערכת ניהול מנחים</h1>
+            </div>
+            
+            {/* Hamburger Menu & User Info */}
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-blue-100 font-medium">
+                שלום, {user?.user_metadata?.full_name || user?.email}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSignOut}
+                className="flex items-center space-x-2 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white"
+              >
+                <LogOut className="h-4 w-4 ml-2" />
+                <span>יציאה</span>
+              </Button>
               
               {/* Hamburger Menu */}
               <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -75,22 +88,6 @@ const Navigation = () => {
                   </div>
                 </SheetContent>
               </Sheet>
-            </div>
-            
-            {/* User Info & Logout */}
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-blue-100 font-medium">
-                שלום, {user?.user_metadata?.full_name || user?.email}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSignOut}
-                className="flex items-center space-x-2 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white"
-              >
-                <LogOut className="h-4 w-4 ml-2" />
-                <span>יציאה</span>
-              </Button>
             </div>
           </div>
         </div>
