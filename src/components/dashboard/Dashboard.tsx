@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatsCard } from './StatsCard';
 import { Progress } from '@/components/ui/progress';
-import { Calendar, Users, BookOpen, BarChart3, Settings, Clock, MapPin, Star, Award, Plus } from 'lucide-react';
+import { Calendar, Users, BookOpen, BarChart3, Settings, Clock, MapPin, Star, Award, Plus, CalendarIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { WeeklyCalendar } from '../ui/WeeklyCalendar';
 
 interface DashboardStats {
   totalLessons: number;
@@ -17,6 +18,45 @@ interface DashboardStats {
   upcomingLessons: any[];
   recentActivity: any[];
 }
+export interface ClassItem {
+  time: string;
+  title: string;
+  instructor: string;
+  booked: number;
+  capacity: number;
+  avatars: string[];
+  status: "available" | "booked";
+  date?: string; // optional ISO date for filtering
+}
+const mockClasses: ClassItem[] = [
+  {
+    time: "08:00",
+    title: "איגרוף שקים",
+    instructor: "יוסף חיים בצלאל",
+    booked: 11,
+    capacity: 14,
+    avatars: ["/avatar1.png", "/avatar2.png", "/avatar3.png"],
+    status: "available", // ✅ string literal, matches the union
+  },
+  {
+    time: "09:05",
+    title: "BOXING METCON",
+    instructor: "יוסף חיים בצלאל",
+    booked: 4,
+    capacity: 14,
+    avatars: ["/avatar1.png", "/avatar4.png"],
+    status: "available",
+  },
+  {
+    time: "10:10",
+    title: "איגרוף קלאסי",
+    instructor: "דביר סלע",
+    booked: 10,
+    capacity: 14,
+    avatars: ["/avatar5.png", "/avatar6.png", "/avatar7.png"],
+    status: "booked", // ✅ this is the only other valid value
+  },
+];
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -29,6 +69,7 @@ const Dashboard = () => {
     recentActivity: []
   });
   const [loading, setLoading] = useState(true);
+const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -134,7 +175,17 @@ const Dashboard = () => {
               color="bg-gradient-to-r from-purple-500 to-indigo-500"
             />
           </div>
+          <div className="lg:col-span-2">
+            <div className="p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <CalendarIcon className="w-5 h-5 text-gray-500" />
+        <span>בחר תאריך:</span>
+      </div>
 
+      {/* ✅ Correct usage */}
+    <WeeklyCalendar selectedDate={selectedDate} setSelectedDate={setSelectedDate} classes={mockClasses} />
+      </div>
+          </div>
           {/* Main Dashboard Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             {/* Daily Calendar */}
@@ -221,7 +272,7 @@ const Dashboard = () => {
             {/* Performance Statistics */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-t-lg">
-                <CardTitle className="text-xl">ביצועים מדדדים 📊</CardTitle>
+                <CardTitle className="text-xl">ביצועים מדדים 📊</CardTitle>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 {/* Performance Metrics */}
