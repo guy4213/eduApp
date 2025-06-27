@@ -10,8 +10,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 const LessonReport = () => {
-  const fileInputRef = useRef(null);
-  const [files, setFiles] = useState([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [lessonTitle, setLessonTitle] = useState('');
   const [participants, setParticipants] = useState('');
   const [notes, setNotes] = useState('');
@@ -20,26 +20,26 @@ const LessonReport = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const handleFileSelect = (event) => {
-    const selectedFiles = Array.from(event.target.files);
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files || []);
     setFiles((prev) => [...prev, ...selectedFiles]);
   };
 
-  const handleDrop = (event) => {
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const droppedFiles = Array.from(event.dataTransfer.files);
     setFiles((prev) => [...prev, ...droppedFiles]);
   };
 
   const handleClick = () => {
-    fileInputRef.current.click();
+    fileInputRef.current?.click();
   };
 
-  const handleRemoveFile = (index) => {
+  const handleRemoveFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const uploadFile = async (file, lessonReportId) => {
+  const uploadFile = async (file: File, lessonReportId: string) => {
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
@@ -154,7 +154,7 @@ const LessonReport = () => {
       console.error('Submit error:', error);
       toast({
         title: "שגיאה",
-        description: error.message || "אירעה שגיאה בשמירת הדיווח",
+        description: error instanceof Error ? error.message : "אירעה שגיאה בשמירת הדיווח",
         variant: "destructive"
       });
     } finally {
