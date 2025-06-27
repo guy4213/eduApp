@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { BookOpen, Users, Calendar, MapPin, Plus, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import CourseCreateDialog from '@/components/CourseCreateDialog';
 
 interface Course {
   id: string;
@@ -22,47 +23,52 @@ const Courses = () => {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+
+  const fetchCourses = async () => {
+    if (!user) return;
+
+    try {
+      const { data: coursesData } = await supabase
+        .from('courses')
+        .select(`
+          id,
+          name,
+          grade_level,
+          max_participants,
+          price_per_lesson,
+          educational_institutions(name),
+          curricula(name),
+          lessons(count)
+        `)
+        .eq('instructor_id', user.id);
+
+      const formattedCourses = coursesData?.map(course => ({
+        id: course.id,
+        name: course.name,
+        grade_level: course.grade_level || 'לא צוין',
+        max_participants: course.max_participants || 0,
+        price_per_lesson: course.price_per_lesson || 0,
+        institution_name: course.educational_institutions?.name || 'לא צוין',
+        curriculum_name: course.curricula?.name || 'לא צוין',
+        lesson_count: course.lessons?.length || 0
+      })) || [];
+
+      setCourses(formattedCourses);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchCourses = async () => {
-      if (!user) return;
-
-      try {
-        const { data: coursesData } = await supabase
-          .from('courses')
-          .select(`
-            id,
-            name,
-            grade_level,
-            max_participants,
-            price_per_lesson,
-            educational_institutions(name),
-            curricula(name),
-            lessons(count)
-          `)
-          .eq('instructor_id', user.id);
-
-        const formattedCourses = coursesData?.map(course => ({
-          id: course.id,
-          name: course.name,
-          grade_level: course.grade_level || 'לא צוין',
-          max_participants: course.max_participants || 0,
-          price_per_lesson: course.price_per_lesson || 0,
-          institution_name: course.educational_institutions?.name || 'לא צוין',
-          curriculum_name: course.curricula?.name || 'לא צוין',
-          lesson_count: course.lessons?.length || 0
-        })) || [];
-
-        setCourses(formattedCourses);
-      } catch (error) {
-        console.error('Error fetching courses:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchCourses();
   }, [user]);
+
+  const handleCourseCreated = () => {
+    fetchCourses(); // Refresh the courses list
+  };
 
   if (loading) {
     return (
@@ -82,7 +88,10 @@ const Courses = () => {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">ניהול קורסים</h1>
             <p className="text-gray-600 text-lg">ניהול וצפייה בכל הקורסים שאתה מעביר</p>
           </div>
-          <Button className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg">
+          <Button 
+            onClick={() => setShowCreateDialog(true)}
+            className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg"
+          >
             <Plus className="h-4 w-4" />
             <span>קורס חדש</span>
           </Button>
@@ -94,7 +103,10 @@ const Courses = () => {
               <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-6" />
               <h3 className="text-xl font-semibold text-gray-900 mb-3">אין קורסים עדיין</h3>
               <p className="text-gray-600 mb-6 text-lg">התחל ליצור את הקורס הראשון שלך</p>
-              <Button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg">
+              <Button 
+                onClick={() => setShowCreateDialog(true)}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg"
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 צור קורס חדש
               </Button>
@@ -161,6 +173,12 @@ const Courses = () => {
             ))}
           </div>
         )}
+
+        <CourseCreateDialog
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          onCourseCreated={handleCourseCreated}
+        />
       </main>
     </div>
   );
