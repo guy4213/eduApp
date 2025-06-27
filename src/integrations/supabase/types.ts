@@ -177,6 +177,7 @@ export type Database = {
           id: string
           is_for_marketing: boolean | null
           lesson_id: string | null
+          lesson_report_id: string | null
           uploaded_at: string | null
         }
         Insert: {
@@ -187,6 +188,7 @@ export type Database = {
           id?: string
           is_for_marketing?: boolean | null
           lesson_id?: string | null
+          lesson_report_id?: string | null
           uploaded_at?: string | null
         }
         Update: {
@@ -197,6 +199,7 @@ export type Database = {
           id?: string
           is_for_marketing?: boolean | null
           lesson_id?: string | null
+          lesson_report_id?: string | null
           uploaded_at?: string | null
         }
         Relationships: [
@@ -205,6 +208,57 @@ export type Database = {
             columns: ["lesson_id"]
             isOneToOne: false
             referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_files_lesson_report_id_fkey"
+            columns: ["lesson_report_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_reports: {
+        Row: {
+          created_at: string
+          feedback: string | null
+          id: string
+          instructor_id: string | null
+          lesson_title: string
+          marketing_consent: boolean | null
+          notes: string | null
+          participants_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          instructor_id?: string | null
+          lesson_title: string
+          marketing_consent?: boolean | null
+          notes?: string | null
+          participants_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          instructor_id?: string | null
+          lesson_title?: string
+          marketing_consent?: boolean | null
+          notes?: string | null
+          participants_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_reports_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
