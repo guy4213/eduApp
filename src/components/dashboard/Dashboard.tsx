@@ -37,6 +37,7 @@ const mockClasses: ClassItem[] = [
     capacity: 14,
     avatars: ["/avatar1.png", "/avatar2.png", "/avatar3.png"],
     status: "available", // ✅ string literal, matches the union
+    date: "2025-06-18T08:00:00Z", // example date
   },
   {
     time: "09:05",
@@ -46,6 +47,8 @@ const mockClasses: ClassItem[] = [
     capacity: 14,
     avatars: ["/avatar1.png", "/avatar4.png"],
     status: "available",
+    date: "2025-06-18T08:00:00Z", // example date
+
   },
   {
     time: "10:10",
@@ -55,6 +58,8 @@ const mockClasses: ClassItem[] = [
     capacity: 14,
     avatars: ["/avatar5.png", "/avatar6.png", "/avatar7.png"],
     status: "booked", // ✅ this is the only other valid value
+    date: "2025-06-18T08:00:00Z", // example date
+
   },
 ];
 
