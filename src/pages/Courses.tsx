@@ -1,12 +1,24 @@
+
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, Users, Calendar, Plus, Edit } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { BookOpen, Users, Calendar, Plus, Edit, Clock, CheckCircle2, Circle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import CourseCreateDialog from '@/components/CourseCreateDialog';
 import MobileNavigation from '@/components/layout/MobileNavigation';
+
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  estimated_duration: number;
+  is_mandatory: boolean;
+  lesson_number: number;
+  order_index: number;
+}
 
 interface Course {
   id: string;
@@ -16,7 +28,9 @@ interface Course {
   price_per_lesson: number;
   institution_name: string;
   curriculum_name: string;
-  lesson_count: number; // currently 0, update with actual data if needed
+  curriculum_id: string;
+  lesson_count: number;
+  tasks: Task[];
 }
 
 const Courses = () => {
@@ -37,6 +51,7 @@ const Courses = () => {
           grade_level,
           max_participants,
           price_per_lesson,
+          curriculum_id,
           educational_institutions(name),
           curricula(name),
           instructor_id
@@ -44,18 +59,50 @@ const Courses = () => {
 
       if (error) throw error;
 
-      const formattedCourses = coursesData?.map((course: any) => ({
-        id: course.id,
-        name: course.name,
-        grade_level: course.grade_level || 'לא צוין',
-        max_participants: course.max_participants || 0,
-        price_per_lesson: course.price_per_lesson || 0,
-        institution_name: course.educational_institutions?.name || 'לא צוין',
-        curriculum_name: course.curricula?.name || 'לא צוין',
-        lesson_count: 0, // Set to 0 for now, update later if you fetch lessons count
-      })) || [];
+      // Fetch tasks for each curriculum
+      const courseIds = coursesData?.map(course => course.curriculum_id).filter(Boolean) || [];
+      let tasksData: any[] = [];
+      
+      if (courseIds.length > 0) {
+        const { data: tasks, error: tasksError } = await supabase
+          .from('curriculum_tasks')
+          .select('*')
+          .in('curriculum_id', courseIds)
+          .order('lesson_number, order_index');
 
-      console.log("formattedCourses: ", formattedCourses);
+        if (tasksError) {
+          console.error('Error fetching tasks:', tasksError);
+        } else {
+          tasksData = tasks || [];
+        }
+      }
+
+      const formattedCourses = coursesData?.map((course: any) => {
+        const courseTasks = tasksData.filter(task => task.curriculum_id === course.curriculum_id);
+        
+        return {
+          id: course.id,
+          name: course.name,
+          grade_level: course.grade_level || 'לא צוין',
+          max_participants: course.max_participants || 0,
+          price_per_lesson: course.price_per_lesson || 0,
+          institution_name: course.educational_institutions?.name || 'לא צוין',
+          curriculum_name: course.curricula?.name || 'לא צוין',
+          curriculum_id: course.curriculum_id,
+          lesson_count: 0,
+          tasks: courseTasks.map((task: any) => ({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            estimated_duration: task.estimated_duration,
+            is_mandatory: task.is_mandatory,
+            lesson_number: task.lesson_number,
+            order_index: task.order_index
+          }))
+        };
+      }) || [];
+
+      console.log("formattedCourses with tasks: ", formattedCourses);
       setCourses(formattedCourses);
     } catch (error) {
       console.error('Error fetching courses:', error);
@@ -118,13 +165,13 @@ const Courses = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="space-y-8">
             {courses.map((course) => (
-              <Card key={course.id} className="hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm hover:scale-105">
+              <Card key={course.id} className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
                 <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="text-xl mb-2 text-white">{course.name}</CardTitle>
+                      <CardTitle className="text-2xl mb-2 text-white">{course.name}</CardTitle>
                       <CardDescription className="text-blue-100 text-base">{course.institution_name}</CardDescription>
                     </div>
                     <Button variant="ghost" size="sm" className="text-white hover:bg-white/20">
@@ -132,38 +179,100 @@ const Courses = () => {
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4 p-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 font-medium">תוכנית לימודים:</span>
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">{course.curriculum_name}</Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 font-medium">כיתה:</span>
-                    <span className="text-sm font-semibold text-gray-900">{course.grade_level}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 font-medium">משתתפים מקסימום:</span>
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-1 text-gray-500" />
-                      <span className="text-sm font-semibold text-gray-900">{course.max_participants}</span>
+                
+                <CardContent className="p-6">
+                  {/* Course Details */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600 font-medium">תוכנית לימודים:</span>
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">{course.curriculum_name}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600 font-medium">כיתה:</span>
+                      <span className="text-sm font-semibold text-gray-900">{course.grade_level}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600 font-medium">משתתפים:</span>
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 mr-1 text-gray-500" />
+                        <span className="text-sm font-semibold text-gray-900">{course.max_participants}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600 font-medium">מחיר לשיעור:</span>
+                      <span className="text-sm font-semibold text-green-600">₪{course.price_per_lesson}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 font-medium">מחיר לשיעור:</span>
-                    <span className="text-sm font-semibold text-green-600">₪{course.price_per_lesson}</span>
+                  {/* Tasks Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <CheckCircle2 className="h-5 w-5 mr-2 text-blue-600" />
+                      משימות הקורס ({course.tasks.length})
+                    </h3>
+                    
+                    {course.tasks.length > 0 ? (
+                      <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-gray-50">
+                              <TableHead className="text-right font-semibold">שם המשימה</TableHead>
+                              <TableHead className="text-right font-semibold">תיאור</TableHead>
+                              <TableHead className="text-right font-semibold">שיעור</TableHead>
+                              <TableHead className="text-right font-semibold">זמן מוערך</TableHead>
+                              <TableHead className="text-right font-semibold">סוג</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {course.tasks.map((task) => (
+                              <TableRow key={task.id} className="hover:bg-gray-50">
+                                <TableCell className="font-medium">
+                                  <div className="flex items-center">
+                                    {task.is_mandatory ? (
+                                      <CheckCircle2 className="h-4 w-4 text-red-500 mr-2" />
+                                    ) : (
+                                      <Circle className="h-4 w-4 text-gray-400 mr-2" />
+                                    )}
+                                    {task.title}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-gray-600 max-w-xs truncate">
+                                  {task.description || 'ללא תיאור'}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-xs">
+                                    שיעור {task.lesson_number}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center text-sm text-gray-600">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    {task.estimated_duration} דק׳
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge 
+                                    variant={task.is_mandatory ? "destructive" : "secondary"}
+                                    className={task.is_mandatory ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"}
+                                  >
+                                    {task.is_mandatory ? 'חובה' : 'רשות'}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                        <Circle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                        <p>אין משימות עבור הקורס הזה</p>
+                        <p className="text-sm">ניתן להוסיף משימות בעת עריכת הקורס</p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 font-medium">שיעורים:</span>
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-1 text-gray-500" />
-                      <span className="text-sm font-semibold text-gray-900">{course.lesson_count}</span>
-                    </div>
-                  </div>
-
+                  {/* Action Buttons */}
                   <div className="pt-6 space-y-3">
                     <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" size="sm">
                       צפה בפרטים

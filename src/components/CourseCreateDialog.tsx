@@ -1,10 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -173,29 +171,45 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
 
       if (courseError) throw courseError;
 
-      // Create tasks if any
+      // Create tasks if any and curriculum is selected
       if (tasks.length > 0 && formData.curriculum_id) {
-        const tasksData = tasks.map(task => ({
-          title: task.title,
-          description: task.description,
-          estimated_duration: task.estimated_duration,
-          is_mandatory: task.is_mandatory,
-          lesson_number: task.lesson_number,
-          order_index: task.order_index,
-          curriculum_id: formData.curriculum_id
-        }));
-
-        const { error: tasksError } = await supabase
+        // Check if curriculum already has tasks
+        const { data: existingTasks, error: checkError } = await supabase
           .from('curriculum_tasks')
-          .insert(tasksData);
+          .select('id')
+          .eq('curriculum_id', formData.curriculum_id)
+          .limit(1);
 
-        if (tasksError) {
-          console.error('Error creating tasks:', tasksError);
-          toast({
-            title: "אזהרה",
-            description: "הקורס נוצר בהצלחה אך חלק מהמשימות לא נשמרו",
-            variant: "destructive"
-          });
+        if (checkError) {
+          console.error('Error checking existing tasks:', checkError);
+        }
+
+        // Only insert tasks if curriculum doesn't have tasks yet
+        if (!existingTasks || existingTasks.length === 0) {
+          const tasksData = tasks.map(task => ({
+            title: task.title,
+            description: task.description,
+            estimated_duration: task.estimated_duration,
+            is_mandatory: task.is_mandatory,
+            lesson_number: task.lesson_number,
+            order_index: task.order_index,
+            curriculum_id: formData.curriculum_id
+          }));
+
+          const { error: tasksError } = await supabase
+            .from('curriculum_tasks')
+            .insert(tasksData);
+
+          if (tasksError) {
+            console.error('Error creating tasks:', tasksError);
+            toast({
+              title: "אזהרה",
+              description: "הקורס נוצר בהצלחה אך חלק מהמשימות לא נשמרו",
+              variant: "destructive"
+            });
+          }
+        } else {
+          console.log('Curriculum already has tasks, skipping task creation');
         }
       }
 
@@ -238,6 +252,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
             </TabsList>
             
             <TabsContent value="details" className="space-y-4">
+              
               <div className="space-y-2">
                 <Label htmlFor="name">שם הקורס *</Label>
                 <Input
