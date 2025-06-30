@@ -1,8 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -11,32 +9,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 import CourseTasksSection from './CourseTasksSection';
+import CourseDetailsForm from './course/CourseDetailsForm';
+import { useCourseData } from './course/useCourseData';
+import { useCourseSubmit } from './course/useCourseSubmit';
 
 interface CourseCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCourseCreated: () => void;
-}
-
-interface Institution {
-  id: string;
-  name: string;
-}
-
-interface Curriculum {
-  id: string;
-  name: string;
 }
 
 interface Task {
@@ -50,11 +32,8 @@ interface Task {
 }
 
 const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreateDialogProps) => {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [curricula, setCurricula] = useState<Curriculum[]>([]);
+  const { institutions, curricula } = useCourseData();
+  const { loading, handleSubmit } = useCourseSubmit(onCourseCreated, onOpenChange);
   const [tasks, setTasks] = useState<Task[]>([]);
   
   const [formData, setFormData] = useState({
@@ -68,8 +47,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
 
   useEffect(() => {
     if (open) {
-      fetchInstitutions();
-      fetchCurricula();
       // Reset form and tasks when dialog opens
       setFormData({
         name: '',
@@ -83,44 +60,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
     }
   }, [open]);
 
-  const fetchInstitutions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('educational_institutions')
-        .select('id, name')
-        .order('name');
-      
-      if (error) throw error;
-      setInstitutions(data || []);
-    } catch (error) {
-      console.error('Error fetching institutions:', error);
-      toast({
-        title: "שגיאה",
-        description: "לא ניתן לטעון את רשימת המוסדות",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const fetchCurricula = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('curricula')
-        .select('id, name')
-        .order('name');
-      
-      if (error) throw error;
-      setCurricula(data || []);
-    } catch (error) {
-      console.error('Error fetching curricula:', error);
-      toast({
-        title: "שגיאה",
-        description: "לא ניתן לטעון את רשימת תוכניות הלימודים",
-        variant: "destructive"
-      });
-    }
-  };
-
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -128,110 +67,9 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!user) {
-      toast({
-        title: "שגיאה",
-        description: "יש להתחבר כדי ליצור קורס",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!formData.name.trim()) {
-      toast({
-        title: "שגיאה",
-        description: "יש להזין שם קורס",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // Create course
-      const courseData = {
-        name: formData.name.trim(),
-        grade_level: formData.grade_level.trim() || null,
-        max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,
-        price_per_lesson: formData.price_per_lesson ? parseFloat(formData.price_per_lesson) : null,
-        institution_id: formData.institution_id || null,
-        curriculum_id: formData.curriculum_id || null,
-        instructor_id: user.id
-      };
-
-      const { data: courseResult, error: courseError } = await supabase
-        .from('courses')
-        .insert([courseData])
-        .select()
-        .single();
-
-      if (courseError) throw courseError;
-
-      // Create tasks if any and curriculum is selected
-      if (tasks.length > 0 && formData.curriculum_id) {
-        // Check if curriculum already has tasks
-        const { data: existingTasks, error: checkError } = await supabase
-          .from('curriculum_tasks')
-          .select('id')
-          .eq('curriculum_id', formData.curriculum_id)
-          .limit(1);
-
-        if (checkError) {
-          console.error('Error checking existing tasks:', checkError);
-        }
-
-        // Only insert tasks if curriculum doesn't have tasks yet
-        if (!existingTasks || existingTasks.length === 0) {
-          const tasksData = tasks.map(task => ({
-            title: task.title,
-            description: task.description,
-            estimated_duration: task.estimated_duration,
-            is_mandatory: task.is_mandatory,
-            lesson_number: task.lesson_number,
-            order_index: task.order_index,
-            curriculum_id: formData.curriculum_id
-          }));
-
-          const { error: tasksError } = await supabase
-            .from('curriculum_tasks')
-            .insert(tasksData);
-
-          if (tasksError) {
-            console.error('Error creating tasks:', tasksError);
-            toast({
-              title: "אזהרה",
-              description: "הקורס נוצר בהצלחה אך חלק מהמשימות לא נשמרו",
-              variant: "destructive"
-            });
-          }
-        } else {
-          console.log('Curriculum already has tasks, skipping task creation');
-        }
-      }
-
-      toast({
-        title: "הצלחה",
-        description: "הקורס נוצר בהצלחה" + (tasks.length > 0 ? ` עם ${tasks.length} משימות` : ""),
-        variant: "default"
-      });
-
-      onCourseCreated();
-      onOpenChange(false);
-
-    } catch (error) {
-      console.error('Error creating course:', error);
-      toast({
-        title: "שגיאה",
-        description: error instanceof Error ? error.message : "אירעה שגיאה ביצירת הקורס",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+    await handleSubmit(formData, tasks);
   };
 
   return (
@@ -244,7 +82,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4">
           <Tabs defaultValue="details" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="details">פרטי הקורס</TabsTrigger>
@@ -252,92 +90,12 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
             </TabsList>
             
             <TabsContent value="details" className="space-y-4">
-              
-              <div className="space-y-2">
-                <Label htmlFor="name">שם הקורס *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  placeholder="הזן שם קורס"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="grade_level">כיתה</Label>
-                <Input
-                  id="grade_level"
-                  value={formData.grade_level}
-                  onChange={(e) => handleInputChange('grade_level', e.target.value)}
-                  placeholder="למשל: כיתה ז'"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="max_participants">מספר משתתפים מקסימלי</Label>
-                  <Input
-                    id="max_participants"
-                    type="number"
-                    value={formData.max_participants}
-                    onChange={(e) => handleInputChange('max_participants', e.target.value)}
-                    placeholder="20"
-                    min="1"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="price_per_lesson">מחיר לשיעור (₪)</Label>
-                  <Input
-                    id="price_per_lesson"
-                    type="number"
-                    step="0.01"
-                    value={formData.price_per_lesson}
-                    onChange={(e) => handleInputChange('price_per_lesson', e.target.value)}
-                    placeholder="150"
-                    min="0"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="institution">מוסד חינוכי</Label>
-                <Select
-                  value={formData.institution_id}
-                  onValueChange={(value) => handleInputChange('institution_id', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="בחר מוסד חינוכי" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {institutions.map((institution) => (
-                      <SelectItem key={institution.id} value={institution.id}>
-                        {institution.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="curriculum">תוכנית לימודים</Label>
-                <Select
-                  value={formData.curriculum_id}
-                  onValueChange={(value) => handleInputChange('curriculum_id', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="בחר תוכנית לימודים" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {curricula.map((curriculum) => (
-                      <SelectItem key={curriculum.id} value={curriculum.id}>
-                        {curriculum.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <CourseDetailsForm
+                formData={formData}
+                institutions={institutions}
+                curricula={curricula}
+                onInputChange={handleInputChange}
+              />
             </TabsContent>
             
             <TabsContent value="tasks" className="space-y-4">
