@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { BarChart3, Calendar, DollarSign, TrendingUp, Download, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import MobileNavigation from '@/components/layout/MobileNavigation';
 
 interface MonthlyReport {
   month: string;
@@ -110,6 +111,9 @@ const Reports = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
+            <div className="md:hidden">
+            <MobileNavigation />
+            </div>
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">

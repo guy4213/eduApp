@@ -1,12 +1,12 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, Users, Calendar, MapPin, Plus, Edit } from 'lucide-react';
+import { BookOpen, Users, Calendar, Plus, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import CourseCreateDialog from '@/components/CourseCreateDialog';
+import MobileNavigation from '@/components/layout/MobileNavigation';
 
 interface Course {
   id: string;
@@ -16,7 +16,7 @@ interface Course {
   price_per_lesson: number;
   institution_name: string;
   curriculum_name: string;
-  lesson_count: number;
+  lesson_count: number; // currently 0, update with actual data if needed
 }
 
 const Courses = () => {
@@ -29,7 +29,7 @@ const Courses = () => {
     if (!user) return;
 
     try {
-      const { data: coursesData } = await supabase
+      const { data: coursesData, error } = await supabase
         .from('courses')
         .select(`
           id,
@@ -39,11 +39,12 @@ const Courses = () => {
           price_per_lesson,
           educational_institutions(name),
           curricula(name),
-          lessons(count)
-        `)
-        .eq('instructor_id', user.id);
+          instructor_id
+        `);
 
-      const formattedCourses = coursesData?.map(course => ({
+      if (error) throw error;
+
+      const formattedCourses = coursesData?.map((course: any) => ({
         id: course.id,
         name: course.name,
         grade_level: course.grade_level || 'לא צוין',
@@ -51,9 +52,10 @@ const Courses = () => {
         price_per_lesson: course.price_per_lesson || 0,
         institution_name: course.educational_institutions?.name || 'לא צוין',
         curriculum_name: course.curricula?.name || 'לא צוין',
-        lesson_count: course.lessons?.length || 0
+        lesson_count: 0, // Set to 0 for now, update later if you fetch lessons count
       })) || [];
 
+      console.log("formattedCourses: ", formattedCourses);
       setCourses(formattedCourses);
     } catch (error) {
       console.error('Error fetching courses:', error);
@@ -67,7 +69,7 @@ const Courses = () => {
   }, [user]);
 
   const handleCourseCreated = () => {
-    fetchCourses(); // Refresh the courses list
+    fetchCourses();
   };
 
   if (loading) {
@@ -80,15 +82,18 @@ const Courses = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Main Content */}
+      <div className="md:hidden">
+        <MobileNavigation />
+      </div>
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Section */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">ניהול קורסים</h1>
             <p className="text-gray-600 text-lg">ניהול וצפייה בכל הקורסים שאתה מעביר</p>
           </div>
-          <Button 
+          <Button
             onClick={() => setShowCreateDialog(true)}
             className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg"
           >
@@ -103,7 +108,7 @@ const Courses = () => {
               <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-6" />
               <h3 className="text-xl font-semibold text-gray-900 mb-3">אין קורסים עדיין</h3>
               <p className="text-gray-600 mb-6 text-lg">התחל ליצור את הקורס הראשון שלך</p>
-              <Button 
+              <Button
                 onClick={() => setShowCreateDialog(true)}
                 className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg"
               >
@@ -132,7 +137,7 @@ const Courses = () => {
                     <span className="text-sm text-gray-600 font-medium">תוכנית לימודים:</span>
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800">{course.curriculum_name}</Badge>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600 font-medium">כיתה:</span>
                     <span className="text-sm font-semibold text-gray-900">{course.grade_level}</span>
@@ -180,7 +185,7 @@ const Courses = () => {
           onCourseCreated={handleCourseCreated}
         />
       </main>
-    </div>
+    </div>   
   );
 };
 

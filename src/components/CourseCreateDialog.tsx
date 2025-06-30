@@ -43,7 +43,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([{id:"1",name:"ofek"}]);
   const [curricula, setCurricula] = useState<Curriculum[]>([]);
   
   const [formData, setFormData] = useState({
@@ -68,7 +68,8 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
         .from('educational_institutions')
         .select('id, name')
         .order('name');
-
+        console.log("educational_institutions :  ",data)
+        console.log("Current user:", user);
       if (error) throw error;
       setInstitutions(data || []);
     } catch (error) {
@@ -87,7 +88,8 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
         .from('curricula')
         .select('id, name')
         .order('name');
-
+        console.log("fetchCurricula :  ",data)
+        console.log("userROLE: "+user.role); 
       if (error) throw error;
       setCurricula(data || []);
     } catch (error) {
@@ -180,7 +182,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-w-[370px]  sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>יצירת קורס חדש</DialogTitle>
           <DialogDescription>

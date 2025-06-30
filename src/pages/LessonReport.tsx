@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import MobileNavigation from '@/components/layout/MobileNavigation';
 
 const LessonReport = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -164,6 +165,9 @@ const LessonReport = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+      <div className="md:hidden">
+      <MobileNavigation />
+      </div>
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">דיווח שיעור</h1>

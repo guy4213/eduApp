@@ -14,6 +14,7 @@ import LessonReport from "./pages/LessonReport";
 import Courses from "./pages/Courses";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
+import MobileNavigation from "./components/layout/MobileNavigation";
 
 const queryClient = new QueryClient();
 
@@ -33,8 +34,10 @@ const App = () => (
                   <ProtectedRoute>
                     <div className="min-h-screen">
                       <Navigation />
+                      
                       <Index />
                     </div>
+                    
                   </ProtectedRoute>
                 } 
               />

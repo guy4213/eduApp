@@ -36,7 +36,7 @@ const Navigation = () => {
                      <Sheet open={isOpen} onOpenChange={setIsOpen}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="sm" className="text-white hover:bg-white/10">
-                    <Menu className="h-6 w-6" />
+                    <Menu className=" hidden  md:block md:h-6 md:w-6" />
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right" className="w-80 bg-white">

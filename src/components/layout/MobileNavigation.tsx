@@ -1,32 +1,34 @@
-
+// MobileNavigation.tsx (updated for matching desktop styling and routing)
 import React from 'react';
-import { Home, User, Calendar, Bell, MoreHorizontal } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { NavLink } from 'react-router-dom';
+import { BookOpen, Calendar, FileText, Users, BarChart3 } from 'lucide-react';
+
+const navItems = [
+  { path: '/', label: 'דשבורד', icon: BookOpen },
+  { path: '/calendar', label: 'יומן', icon: Calendar },
+  { path: '/lesson-report', label: 'שיעור', icon: FileText },
+  { path: '/courses', label: 'קורסים', icon: Users },
+  { path: '/reports', label: 'דוחות', icon: BarChart3 },
+];
 
 const MobileNavigation = () => {
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 md:hidden">
-      <div className="flex justify-around items-center">
-        <Button variant="ghost" size="sm" className="flex flex-col items-center p-2">
-          <Home className="h-5 w-5 mb-1" />
-          <span className="text-xs">Home</span>
-        </Button>
-        <Button variant="ghost" size="sm" className="flex flex-col items-center p-2">
-          <User className="h-5 w-5 mb-1" />
-          <span className="text-xs">Profile</span>
-        </Button>
-        <Button variant="ghost" size="sm" className="flex flex-col items-center p-2 text-teal-600">
-          <Calendar className="h-5 w-5 mb-1" />
-          <span className="text-xs font-medium">Schedule</span>
-        </Button>
-        <Button variant="ghost" size="sm" className="flex flex-col items-center p-2">
-          <Bell className="h-5 w-5 mb-1" />
-          <span className="text-xs">Alerts</span>
-        </Button>
-        <Button variant="ghost" size="sm" className="flex flex-col items-center p-2">
-          <MoreHorizontal className="h-5 w-5 mb-1" />
-          <span className="text-xs">More</span>
-        </Button>
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-1 md:hidden z-50">
+      <div className="flex justify-between items-center">
+        {navItems.map(({ path, label, icon: Icon }) => (
+          <NavLink
+            key={path}
+            to={path}
+            className={({ isActive }) =>
+              `flex flex-col items-center text-xs px-1 py-1 ${
+                isActive ? 'text-blue-600 font-bold' : 'text-gray-500'
+              }`
+            }
+          >
+            <Icon className="h-5 w-5 mb-0.5" />
+            <span>{label}</span>
+          </NavLink>
+        ))}
       </div>
     </div>
   );
