@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,7 +34,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
   const { institutions, curricula } = useCourseData();
   const { loading, handleSubmit } = useCourseSubmit(onCourseCreated, onOpenChange);
   const [tasks, setTasks] = useState<Task[]>([]);
-  
   const [formData, setFormData] = useState({
     name: '',
     grade_level: '',
@@ -47,7 +45,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
 
   useEffect(() => {
     if (open) {
-      // Reset form and tasks when dialog opens
       setFormData({
         name: '',
         grade_level: '',
@@ -77,18 +74,16 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
       <DialogContent className="max-w-[400px] sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>יצירת קורס חדש</DialogTitle>
-          <DialogDescription>
-            מלא את הפרטים כדי ליצור קורס חדש
-          </DialogDescription>
+          <DialogDescription>מלא את הפרטים כדי ליצור קורס חדש</DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={onSubmit} className="space-y-4">
           <Tabs defaultValue="details" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="details">פרטי הקורס</TabsTrigger>
               <TabsTrigger value="tasks">משימות</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="details" className="space-y-4">
               <CourseDetailsForm
                 formData={formData}
@@ -97,16 +92,13 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
                 onInputChange={handleInputChange}
               />
             </TabsContent>
-            
+
             <TabsContent value="tasks" className="space-y-4">
-              <CourseTasksSection
-                tasks={tasks}
-                onTasksChange={setTasks}
-              />
+              <CourseTasksSection tasks={tasks} onTasksChange={setTasks} />
             </TabsContent>
           </Tabs>
 
-          <DialogFooter>
+          <DialogFooter className="flex justify-between">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               ביטול
             </Button>

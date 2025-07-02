@@ -67,6 +67,50 @@ export type Database = {
           },
         ]
       }
+      courses_tasks: {
+        Row: {
+          course_id: string | null
+          created_at: string | null
+          description: string | null
+          estimated_duration: number | null
+          id: string
+          is_mandatory: boolean | null
+          lesson_number: number
+          order_index: number
+          title: string
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          estimated_duration?: number | null
+          id?: string
+          is_mandatory?: boolean | null
+          lesson_number: number
+          order_index: number
+          title: string
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          estimated_duration?: number | null
+          id?: string
+          is_mandatory?: boolean | null
+          lesson_number?: number
+          order_index?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courses_tasks_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       curricula: {
         Row: {
           age_group: string | null
@@ -93,50 +137,6 @@ export type Database = {
           name?: string
         }
         Relationships: []
-      }
-      curriculum_tasks: {
-        Row: {
-          created_at: string | null
-          curriculum_id: string | null
-          description: string | null
-          estimated_duration: number | null
-          id: string
-          is_mandatory: boolean | null
-          lesson_number: number
-          order_index: number
-          title: string
-        }
-        Insert: {
-          created_at?: string | null
-          curriculum_id?: string | null
-          description?: string | null
-          estimated_duration?: number | null
-          id?: string
-          is_mandatory?: boolean | null
-          lesson_number: number
-          order_index: number
-          title: string
-        }
-        Update: {
-          created_at?: string | null
-          curriculum_id?: string | null
-          description?: string | null
-          estimated_duration?: number | null
-          id?: string
-          is_mandatory?: boolean | null
-          lesson_number?: number
-          order_index?: number
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "curriculum_tasks_curriculum_id_fkey"
-            columns: ["curriculum_id"]
-            isOneToOne: false
-            referencedRelation: "curricula"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       educational_institutions: {
         Row: {
@@ -292,13 +292,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["task_status"] | null
         }
         Relationships: [
-          {
-            foreignKeyName: "lesson_task_completions_curriculum_task_id_fkey"
-            columns: ["curriculum_task_id"]
-            isOneToOne: false
-            referencedRelation: "curriculum_tasks"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "lesson_task_completions_lesson_id_fkey"
             columns: ["lesson_id"]

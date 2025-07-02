@@ -60,57 +60,56 @@ const Courses = () => {
       if (error) throw error;
 
       // Fetch tasks for each curriculum
-      const courseIds = coursesData?.map(course => course.curriculum_id).filter(Boolean) || [];
+      const courseIds = coursesData?.map(course => course.id).filter(Boolean) || [];
       let tasksData: any[] = [];
       
-      if (courseIds.length > 0) {
-        const { data: tasks, error: tasksError } = await supabase
-          .from('curriculum_tasks')
-          .select('*')
-          .in('curriculum_id', courseIds)
-          .order('lesson_number, order_index');
+    if (courseIds.length > 0) {
+      const { data: tasks, error: tasksError } = await supabase
+        .from('courses_tasks')  // שים לב - משימות לפי קורס
+        .select('*')
+        .in('course_id', courseIds)
+        .order('lesson_number, order_index');
 
-        if (tasksError) {
-          console.error('Error fetching tasks:', tasksError);
-        } else {
-          tasksData = tasks || [];
-        }
+      if (tasksError) {
+        console.error('Error fetching tasks:', tasksError);
+      } else {
+        tasksData = tasks || [];
       }
-
-      const formattedCourses = coursesData?.map((course: any) => {
-        const courseTasks = tasksData.filter(task => task.curriculum_id === course.curriculum_id);
-        
-        return {
-          id: course.id,
-          name: course.name,
-          grade_level: course.grade_level || 'לא צוין',
-          max_participants: course.max_participants || 0,
-          price_per_lesson: course.price_per_lesson || 0,
-          institution_name: course.educational_institutions?.name || 'לא צוין',
-          curriculum_name: course.curricula?.name || 'לא צוין',
-          curriculum_id: course.curriculum_id,
-          lesson_count: 0,
-          tasks: courseTasks.map((task: any) => ({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            estimated_duration: task.estimated_duration,
-            is_mandatory: task.is_mandatory,
-            lesson_number: task.lesson_number,
-            order_index: task.order_index
-          }))
-        };
-      }) || [];
-
-      console.log("formattedCourses with tasks: ", formattedCourses);
-      setCourses(formattedCourses);
-    } catch (error) {
-      console.error('Error fetching courses:', error);
-    } finally {
-      setLoading(false);
+      console.log("tasksData fetched:", tasksData);
     }
-  };
 
+   const formattedCourses = coursesData?.map((course: any) => {
+      const courseTasks = tasksData.filter(task => task.course_id === course.id);
+      return {
+        id: course.id,
+        name: course.name,
+        grade_level: course.grade_level || 'לא צוין',
+        max_participants: course.max_participants || 0,
+        price_per_lesson: course.price_per_lesson || 0,
+        institution_name: course.educational_institutions?.name || 'לא צוין',
+        curriculum_name: course.curricula?.name || 'לא צוין',
+        curriculum_id: course.curriculum_id,
+        lesson_count: 0,
+        tasks: courseTasks.map((task: any) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          estimated_duration: task.estimated_duration,
+          is_mandatory: task.is_mandatory,
+          lesson_number: task.lesson_number,
+          order_index: task.order_index,
+        })),
+      };
+    }) || [];
+
+    console.log("formattedCourses with tasks: ", formattedCourses);
+    setCourses(formattedCourses);
+  } catch (error) {
+    console.error('Error fetching courses:', error);
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => {
     fetchCourses();
   }, [user]);
