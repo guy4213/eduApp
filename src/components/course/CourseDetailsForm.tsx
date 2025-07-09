@@ -15,10 +15,7 @@ interface Institution {
   name: string;
 }
 
-interface Curriculum {
-  id: string;
-  name: string;
-}
+
 
 interface CourseDetailsFormProps {
   formData: {
@@ -27,14 +24,14 @@ interface CourseDetailsFormProps {
     max_participants: string;
     price_per_lesson: string;
     institution_id: string;
-    curriculum_id: string;
+  
   };
   institutions: Institution[];
-  curricula: Curriculum[];
+
   onInputChange: (field: string, value: string) => void;
 }
 
-const CourseDetailsForm = ({ formData, institutions, curricula, onInputChange }: CourseDetailsFormProps) => {
+const CourseDetailsForm = ({ formData, institutions, onInputChange }: CourseDetailsFormProps) => {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -104,24 +101,7 @@ const CourseDetailsForm = ({ formData, institutions, curricula, onInputChange }:
         </Select>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="curriculum">תוכנית לימודים</Label>
-        <Select
-          value={formData.curriculum_id}
-          onValueChange={(value) => onInputChange('curriculum_id', value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="בחר תוכנית לימודים" />
-          </SelectTrigger>
-          <SelectContent>
-            {curricula.map((curriculum) => (
-              <SelectItem key={curriculum.id} value={curriculum.id}>
-                {curriculum.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+
     </div>
   );
 };

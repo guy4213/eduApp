@@ -27,8 +27,7 @@ interface Course {
   max_participants: number;
   price_per_lesson: number;
   institution_name: string;
-  curriculum_name: string;
-  curriculum_id: string;
+
   lesson_count: number;
   tasks: Task[];
 }
@@ -51,9 +50,7 @@ const Courses = () => {
           grade_level,
           max_participants,
           price_per_lesson,
-          curriculum_id,
           educational_institutions(name),
-          curricula(name),
           instructor_id
         `);
 
@@ -65,7 +62,7 @@ const Courses = () => {
       
     if (courseIds.length > 0) {
       const { data: tasks, error: tasksError } = await supabase
-        .from('courses_tasks')  // שים לב - משימות לפי קורס
+        .from('lesson_tasks')  // שים לב - משימות לפי קורס
         .select('*')
         .in('course_id', courseIds)
         .order('lesson_number, order_index');
@@ -87,8 +84,6 @@ const Courses = () => {
         max_participants: course.max_participants || 0,
         price_per_lesson: course.price_per_lesson || 0,
         institution_name: course.educational_institutions?.name || 'לא צוין',
-        curriculum_name: course.curricula?.name || 'לא צוין',
-        curriculum_id: course.curriculum_id,
         lesson_count: 0,
         tasks: courseTasks.map((task: any) => ({
           id: task.id,
@@ -182,10 +177,7 @@ const Courses = () => {
                 <CardContent className="p-6">
                   {/* Course Details */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600 font-medium">תוכנית לימודים:</span>
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">{course.curriculum_name}</Badge>
-                    </div>
+               
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 font-medium">כיתה:</span>
                       <span className="text-sm font-semibold text-gray-900">{course.grade_level}</span>

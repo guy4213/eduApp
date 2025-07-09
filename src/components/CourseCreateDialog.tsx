@@ -40,7 +40,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
     max_participants: '',
     price_per_lesson: '',
     institution_id: '',
-    curriculum_id: ''
+    
   });
 
   useEffect(() => {
@@ -51,7 +51,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
         max_participants: '',
         price_per_lesson: '',
         institution_id: '',
-        curriculum_id: ''
+        
       });
       setTasks([]);
     }
@@ -88,7 +88,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
               <CourseDetailsForm
                 formData={formData}
                 institutions={institutions}
-                curricula={curricula}
                 onInputChange={handleInputChange}
               />
             </TabsContent>

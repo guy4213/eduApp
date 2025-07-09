@@ -16,7 +16,6 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,
           price_per_lesson: formData.price_per_lesson ? parseFloat(formData.price_per_lesson) : null,
           institution_id: formData.institution_id || null,
-          curriculum_id: formData.curriculum_id || null,
         })
         .select('id')
         .single();
@@ -37,7 +36,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           order_index: task.order_index,
         }));
 
-        const { error: tasksError } = await supabase.from('courses_tasks').insert(tasksToInsert);
+        const { error: tasksError } = await supabase.from('lesson_tasks').insert(tasksToInsert);
         if (tasksError) throw tasksError;
       }
 
