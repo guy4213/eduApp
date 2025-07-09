@@ -218,6 +218,7 @@ export type Database = {
           id: string
           is_mandatory: boolean | null
           lesson_id: string
+          lesson_number: number | null
           order_index: number
           title: string
         }
@@ -228,6 +229,7 @@ export type Database = {
           id?: string
           is_mandatory?: boolean | null
           lesson_id: string
+          lesson_number?: number | null
           order_index: number
           title: string
         }
@@ -238,6 +240,7 @@ export type Database = {
           id?: string
           is_mandatory?: boolean | null
           lesson_id?: string
+          lesson_number?: number | null
           order_index?: number
           title?: string
         }
