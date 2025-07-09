@@ -17,6 +17,7 @@ interface Task {
   estimated_duration: number;
   is_mandatory: boolean;
   lesson_number: number;
+  lesson_title?: string;
   order_index: number;
 }
 
@@ -56,55 +57,82 @@ const Courses = () => {
 
       if (error) throw error;
 
-      // Fetch tasks for each curriculum
+      // Fetch lessons and tasks for each course
       const courseIds = coursesData?.map(course => course.id).filter(Boolean) || [];
+      let lessonsData: any[] = [];
       let tasksData: any[] = [];
       
-    if (courseIds.length > 0) {
-      const { data: tasks, error: tasksError } = await supabase
-        .from('lesson_tasks')  // שים לב - משימות לפי קורס
-        .select('*')
-        .in('course_id', courseIds)
-        .order('lesson_number, order_index');
+      if (courseIds.length > 0) {
+        // Fetch lessons
+        const { data: lessons, error: lessonsError } = await supabase
+          .from('lessons')
+          .select('*')
+          .in('course_id', courseIds)
+          .order('created_at');
 
-      if (tasksError) {
-        console.error('Error fetching tasks:', tasksError);
-      } else {
-        tasksData = tasks || [];
+        if (lessonsError) {
+          console.error('Error fetching lessons:', lessonsError);
+        } else {
+          lessonsData = lessons || [];
+        }
+
+        // Fetch tasks for all lessons
+        const lessonIds = lessonsData.map(lesson => lesson.id).filter(Boolean);
+        if (lessonIds.length > 0) {
+          const { data: tasks, error: tasksError } = await supabase
+            .from('lesson_tasks')
+            .select('*')
+            .in('lesson_id', lessonIds)
+            .order('order_index');
+
+          if (tasksError) {
+            console.error('Error fetching tasks:', tasksError);
+          } else {
+            tasksData = tasks || [];
+          }
+        }
       }
-      console.log("tasksData fetched:", tasksData);
+
+      const formattedCourses = coursesData?.map((course: any) => {
+        const courseLessons = lessonsData.filter(lesson => lesson.course_id === course.id);
+        const allCourseTasks = courseLessons.flatMap(lesson => {
+          const lessonTasks = tasksData.filter(task => task.lesson_id === lesson.id);
+          return lessonTasks.map(task => ({
+            ...task,
+            lesson_title: lesson.title,
+            lesson_number: courseLessons.findIndex(l => l.id === lesson.id) + 1
+          }));
+        });
+        
+        return {
+          id: course.id,
+          name: course.name,
+          grade_level: course.grade_level || 'לא צוין',
+          max_participants: course.max_participants || 0,
+          price_per_lesson: course.price_per_lesson || 0,
+          institution_name: course.educational_institutions?.name || 'לא צוין',
+          lesson_count: courseLessons.length,
+          tasks: allCourseTasks.map((task: any) => ({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            estimated_duration: task.estimated_duration,
+            is_mandatory: task.is_mandatory,
+            lesson_number: task.lesson_number,
+            lesson_title: task.lesson_title,
+            order_index: task.order_index,
+          })),
+        };
+      }) || [];
+
+      console.log("formattedCourses with lessons and tasks: ", formattedCourses);
+      setCourses(formattedCourses);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    } finally {
+      setLoading(false);
     }
-
-   const formattedCourses = coursesData?.map((course: any) => {
-      const courseTasks = tasksData.filter(task => task.course_id === course.id);
-      return {
-        id: course.id,
-        name: course.name,
-        grade_level: course.grade_level || 'לא צוין',
-        max_participants: course.max_participants || 0,
-        price_per_lesson: course.price_per_lesson || 0,
-        institution_name: course.educational_institutions?.name || 'לא צוין',
-        lesson_count: 0,
-        tasks: courseTasks.map((task: any) => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          estimated_duration: task.estimated_duration,
-          is_mandatory: task.is_mandatory,
-          lesson_number: task.lesson_number,
-          order_index: task.order_index,
-        })),
-      };
-    }) || [];
-
-    console.log("formattedCourses with tasks: ", formattedCourses);
-    setCourses(formattedCourses);
-  } catch (error) {
-    console.error('Error fetching courses:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
   useEffect(() => {
     fetchCourses();
   }, [user]);
@@ -230,11 +258,11 @@ const Courses = () => {
                                 <TableCell className="text-gray-600 max-w-xs truncate">
                                   {task.description || 'ללא תיאור'}
                                 </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="text-xs">
-                                    שיעור {task.lesson_number}
-                                  </Badge>
-                                </TableCell>
+                                 <TableCell>
+                                   <Badge variant="outline" className="text-xs">
+                                     {task.lesson_title ? `${task.lesson_title}` : `שיעור ${task.lesson_number}`}
+                                   </Badge>
+                                 </TableCell>
                                 <TableCell>
                                   <div className="flex items-center text-sm text-gray-600">
                                     <Clock className="h-3 w-3 mr-1" />

@@ -1,10 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
-import  { useState } from 'react';
+import { useState } from 'react';
+import { Lesson } from './CourseLessonsSection';
 
 export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boolean) => void) {
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (formData: any, tasks: any) => {
+  const handleSubmit = async (formData: any, lessons: Lesson[]) => {
     setLoading(true);
     try {
       // שמירת הקורס
@@ -23,21 +24,40 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
       if (courseError) throw courseError;
       const courseId = savedCourse.id;
 
-      // שמירת המשימות עם course_id
-      if (tasks.length > 0) {
-        // התאמת משימות עם course_id
-        const tasksToInsert = tasks.map(task => ({
-          course_id: courseId,
-          title: task.title,
-          description: task.description,
-          estimated_duration: task.estimated_duration,
-          is_mandatory: task.is_mandatory,
-          lesson_number: task.lesson_number,
-          order_index: task.order_index,
-        }));
+      // שמירת השיעורים והמשימות
+      if (lessons.length > 0) {
+        for (const lesson of lessons) {
+          // שמירת השיעור
+          const { data: savedLesson, error: lessonError } = await supabase
+            .from('lessons')
+            .insert({
+              course_id: courseId,
+              title: lesson.title,
+              scheduled_start: new Date().toISOString(), // זמני placeholder
+              scheduled_end: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // זמני placeholder
+              status: 'scheduled'
+            })
+            .select('id')
+            .single();
 
-        const { error: tasksError } = await supabase.from('lesson_tasks').insert(tasksToInsert);
-        if (tasksError) throw tasksError;
+          if (lessonError) throw lessonError;
+          const lessonId = savedLesson.id;
+
+          // שמירת המשימות לשיעור
+          if (lesson.tasks.length > 0) {
+            const tasksToInsert = lesson.tasks.map(task => ({
+              lesson_id: lessonId,
+              title: task.title,
+              description: task.description,
+              estimated_duration: task.estimated_duration,
+              is_mandatory: task.is_mandatory,
+              order_index: task.order_index,
+            }));
+
+            const { error: tasksError } = await supabase.from('lesson_tasks').insert(tasksToInsert);
+            if (tasksError) throw tasksError;
+          }
+        }
       }
 
       onCourseCreated();

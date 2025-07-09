@@ -9,8 +9,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import CourseTasksSection from './CourseTasksSection';
 import CourseDetailsForm from './course/CourseDetailsForm';
+import CourseLessonsSection, { Lesson } from './course/CourseLessonsSection';
 import { useCourseData } from './course/useCourseData';
 import { useCourseSubmit } from './course/useCourseSubmit';
 
@@ -20,27 +20,16 @@ interface CourseCreateDialogProps {
   onCourseCreated: () => void;
 }
 
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  estimated_duration: number;
-  is_mandatory: boolean;
-  lesson_number: number;
-  order_index: number;
-}
-
 const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreateDialogProps) => {
-  const { institutions, curricula } = useCourseData();
+  const { institutions } = useCourseData();
   const { loading, handleSubmit } = useCourseSubmit(onCourseCreated, onOpenChange);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     grade_level: '',
     max_participants: '',
     price_per_lesson: '',
     institution_id: '',
-    
   });
 
   useEffect(() => {
@@ -51,9 +40,8 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
         max_participants: '',
         price_per_lesson: '',
         institution_id: '',
-        
       });
-      setTasks([]);
+      setLessons([]);
     }
   }, [open]);
 
@@ -66,7 +54,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await handleSubmit(formData, tasks);
+    await handleSubmit(formData, lessons);
   };
 
   return (
@@ -81,7 +69,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
           <Tabs defaultValue="details" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="details">פרטי הקורס</TabsTrigger>
-              <TabsTrigger value="tasks">משימות</TabsTrigger>
+              <TabsTrigger value="lessons">שיעורים ומשימות</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="space-y-4">
@@ -92,8 +80,8 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
               />
             </TabsContent>
 
-            <TabsContent value="tasks" className="space-y-4">
-              <CourseTasksSection tasks={tasks} onTasksChange={setTasks} />
+            <TabsContent value="lessons" className="space-y-4">
+              <CourseLessonsSection lessons={lessons} onLessonsChange={setLessons} />
             </TabsContent>
           </Tabs>
 
