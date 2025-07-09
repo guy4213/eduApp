@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Calendar, Users, BookOpen, BarChart3, Settings, Clock, MapPin, Star, Award, Plus, CalendarIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { WeeklyCalendar } from '../ui/WeeklyCalendar';
+import { Lesson } from '../course/CourseLessonsSection';
 
 interface DashboardStats {
   totalLessons: number;
@@ -74,25 +75,37 @@ const Dashboard = () => {
     recentActivity: []
   });
   const [loading, setLoading] = useState(true);
+    const [userProfile, setUserProfile] = useState(null);
 const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+const [lessons, setLessons] = useState<any>();
+
 
   useEffect(() => {
+    //ADMIN & MANAGER dashboard data fetching
     const fetchDashboardData = async () => {
       if (!user) return;
 
       try {
+
+        const{ data: profile} = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', user.email);
         // Fetch lessons count
         const { data: lessons } = await supabase
           .from('lessons')
           .select('*')
-          .eq('instructor_id', user.id);
+       
 
         // Fetch courses count
         const { data: courses } = await supabase
           .from('courses')
           .select('*')
           .eq('instructor_id', user.id);
-
+        
+          setUserProfile(profile[0] || null);
+            setLessons(lessons || []);
+      
         // Calculate stats
         const thisWeekLessons = lessons?.filter(lesson => {
           const lessonDate = new Date(lesson.scheduled_start);
@@ -134,7 +147,8 @@ const [selectedDate, setSelectedDate] = useState<Date>(new Date());
       </div>
     );
   }
-
+      console.log("lessons : ",lessons)
+          console.log("userPRO: " ,userProfile)
   return (
     <>
       {/* Mobile View */}
@@ -149,8 +163,10 @@ const [selectedDate, setSelectedDate] = useState<Date>(new Date());
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Welcome Section */}
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">דשבורד מנהל פדגוגי</h2>
-            <p className="text-gray-600 text-lg">ברוך הבא למערכת ניהול המנחים והמרצים</p>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">היי {userProfile.full_name} {userProfile.role}</h2>
+           { userProfile.role!=="instructor"?
+           <p className="text-gray-600 text-lg">ברוך הבא למערכת ניהול המנחים והמרצים</p>
+          : <p className="text-gray-600 text-lg">   ברוכים הבאים     </p>}
           </div>
 
           {/* Stats Grid */}
@@ -188,7 +204,7 @@ const [selectedDate, setSelectedDate] = useState<Date>(new Date());
       </div>
 
       {/* ✅ Correct usage */}
-    <WeeklyCalendar selectedDate={selectedDate} setSelectedDate={setSelectedDate} classes={mockClasses} />
+    <WeeklyCalendar selectedDate={selectedDate} setSelectedDate={setSelectedDate} lessons={lessons} />
       </div>
           </div>
           {/* Main Dashboard Grid */}

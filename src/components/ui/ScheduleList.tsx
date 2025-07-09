@@ -1,3 +1,6 @@
+import { Divide } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
 interface ClassItem {
   time: string;
   title: string;
@@ -9,37 +12,34 @@ interface ClassItem {
 }
 
 interface ScheduleListProps {
-  classes: ClassItem[];
+  lessons: any[];
 }
 
-export const ScheduleList: React.FC<ScheduleListProps> = ({ classes }) => {
+export const ScheduleList: React.FC<ScheduleListProps> = ({ lessons }) => {
+  const nav = useNavigate();
   return (
     <div className="flex flex-col gap-4 px-4">
-      {classes.map((item, index) => (
-        <div key={index} className="p-4 rounded-lg shadow-md bg-white">
-          <div className="text-sm text-gray-400">{item.time}</div>
-          <div className="text-lg font-semibold">{item.title}</div>
-          <div className="text-sm text-gray-600">{item.instructor}</div>
-          <div className="flex items-center justify-between mt-2">
-            <div className="text-xs text-gray-500">
-              {item.booked}/{item.capacity} Booked
-            </div>
-            <div className="flex items-center gap-1">
-              {item.avatars.map((src, i) => (
-                <img
-                  key={i}
-                  src={src}
-                  alt="avatar"
-                  className="w-6 h-6 rounded-full border-2 border-white -ml-2"
-                />
-              ))}
-              {item.status === "available" ? (
-                <button className="ml-2 bg-gray-100 px-2 rounded-full text-sm">+</button>
-              ) : (
-                <span className="ml-2 text-green-600 text-sm font-semibold">Booked</span>
-              )}
-            </div>
+      {lessons.map((item, index) => (
+        <div
+          key={index}
+          className="flex p-4 rounded-lg shadow-md justify-between  bg-white w-full"
+        >
+          <div className="flex flex-col gap-2 px-4">
+            <div className="text-lg font-semibold">{item.title}</div>
+            {!item.instructor_id ? (
+              <div className="text-md font-bold">אין מדריך לקורס הזה</div>
+            ) : (
+              <div className="text-lg font-semibold">{item.title}</div>
+            )}
           </div>
+          <button
+            onClick={() => {
+              nav("/lesson-report");
+            }}
+            className="bg-green-300 rounded-full p-2 items-center font-bold"
+          >
+            דיווח שיעור{" "}
+          </button>
         </div>
       ))}
     </div>

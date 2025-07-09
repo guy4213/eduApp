@@ -33,6 +33,7 @@ interface CourseLessonsSectionProps {
 
 const CourseLessonsSection = ({ lessons, onLessonsChange }: CourseLessonsSectionProps) => {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const [index, setIndex] = useState<any>(0);
   const [newLesson, setNewLesson] = useState({ title: '', description: '' });
   const [newTask, setNewTask] = useState({
     title: '',
@@ -144,7 +145,7 @@ const CourseLessonsSection = ({ lessons, onLessonsChange }: CourseLessonsSection
                 className={`cursor-pointer transition-colors ${
                   selectedLessonId === lesson.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
                 }`}
-                onClick={() => setSelectedLessonId(lesson.id)}
+                onClick={() => {setSelectedLessonId(lesson.id); setIndex(index);}}
               >
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
@@ -181,7 +182,7 @@ const CourseLessonsSection = ({ lessons, onLessonsChange }: CourseLessonsSection
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">
-                משימות עבור: {selectedLesson.title}
+              משימות עבור:   שיעור מספר {index+1} - {selectedLesson.title}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

@@ -16,24 +16,27 @@ interface ClassItem {
 interface WeeklyCalendarProps {
   selectedDate: Date;
   setSelectedDate: (date: Date) => void;
-  classes: ClassItem[];
+  lessons: any[];
 }
 
-export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ selectedDate, setSelectedDate, classes }) => {
+export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ selectedDate, setSelectedDate, lessons }) => {
   // Sync internal state removed; use the controlled selectedDate prop from parent
+console.log("LESSONS ",lessons)
+  // Filter lessons by selectedDate day (if date info available)
+const filteredClasses = (lessons??[]).filter((c) => {
+  console.log("DATE", c.scheduled_start);
+  if (!c.scheduled_start) return true;
 
-  // Filter classes by selectedDate day (if date info available)
-  const filteredClasses = classes.filter((c) => {
-    if (!c.date) return true; // show all if no date info
-    const classDate = new Date(c.date);
-    // Compare only date parts ignoring time:
-    return (
-      classDate.getDate() === selectedDate.getDate() &&
-      classDate.getMonth() === selectedDate.getMonth() &&
-      classDate.getFullYear() === selectedDate.getFullYear()
-    );
-  });
+  const classDate = new Date(c.scheduled_start);
+  const selected = new Date(selectedDate);
 
+  // Normalize both dates to YYYY-MM-DD strings
+  const classDateStr = classDate.toISOString().split("T")[0];
+  const selectedDateStr = selected.toISOString().split("T")[0];
+
+  return classDateStr === selectedDateStr;
+});
+console.log("filteredClasses: ", filteredClasses)
   return (
     <div className="bg-white rounded-md shadow p-4" dir="rtl" role="region" aria-label="לוח שבועי">
       {/* Pass setSelectedDate directly to DateSelector */}
@@ -55,7 +58,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ selectedDate, se
 
       </div>
 
-      <ScheduleList classes={filteredClasses} />
+      <ScheduleList lessons={filteredClasses} />
     </div>
   );
 };

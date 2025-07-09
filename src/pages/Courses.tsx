@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BookOpen, Users, Calendar, Plus, Edit, Clock, CheckCircle2, Circle } from 'lucide-react';
+import { BookOpen, Users, Calendar, Plus, Edit, Clock, CheckCircle2, Circle, CircleAlert, CircleCheckBigIcon, CircleDot } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import CourseCreateDialog from '@/components/CourseCreateDialog';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -39,6 +39,17 @@ const Courses = () => {
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
+
+  const groupTasksByLesson = (tasks: Task[]) => {
+  const grouped: Record<number, Task[]> = {};
+  for (const task of tasks) {
+    if (!grouped[task.lesson_number]) {
+      grouped[task.lesson_number] = [];
+    }
+    grouped[task.lesson_number].push(task);
+  }
+  return grouped;
+};
   const fetchCourses = async () => {
     if (!user) return;
 
@@ -206,20 +217,20 @@ const Courses = () => {
                   {/* Course Details */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">כיתה:</span>
-                      <span className="text-sm font-semibold text-gray-900">{course.grade_level}</span>
+                      <span className="text-sm font-bold text-gray-900">{course.grade_level}</span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">משתתפים:</span>
                       <div className="flex items-center">
                         <Users className="h-4 w-4 mr-1 text-gray-500" />
-                        <span className="text-sm font-semibold text-gray-900">{course.max_participants}</span>
+                        <span className="text-sm font-bold text-gray-900">{course.max_participants}</span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">מחיר לשיעור:</span>
-                      <span className="text-sm font-semibold text-green-600">₪{course.price_per_lesson}</span>
+                      <span className="text-sm font-bold text-green-600">₪{course.price_per_lesson}</span>
                     </div>
                   </div>
 
@@ -230,67 +241,71 @@ const Courses = () => {
                       משימות הקורס ({course.tasks.length})
                     </h3>
                     
-                    {course.tasks.length > 0 ? (
-                      <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-gray-50">
-                              <TableHead className="text-right font-semibold">שם המשימה</TableHead>
-                              <TableHead className="text-right font-semibold">תיאור</TableHead>
-                              <TableHead className="text-right font-semibold">שיעור</TableHead>
-                              <TableHead className="text-right font-semibold">זמן מוערך</TableHead>
-                              <TableHead className="text-right font-semibold">סוג</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {course.tasks.map((task) => (
-                              <TableRow key={task.id} className="hover:bg-gray-50">
-                                <TableCell className="font-medium">
-                                  <div className="flex items-center">
-                                    {task.is_mandatory ? (
-                                      <CheckCircle2 className="h-4 w-4 text-red-500 mr-2" />
-                                    ) : (
-                                      <Circle className="h-4 w-4 text-gray-400 mr-2" />
-                                    )}
-                                    {task.title}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-gray-600 max-w-xs truncate">
-                                  {task.description || 'ללא תיאור'}
-                                </TableCell>
-                                 <TableCell>
-                                   <Badge variant="outline" className="text-xs">
-                                     {task.lesson_title ? `${task.lesson_title}` : `שיעור ${task.lesson_number}`}
-                                   </Badge>
-                                 </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center text-sm text-gray-600">
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    {task.estimated_duration} דק׳
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge 
-                                    variant={task.is_mandatory ? "destructive" : "secondary"}
-                                    className={task.is_mandatory ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"}
-                                  >
-                                    {task.is_mandatory ? 'חובה' : 'רשות'}
-                                  </Badge>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
-                        <Circle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                        <p>אין משימות עבור הקורס הזה</p>
-                        <p className="text-sm">ניתן להוסיף משימות בעת עריכת הקורס</p>
-                      </div>
-                    )}
-                  </div>
+                  {course.tasks.length > 0 ? (
+  <div className="border rounded-lg overflow-hidden">
+    <Table>
+      <TableHeader>
+        <TableRow className="bg-gray-50">
+          <TableHead className="text-right font-semibold">שם השיעור</TableHead>
+          <TableHead className="text-right font-semibold max-w-xs">תיאור</TableHead>
+          <TableHead className="text-right font-semibold">זמן מוערך</TableHead>
+          <TableHead className="text-right font-semibold">סוג</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Object.entries(groupTasksByLesson(course.tasks)).map(([lessonNumber, lessonTasks]) => (
+          <React.Fragment key={lessonNumber}>
+            {/* כותרת שיעור */}
+            <TableRow className="bg-blue-100">
+              <TableCell colSpan={5} className="font-bold text-right text-blue-900">
+                שיעור {lessonNumber} – {lessonTasks[0]?.lesson_title || ''}
+              </TableCell>
+            </TableRow>
 
+            {/* המשימות של השיעור הזה */}
+            {lessonTasks.map((task) => (
+              <TableRow key={task.id} className="hover:bg-gray-50">
+                <TableCell className="font-medium">
+                  <div className="flex items-center">
+                   
+                      <Circle className="h-4 w-4 text-gray-400 mr-2" />
+                   
+                    {task.title}
+                  </div>
+                </TableCell>
+                <TableCell className="text-gray-600 max-w-xs truncate">
+                  {task.description || 'ללא תיאור'}
+                </TableCell>
+       
+                <TableCell>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Clock className="h-3 w-3 mr-1" />
+                    {task.estimated_duration} דק׳
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge 
+                    variant={task.is_mandatory ? "destructive" : "secondary"}
+                    className={task.is_mandatory ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"}
+                  >
+                    {task.is_mandatory ? 'חובה' : 'רשות'}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </React.Fragment>
+        ))}
+      </TableBody>
+    </Table>
+  </div>
+) : (
+  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+    <Circle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+    <p>אין משימות עבור הקורס הזה</p>
+    <p className="text-sm">ניתן להוסיף משימות בעת עריכת הקורס</p>
+  </div>
+)}
+      </div>
                   {/* Action Buttons */}
                   <div className="pt-6 space-y-3">
                     <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" size="sm">

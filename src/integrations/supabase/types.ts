@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       courses: {
         Row: {
+          approx_end_date: string | null
           created_at: string | null
           grade_level: string | null
           id: string
@@ -24,8 +25,10 @@ export type Database = {
           max_participants: number | null
           name: string
           price_per_lesson: number | null
+          start_date: string | null
         }
         Insert: {
+          approx_end_date?: string | null
           created_at?: string | null
           grade_level?: string | null
           id?: string
@@ -34,8 +37,10 @@ export type Database = {
           max_participants?: number | null
           name: string
           price_per_lesson?: number | null
+          start_date?: string | null
         }
         Update: {
+          approx_end_date?: string | null
           created_at?: string | null
           grade_level?: string | null
           id?: string
@@ -44,6 +49,7 @@ export type Database = {
           max_participants?: number | null
           name?: string
           price_per_lesson?: number | null
+          start_date?: string | null
         }
         Relationships: [
           {
@@ -411,6 +417,10 @@ export type Database = {
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_user_role_text: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
     }
     Enums: {
