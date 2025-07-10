@@ -2,20 +2,6 @@
 import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-
-interface Institution {
-  id: string;
-  name: string;
-}
-
-
 
 interface CourseDetailsFormProps {
   formData: {
@@ -23,24 +9,20 @@ interface CourseDetailsFormProps {
     grade_level: string;
     max_participants: string;
     price_per_lesson: string;
-    institution_id: string;
-  
   };
-  institutions: Institution[];
-
   onInputChange: (field: string, value: string) => void;
 }
 
-const CourseDetailsForm = ({ formData, institutions, onInputChange }: CourseDetailsFormProps) => {
+const CourseDetailsForm = ({ formData, onInputChange }: CourseDetailsFormProps) => {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="name">שם הקורס *</Label>
+        <Label htmlFor="name">שם תוכנית הלימוד *</Label>
         <Input
           id="name"
           value={formData.name}
           onChange={(e) => onInputChange('name', e.target.value)}
-          placeholder="הזן שם קורס"
+          placeholder="הזן שם תוכנית לימוד"
           required
         />
       </div>
@@ -82,24 +64,6 @@ const CourseDetailsForm = ({ formData, institutions, onInputChange }: CourseDeta
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="institution">מוסד חינוכי</Label>
-        <Select
-          value={formData.institution_id}
-          onValueChange={(value) => onInputChange('institution_id', value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="בחר מוסד חינוכי" />
-          </SelectTrigger>
-          <SelectContent>
-            {institutions.map((institution) => (
-              <SelectItem key={institution.id} value={institution.id}>
-                {institution.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
 
     </div>

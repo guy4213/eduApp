@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BookOpen, Users, Calendar, Plus, Edit, Clock, CheckCircle2, Circle, CircleAlert, CircleCheckBigIcon, CircleDot } from 'lucide-react';
+import { BookOpen, Users, Calendar, Plus, Edit, Clock, CheckCircle2, Circle, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import CourseCreateDialog from '@/components/CourseCreateDialog';
+import CourseAssignDialog from '@/components/CourseAssignDialog';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 
 interface Task {
@@ -38,6 +39,8 @@ const Courses = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<{ id: string; name: string } | null>(null);
 
 
   const groupTasksByLesson = (tasks: Task[]) => {
@@ -152,6 +155,15 @@ const Courses = () => {
     fetchCourses();
   };
 
+  const handleAssignCourse = (courseId: string, courseName: string) => {
+    setSelectedCourse({ id: courseId, name: courseName });
+    setShowAssignDialog(true);
+  };
+
+  const handleAssignmentComplete = () => {
+    fetchCourses();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -178,7 +190,7 @@ const Courses = () => {
             className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg"
           >
             <Plus className="h-4 w-4" />
-            <span>קורס חדש</span>
+            <span>תוכנית לימוד חדשה</span>
           </Button>
         </div>
 
@@ -186,14 +198,14 @@ const Courses = () => {
           <Card className="text-center py-16 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardContent>
               <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-6" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">אין קורסים עדיין</h3>
-              <p className="text-gray-600 mb-6 text-lg">התחל ליצור את הקורס הראשון שלך</p>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">אין תוכניות לימוד עדיין</h3>
+              <p className="text-gray-600 mb-6 text-lg">התחל ליצור את תוכנית הלימוד הראשונה שלך</p>
               <Button
                 onClick={() => setShowCreateDialog(true)}
                 className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                צור קורס חדש
+                צור תוכנית לימוד חדשה
               </Button>
             </CardContent>
           </Card>
@@ -207,8 +219,13 @@ const Courses = () => {
                       <CardTitle className="text-2xl mb-2 text-white">{course.name}</CardTitle>
                       <CardDescription className="text-blue-100 text-base">{course.institution_name}</CardDescription>
                     </div>
-                    <Button variant="ghost" size="sm" className="text-white hover:bg-white/20">
-                      <Edit className="h-4 w-4" />
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-white hover:bg-white/20"
+                      onClick={() => handleAssignCourse(course.id, course.name)}
+                    >
+                      <UserPlus className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardHeader>
@@ -327,6 +344,16 @@ const Courses = () => {
           onOpenChange={setShowCreateDialog}
           onCourseCreated={handleCourseCreated}
         />
+
+        {selectedCourse && (
+          <CourseAssignDialog
+            open={showAssignDialog}
+            onOpenChange={setShowAssignDialog}
+            courseId={selectedCourse.id}
+            courseName={selectedCourse.name}
+            onAssignmentComplete={handleAssignmentComplete}
+          />
+        )}
       </main>
     </div>   
   );

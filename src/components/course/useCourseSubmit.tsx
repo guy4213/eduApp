@@ -12,8 +12,6 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
       const { data: savedCourse, error: courseError } = await supabase
         .from('courses')
         .insert({
-          institution_id  : formData.institution_id || null, // אם יש מוסד
-          //insturctor_id: formData.instructor_id || null, // אם יש מדריך
           name: formData.name,
           grade_level: formData.grade_level,
           max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,

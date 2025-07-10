@@ -29,7 +29,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
     grade_level: '',
     max_participants: '',
     price_per_lesson: '',
-    institution_id: '',
   });
 
   useEffect(() => {
@@ -39,7 +38,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
         grade_level: '',
         max_participants: '',
         price_per_lesson: '',
-        institution_id: '',
       });
       setLessons([]);
     }
@@ -61,21 +59,20 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[400px] sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>יצירת קורס חדש</DialogTitle>
-          <DialogDescription>מלא את הפרטים כדי ליצור קורס חדש</DialogDescription>
+          <DialogTitle>יצירת תוכנית לימוד חדשה</DialogTitle>
+          <DialogDescription>מלא את הפרטים כדי ליצור תוכנית לימוד חדשה</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <Tabs defaultValue="details" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="details">פרטי הקורס</TabsTrigger>
+              <TabsTrigger value="details">פרטי התוכנית</TabsTrigger>
               <TabsTrigger value="lessons">שיעורים ומשימות</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="space-y-4">
               <CourseDetailsForm
                 formData={formData}
-                institutions={institutions}
                 onInputChange={handleInputChange}
               />
             </TabsContent>
@@ -90,7 +87,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
               ביטול
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'יוצר...' : 'צור קורס'}
+              {loading ? 'יוצר...' : 'צור תוכנית לימוד'}
             </Button>
           </DialogFooter>
         </form>
