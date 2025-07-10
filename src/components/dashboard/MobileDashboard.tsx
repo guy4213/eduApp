@@ -73,7 +73,7 @@ const MobileDashboard = () => {
           <WeeklyCalendar
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
-            classes={mockClasses}
+            lessons={mockClasses}
           />
         </div>
 

@@ -13,6 +13,7 @@ import Calendar from "./pages/Calendar";
 import LessonReport from "./pages/LessonReport";
 import Courses from "./pages/Courses";
 import Reports from "./pages/Reports";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import MobileNavigation from "./components/layout/MobileNavigation";
 
@@ -81,6 +82,17 @@ const App = () => (
                     <div className="min-h-screen">
                       <Navigation />
                       <Reports />
+                    </div>
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/profile" 
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen">
+                      <Navigation />
+                      <Profile />
                     </div>
                   </ProtectedRoute>
                 } 

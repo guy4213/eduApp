@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Calendar, FileText, Users, BarChart3, LogOut, Menu, X } from 'lucide-react';
+import { BookOpen, Calendar, FileText, Users, BarChart3, LogOut, Menu, X, User } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 const Navigation = () => {
@@ -17,6 +17,7 @@ const Navigation = () => {
     { path: '/lesson-report', label: 'דיווח שיעור', icon: FileText },
     { path: '/courses', label: 'קורסים', icon: Users },
     { path: '/reports', label: 'דוחות ושכר', icon: BarChart3 },
+    { path: '/profile', label: 'פרופיל', icon: User },
   ];
 
   const handleSignOut = async () => {

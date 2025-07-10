@@ -1,7 +1,7 @@
 // MobileNavigation.tsx (updated for matching desktop styling and routing)
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { BookOpen, Calendar, FileText, Users, BarChart3 } from 'lucide-react';
+import { BookOpen, Calendar, FileText, Users, BarChart3, User } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: 'דשבורד', icon: BookOpen },
@@ -9,6 +9,7 @@ const navItems = [
   { path: '/lesson-report', label: 'שיעור', icon: FileText },
   { path: '/courses', label: 'קורסים', icon: Users },
   { path: '/reports', label: 'דוחות', icon: BarChart3 },
+  { path: '/profile', label: 'פרופיל', icon: User },
 ];
 
 const MobileNavigation = () => {
