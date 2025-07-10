@@ -13,6 +13,7 @@ interface Profile {
   full_name: string;
   email: string | null;
   phone: string | null;
+  role: string | null;
   birthdate: string | null;
   hourly_rate: number | null;
   current_work_hours: number | null;
@@ -28,7 +29,7 @@ const Profile = () => {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     email: '',
-    phone: ''
+    phone: '',
   });
 
   useEffect(() => {
@@ -47,9 +48,9 @@ const Profile = () => {
 
       if (error) {
         toast({
-          title: "שגיאה",
-          description: "לא ניתן לטעון את הפרופיל",
-          variant: "destructive",
+          title: 'שגיאה',
+          description: 'לא ניתן לטעון את הפרופיל',
+          variant: 'destructive',
         });
         return;
       }
@@ -57,7 +58,7 @@ const Profile = () => {
       setProfile(data);
       setEditForm({
         email: data.email || '',
-        phone: data.phone || ''
+        phone: data.phone || '',
       });
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -66,15 +67,13 @@ const Profile = () => {
     }
   };
 
-  const handleEdit = () => {
-    setEditing(true);
-  };
+  const handleEdit = () => setEditing(true);
 
   const handleCancel = () => {
     setEditing(false);
     setEditForm({
       email: profile?.email || '',
-      phone: profile?.phone || ''
+      phone: profile?.phone || '',
     });
   };
 
@@ -87,37 +86,36 @@ const Profile = () => {
         .from('profiles')
         .update({
           email: editForm.email || null,
-          phone: editForm.phone || null
+          phone: editForm.phone || null,
         })
         .eq('id', user.id);
 
       if (error) {
         toast({
-          title: "שגיאה",
-          description: "לא ניתן לעדכן את הפרופיל",
-          variant: "destructive",
+          title: 'שגיאה',
+          description: 'לא ניתן לעדכן את הפרופיל',
+          variant: 'destructive',
         });
         return;
       }
 
-      // Update local state
       setProfile({
         ...profile,
         email: editForm.email || null,
-        phone: editForm.phone || null
+        phone: editForm.phone || null,
       });
 
       setEditing(false);
       toast({
-        title: "הפרופיל עודכן בהצלחה",
-        description: "השינויים נשמרו במערכת",
+        title: 'הפרופיל עודכן בהצלחה',
+        description: 'השינויים נשמרו במערכת',
       });
     } catch (error) {
       console.error('Error updating profile:', error);
       toast({
-        title: "שגיאה",
-        description: "אירעה שגיאה בעדכון הפרופיל",
-        variant: "destructive",
+        title: 'שגיאה',
+        description: 'אירעה שגיאה בעדכון הפרופיל',
+        variant: 'destructive',
       });
     } finally {
       setSaving(false);
@@ -146,9 +144,10 @@ const Profile = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl">
-      <Card>
+      <Card className="shadow-md border border-muted">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-2xl font-bold">פרופיל אישי</CardTitle>
+
           {!editing && (
             <Button onClick={handleEdit} variant="outline" size="sm">
               <Edit className="h-4 w-4 ml-2" />
@@ -156,20 +155,20 @@ const Profile = () => {
             </Button>
           )}
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Name - Read only */}
+        <CardContent className="space-y-8">
+          <div className="grid grid-cols-1  gap-6">
+            <img src="" alt="picture" />
             <div>
+              
               <Label htmlFor="name">שם מלא</Label>
               <Input
                 id="name"
                 value={profile.full_name}
                 disabled
-                className="bg-gray-50"
+                className="bg-muted cursor-not-allowed"
               />
             </div>
 
-            {/* Email - Editable */}
             <div>
               <Label htmlFor="email">אימייל</Label>
               {editing ? (
@@ -184,12 +183,11 @@ const Profile = () => {
                   id="email"
                   value={profile.email || 'לא הוזן'}
                   disabled
-                  className="bg-gray-50"
+                  className="bg-muted cursor-not-allowed"
                 />
               )}
             </div>
 
-            {/* Phone - Editable */}
             <div>
               <Label htmlFor="phone">טלפון</Label>
               {editing ? (
@@ -203,71 +201,65 @@ const Profile = () => {
                   id="phone"
                   value={profile.phone || 'לא הוזן'}
                   disabled
-                  className="bg-gray-50"
+                  className="bg-muted cursor-not-allowed"
                 />
               )}
             </div>
 
-            {/* Birthdate - Read only */}
             <div>
               <Label htmlFor="birthdate">תאריך לידה</Label>
               <Input
                 id="birthdate"
-                value={profile.birthdate ? new Date(profile.birthdate).toLocaleDateString('he-IL') : 'לא הוזן'}
+                value={
+                  profile.birthdate
+                    ? new Date(profile.birthdate).toLocaleDateString('he-IL')
+                    : 'לא הוזן'
+                }
                 disabled
-                className="bg-gray-50"
+                className="bg-muted cursor-not-allowed"
               />
             </div>
 
-            {/* Hourly Rate - Read only */}
-            <div>
-              <Label htmlFor="hourly_rate">תעריף שעתי</Label>
-              <Input
-                id="hourly_rate"
-                value={profile.hourly_rate ? `₪${profile.hourly_rate}` : 'לא הוזן'}
-                disabled
-                className="bg-gray-50"
-              />
-            </div>
+            {profile.role === 'instructor' && (
+              <div>
+                <Label htmlFor="hourly_rate">תעריף שעתי</Label>
+                <Input
+                  id="hourly_rate"
+                  value={profile.hourly_rate ? `₪${profile.hourly_rate}` : 'לא הוזן'}
+                  disabled
+                  className="bg-muted cursor-not-allowed"
+                />
+              </div>
+            )}
 
-            {/* Current Work Hours - Read only */}
             <div>
               <Label htmlFor="work_hours">שעות עבודה נוכחיות</Label>
               <Input
                 id="work_hours"
                 value={profile.current_work_hours || 0}
                 disabled
-                className="bg-gray-50"
+                className="bg-muted cursor-not-allowed"
               />
             </div>
-          </div>
+          
 
-          {/* Benefits - Read only, full width */}
           <div>
             <Label htmlFor="benefits">תגמולים</Label>
             <Input
               id="benefits"
               value={profile.benefits || 'לא הוזן'}
               disabled
-              className="bg-gray-50"
+              className="bg-muted cursor-not-allowed"
             />
           </div>
-
-          {/* Action buttons when editing */}
+</div>
           {editing && (
-            <div className="flex justify-end space-x-2">
-              <Button
-                onClick={handleCancel}
-                variant="outline"
-                disabled={saving}
-              >
+            <div className="flex justify-end gap-2 flex-row-reverse mt-6">
+              <Button onClick={handleCancel} variant="outline" disabled={saving}>
                 <X className="h-4 w-4 ml-2" />
                 ביטול
               </Button>
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-              >
+              <Button onClick={handleSave} disabled={saving}>
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin ml-2" />
                 ) : (
