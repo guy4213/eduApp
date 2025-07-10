@@ -325,7 +325,10 @@ export type Database = {
       }
       profiles: {
         Row: {
+          benefits: string | null
+          birthdate: string | null
           created_at: string | null
+          current_work_hours: number | null
           email: string | null
           full_name: string
           hourly_rate: number | null
@@ -335,7 +338,10 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          benefits?: string | null
+          birthdate?: string | null
           created_at?: string | null
+          current_work_hours?: number | null
           email?: string | null
           full_name: string
           hourly_rate?: number | null
@@ -345,7 +351,10 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          benefits?: string | null
+          birthdate?: string | null
           created_at?: string | null
+          current_work_hours?: number | null
           email?: string | null
           full_name?: string
           hourly_rate?: number | null
