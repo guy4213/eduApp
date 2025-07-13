@@ -29,7 +29,7 @@ interface Course {
   max_participants: number;
   price_per_lesson: number;
   institution_name: string;
-
+  instructor_name: string;
   lesson_count: number;
   tasks: Task[];
 }
@@ -90,6 +90,8 @@ const Courses = () => {
           lessonsData = lessons || [];
         }
 
+  
+
         // Fetch tasks for all lessons
         const lessonIds = lessonsData.map(lesson => lesson.id).filter(Boolean);
         if (lessonIds.length > 0) {
@@ -107,37 +109,49 @@ const Courses = () => {
         }
       }
 
-      const formattedCourses = coursesData?.map((course: any) => {
-        const courseLessons = lessonsData.filter(lesson => lesson.course_id === course.id);
-        const allCourseTasks = courseLessons.flatMap(lesson => {
-          const lessonTasks = tasksData.filter(task => task.lesson_id === lesson.id);
-          return lessonTasks.map(task => ({
-            ...task,
-            lesson_title: lesson.title,
-            lesson_number: courseLessons.findIndex(l => l.id === lesson.id) + 1
-          }));
-        });
-        
-        return {
-          id: course.id,
-          name: course.name,
-          grade_level: course.grade_level || 'לא צוין',
-          max_participants: course.max_participants || 0,
-          price_per_lesson: course.price_per_lesson || 0,
-          institution_name: course.educational_institutions?.name || 'לא צוין',
-          lesson_count: courseLessons.length,
-          tasks: allCourseTasks.map((task: any) => ({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            estimated_duration: task.estimated_duration,
-            is_mandatory: task.is_mandatory,
-            lesson_number: task.lesson_number,
-            lesson_title: task.lesson_title,
-            order_index: task.order_index,
-          })),
-        };
-      }) || [];
+
+            const { data: instructorsData, error: instructorsError } = await supabase
+        .from('profiles')
+       .select('id, full_name')
+        .eq('role', 'instructor');
+
+    const formattedCourses = coursesData?.map((course: any) => {
+  const courseLessons = lessonsData.filter(lesson => lesson.course_id === course.id);
+  const allCourseTasks = courseLessons.flatMap(lesson => {
+    const lessonTasks = tasksData.filter(task => task.lesson_id === lesson.id);
+    return lessonTasks.map(task => ({
+      ...task,
+      lesson_title: lesson.title,
+      lesson_number: courseLessons.findIndex(l => l.id === lesson.id) + 1
+    }));
+  });
+
+  // Find instructor name by instructor_id (assumes instructorsData is available)
+  const instructor = instructorsData.find(instr => instr.id === course.instructor_id);
+  const instructorName = instructor ? instructor.full_name : 'לא צוין';
+
+  return {
+    id: course.id,
+    name: course.name,
+    grade_level: course.grade_level || 'לא צוין',
+    max_participants: course.max_participants || 0,
+    price_per_lesson: course.price_per_lesson || 0,
+    institution_name: course.educational_institutions?.name || 'לא צוין',
+    lesson_count: courseLessons.length,
+    instructor_name: instructorName,  // <--- added this line
+    tasks: allCourseTasks.map((task: any) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      estimated_duration: task.estimated_duration,
+      is_mandatory: task.is_mandatory,
+      lesson_number: task.lesson_number,
+      lesson_title: task.lesson_title,
+      order_index: task.order_index,
+    })),
+  };
+}) || [];
+
 
       console.log("formattedCourses with lessons and tasks: ", formattedCourses);
       setCourses(formattedCourses);
@@ -233,7 +247,10 @@ const Courses = () => {
                 <CardContent className="p-6">
                   {/* Course Details */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-               
+                  <div className="flex items-center justify-evenly">
+                      <span className="text-sm text-gray-600 font-medium">שם המדריך :</span>
+                      <span className="text-sm font-bold text-green-600">{course.instructor_name}</span>
+                    </div>
                     <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">כיתה:</span>
                       <span className="text-sm font-bold text-gray-900">{course.grade_level}</span>
@@ -326,12 +343,12 @@ const Courses = () => {
                   {/* Action Buttons */}
                   <div className="pt-6 space-y-3">
                     <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" size="sm">
-                      צפה בפרטים
+                       לעריכה
                     </Button>
-                    <Button variant="outline" className="w-full border-blue-300 text-blue-700 hover:bg-blue-50" size="sm">
+                    {/* <Button variant="outline" className="w-full border-blue-300 text-blue-700 hover:bg-blue-50" size="sm">
                       <Calendar className="h-4 w-4 mr-2" />
                       מערכת השעות
-                    </Button>
+                    </Button> */}
                   </div>
                 </CardContent>
               </Card>

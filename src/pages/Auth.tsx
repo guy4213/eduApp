@@ -19,7 +19,7 @@ const Auth = () => {
     email: '',
     password: '',
     fullName: '',
-    role: 'instructor',
+    role:'' ,
     phone: '',
   });
 
