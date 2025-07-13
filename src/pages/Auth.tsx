@@ -63,7 +63,7 @@ const Auth = () => {
           formData.email, 
           formData.password, 
           formData.fullName, 
-          formData.role,
+          formData.role as 'instructor' | 'pedagogical_manager' | 'admin',
           formData.phone
         );
         if (error) {

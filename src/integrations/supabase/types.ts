@@ -66,6 +66,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "courses_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       educational_institutions: {
@@ -182,6 +189,13 @@ export type Database = {
             columns: ["instructor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_reports_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
         ]
@@ -321,6 +335,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lessons_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -416,11 +437,80 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sales_leads_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
-      [_ in never]: never
+      profiles_public: {
+        Row: {
+          benefits: string | null
+          birthdate: string | null
+          created_at: string | null
+          current_work_hours: number | null
+          email: string | null
+          full_name: string | null
+          hourly_rate: number | null
+          id: string | null
+          phone: string | null
+          role: Database["public"]["Enums"]["user_role"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          benefits?: string | null
+          birthdate?: string | null
+          created_at?: string | null
+          current_work_hours?: number | null
+          email?: string | null
+          full_name?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          benefits?: string | null
+          birthdate?: string | null
+          created_at?: string | null
+          current_work_hours?: number | null
+          email?: string | null
+          full_name?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_current_user_role: {
@@ -430,6 +520,10 @@ export type Database = {
       get_user_role_text: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      is_admin_or_manager: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
     }
     Enums: {

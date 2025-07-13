@@ -41,6 +41,14 @@ const Courses = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<{ id: string; name: string } | null>(null);
+  const [editCourse, setEditCourse] = useState<{
+    id: string;
+    name: string;
+    grade_level: string;
+    max_participants: number;
+    price_per_lesson: number;
+    tasks: any[];
+  } | null>(null);
 
 
   const groupTasksByLesson = (tasks: Task[]) => {
@@ -176,6 +184,25 @@ const Courses = () => {
 
   const handleAssignmentComplete = () => {
     fetchCourses();
+  };
+
+  const handleEditCourse = (course: Course) => {
+    setEditCourse({
+      id: course.id,
+      name: course.name,
+      grade_level: course.grade_level,
+      max_participants: course.max_participants,
+      price_per_lesson: course.price_per_lesson,
+      tasks: course.tasks
+    });
+    setShowCreateDialog(true);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setShowCreateDialog(open);
+    if (!open) {
+      setEditCourse(null);
+    }
   };
 
   if (loading) {
@@ -342,8 +369,13 @@ const Courses = () => {
       </div>
                   {/* Action Buttons */}
                   <div className="pt-6 space-y-3">
-                    <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" size="sm">
-                       לעריכה
+                    <Button 
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" 
+                      size="sm"
+                      onClick={() => handleEditCourse(course)}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      לעריכה
                     </Button>
                     {/* <Button variant="outline" className="w-full border-blue-300 text-blue-700 hover:bg-blue-50" size="sm">
                       <Calendar className="h-4 w-4 mr-2" />
@@ -358,8 +390,9 @@ const Courses = () => {
 
         <CourseCreateDialog
           open={showCreateDialog}
-          onOpenChange={setShowCreateDialog}
+          onOpenChange={handleDialogClose}
           onCourseCreated={handleCourseCreated}
+          editCourse={editCourse}
         />
 
         {selectedCourse && (

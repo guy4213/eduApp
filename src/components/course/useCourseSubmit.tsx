@@ -5,25 +5,64 @@ import { Lesson } from './CourseLessonsSection';
 export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boolean) => void) {
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (formData: any, lessons: Lesson[]) => {
+  const handleSubmit = async (formData: any, lessons: Lesson[], editCourseId?: string) => {
     setLoading(true);
     try {
-      // שמירת הקורס
-      const { data: savedCourse, error: courseError } = await supabase
-        .from('courses')
-        .insert({
-          name: formData.name,
-          grade_level: formData.grade_level,
-          max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,
-          price_per_lesson: formData.price_per_lesson ? parseFloat(formData.price_per_lesson) : null,
-          start_date: new Date().toISOString(), // זמני placeholder
-          approx_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // זמני placeholder 
-        })
-        .select('id')
-        .single();
+      let courseId = editCourseId;
 
-      if (courseError) throw courseError;
-      const courseId = savedCourse.id;
+      if (editCourseId) {
+        // עדכון קורס קיים
+        const { error: courseError } = await supabase
+          .from('courses')
+          .update({
+            name: formData.name,
+            grade_level: formData.grade_level,
+            max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,
+            price_per_lesson: formData.price_per_lesson ? parseFloat(formData.price_per_lesson) : null,
+          })
+          .eq('id', editCourseId);
+
+        if (courseError) throw courseError;
+
+        // מחיקת שיעורים ומשימות קיימים
+        const { data: existingLessons } = await supabase
+          .from('lessons')
+          .select('id')
+          .eq('course_id', editCourseId);
+
+        if (existingLessons && existingLessons.length > 0) {
+          const lessonIds = existingLessons.map(l => l.id);
+          
+          // מחיקת משימות
+          await supabase
+            .from('lesson_tasks')
+            .delete()
+            .in('lesson_id', lessonIds);
+
+          // מחיקת שיעורים
+          await supabase
+            .from('lessons')
+            .delete()
+            .eq('course_id', editCourseId);
+        }
+      } else {
+        // יצירת קורס חדש
+        const { data: savedCourse, error: courseError } = await supabase
+          .from('courses')
+          .insert({
+            name: formData.name,
+            grade_level: formData.grade_level,
+            max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,
+            price_per_lesson: formData.price_per_lesson ? parseFloat(formData.price_per_lesson) : null,
+            start_date: new Date().toISOString(), // זמני placeholder
+            approx_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // זמני placeholder 
+          })
+          .select('id')
+          .single();
+
+        if (courseError) throw courseError;
+        courseId = savedCourse.id;
+      }
 
       // שמירת השיעורים והמשימות
       if (lessons.length > 0) {

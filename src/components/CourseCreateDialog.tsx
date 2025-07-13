@@ -18,9 +18,17 @@ interface CourseCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCourseCreated: () => void;
+  editCourse?: {
+    id: string;
+    name: string;
+    grade_level: string;
+    max_participants: number;
+    price_per_lesson: number;
+    tasks: any[];
+  } | null;
 }
 
-const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreateDialogProps) => {
+const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }: CourseCreateDialogProps) => {
   const { institutions } = useCourseData();
   const { loading, handleSubmit } = useCourseSubmit(onCourseCreated, onOpenChange);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -33,15 +41,53 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
 
   useEffect(() => {
     if (open) {
-      setFormData({
-        name: '',
-        grade_level: '',
-        max_participants: '',
-        price_per_lesson: '',
-      });
-      setLessons([]);
+      if (editCourse) {
+        // Pre-fill form with existing course data
+        setFormData({
+          name: editCourse.name,
+          grade_level: editCourse.grade_level,
+          max_participants: editCourse.max_participants.toString(),
+          price_per_lesson: editCourse.price_per_lesson.toString(),
+        });
+        
+        // Convert tasks to lessons format
+        const lessonsMap = new Map();
+        editCourse.tasks.forEach(task => {
+          const lessonKey = task.lesson_number;
+          if (!lessonsMap.has(lessonKey)) {
+            lessonsMap.set(lessonKey, {
+              id: `lesson-${lessonKey}`,
+              title: task.lesson_title || `שיעור ${lessonKey}`,
+              tasks: []
+            });
+          }
+          lessonsMap.get(lessonKey).tasks.push({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            estimated_duration: task.estimated_duration,
+            is_mandatory: task.is_mandatory,
+            order_index: task.order_index
+          });
+        });
+        
+        const formattedLessons = Array.from(lessonsMap.values()).sort((a, b) => 
+          parseInt(a.id.split('-')[1]) - parseInt(b.id.split('-')[1])
+        );
+        
+        setLessons(formattedLessons);
+      } else {
+        // Reset form for new course
+        setFormData({
+          name: '',
+          grade_level: '',
+          max_participants: '',
+          price_per_lesson: '',
+        });
+        setLessons([]);
+      }
     }
-  }, [open]);
+  }, [open, editCourse]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -52,15 +98,15 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await handleSubmit(formData, lessons);
+    await handleSubmit(formData, lessons, editCourse?.id);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[400px] sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>יצירת תוכנית לימוד חדשה</DialogTitle>
-          <DialogDescription>מלא את הפרטים כדי ליצור תוכנית לימוד חדשה</DialogDescription>
+          <DialogTitle>{editCourse ? 'עריכת תוכנית לימוד' : 'יצירת תוכנית לימוד חדשה'}</DialogTitle>
+          <DialogDescription>{editCourse ? 'ערוך את פרטי תוכנית הלימוד' : 'מלא את הפרטים כדי ליצור תוכנית לימוד חדשה'}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4">
@@ -87,7 +133,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated }: CourseCreat
               ביטול
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'יוצר...' : 'צור תוכנית לימוד'}
+              {loading ? (editCourse ? 'מעדכן...' : 'יוצר...') : (editCourse ? 'עדכן תוכנית לימוד' : 'צור תוכנית לימוד')}
             </Button>
           </DialogFooter>
         </form>
