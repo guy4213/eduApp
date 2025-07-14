@@ -60,18 +60,24 @@ const LessonReport = () => {
       // Fetch all reports for admins/managers
       const fetchAllReports = async () => {
         setLoading(true);
-    const { data, error } = await supabase
-            .from('lesson_reports')
-            .select(`
-              *,
-              profiles ( full_name ),
-              lessons (
-                course_id,
-                courses (
-                  name
-                )
+        const { data, error } = await supabase
+          .from('lesson_reports')
+          .select(`
+            *,
+            profiles ( full_name ),
+            lessons (
+              id,
+              course_id,
+              courses (
+                name
+              ),
+              lesson_tasks (
+                id,
+                title,
+                description
               )
-            `)
+            )
+          `)
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -385,10 +391,10 @@ const LessonReport = () => {
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              {report.completed_task_ids && report.completed_task_ids.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
+                              {report.lessons?.lesson_tasks && report.lessons.lesson_tasks.length > 0 ? (
+                                <div className="flex items-center gap-2">
                                   <Badge variant="secondary" className="text-xs">
-                                    {report.completed_task_ids.length} משימות
+                                    {report.completed_task_ids?.length || 0} מתוך {report.lessons.lesson_tasks.length}
                                   </Badge>
                                   <CheckCircle className="h-4 w-4 text-green-600" />
                                 </div>
@@ -425,11 +431,24 @@ const LessonReport = () => {
                               className="hover:bg-primary hover:text-primary-foreground transition-colors"
                               onClick={() => {
                                 const feedbackContent = report.feedback || report.notes || 'אין פרטים נוספים';
-                                const completedTasks = report.completed_task_ids?.length || 0;
+                                const allTasks = report.lessons?.lesson_tasks || [];
+                                const completedTaskIds = report.completed_task_ids || [];
+                                
+                                // Get completed tasks details
+                                const completedTasks = allTasks.filter(task => 
+                                  completedTaskIds.includes(task.id)
+                                );
+                                
+                                const tasksInfo = completedTasks.length > 0 
+                                  ? completedTasks.map(task => 
+                                      `• ${task.title}${task.description ? `: ${task.description.substring(0, 100)}...` : ''}`
+                                    ).join('\n')
+                                  : 'לא בוצעו משימות';
                                 
                                 toast({
                                   title: `משוב לשיעור: ${report.lesson_title}`,
-                                  description: `${feedbackContent}\n\nמשימות שבוצעו: ${completedTasks}`,
+                                  description: `משוב: ${feedbackContent}\n\nמשימות שבוצעו (${completedTasks.length} מתוך ${allTasks.length}):\n${tasksInfo}`,
+                                  duration: 8000,
                                 });
                               }}
                             >
