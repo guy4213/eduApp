@@ -75,7 +75,7 @@ const Navigation = () => {
             {/* Hamburger Menu */}
        
               <BookOpen className="h-8 w-8 text-blue-200 ml-3" />
-              <h1 className="text-xl font-bold text-white">מערכת ניהול מנחים</h1>
+              <h1 className="text-xl font-bold text-white">שלום  {user.user_metadata.full_name}</h1>
             </div>
             
             {/* Hamburger Menu & User Info */}

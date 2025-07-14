@@ -50,7 +50,7 @@ const Courses = () => {
     tasks: any[];
   } | null>(null);
 
-
+console.log("ROLE  "+user.user_metadata.role);
   const groupTasksByLesson = (tasks: Task[]) => {
   const grouped: Record<number, Task[]> = {};
   for (const task of tasks) {
@@ -223,16 +223,23 @@ const Courses = () => {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">ניהול קורסים</h1>
-            <p className="text-gray-600 text-lg">ניהול וצפייה בכל הקורסים שאתה מעביר</p>
+         {  user.user_metadata.role!="instructor" ?(
+          <> 
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">ניהול קורסים</h1>
+          <p className="text-gray-600 text-lg">ניהול וצפייה בכל הקורסים שאתה מעביר</p>
+            </>
+            ) : (
+            <>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2"> הקורסים שלי</h1>
+            </>)}
           </div>
-          <Button
+        {user.user_metadata.role!="instructor"&&  <Button
             onClick={() => setShowCreateDialog(true)}
             className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg"
           >
             <Plus className="h-4 w-4" />
             <span>תוכנית לימוד חדשה</span>
-          </Button>
+          </Button>}
         </div>
 
         {courses.length === 0 ? (
@@ -260,14 +267,15 @@ const Courses = () => {
                       <CardTitle className="text-2xl mb-2 text-white">{course.name}</CardTitle>
                       <CardDescription className="text-blue-100 text-base">{course.institution_name}</CardDescription>
                     </div>
-                    <Button 
+                {  user.user_metadata.role!="instructor"&&
+                  <Button 
                       variant="ghost" 
                       size="sm" 
                       className="text-white hover:bg-white/20"
                       onClick={() => handleAssignCourse(course.id, course.name)}
                     >
                       <UserPlus className="h-4 w-4" />
-                    </Button>
+                    </Button>}
                   </div>
                 </CardHeader>
                 
@@ -369,14 +377,14 @@ const Courses = () => {
       </div>
                   {/* Action Buttons */}
                   <div className="pt-6 space-y-3">
-                    <Button 
+                 {  user.user_metadata.role!="instructor"&& <Button 
                       className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" 
                       size="sm"
                       onClick={() => handleEditCourse(course)}
                     >
                       <Edit className="h-4 w-4 mr-2" />
                       לעריכה
-                    </Button>
+                    </Button>}
                     {/* <Button variant="outline" className="w-full border-blue-300 text-blue-700 hover:bg-blue-50" size="sm">
                       <Calendar className="h-4 w-4 mr-2" />
                       מערכת השעות
