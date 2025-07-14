@@ -151,10 +151,12 @@ export type Database = {
       }
       lesson_reports: {
         Row: {
+          completed_task_ids: string[] | null
           created_at: string
           feedback: string | null
           id: string
           instructor_id: string | null
+          lesson_id: string | null
           lesson_title: string
           marketing_consent: boolean | null
           notes: string | null
@@ -162,10 +164,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          completed_task_ids?: string[] | null
           created_at?: string
           feedback?: string | null
           id?: string
           instructor_id?: string | null
+          lesson_id?: string | null
           lesson_title: string
           marketing_consent?: boolean | null
           notes?: string | null
@@ -173,10 +177,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          completed_task_ids?: string[] | null
           created_at?: string
           feedback?: string | null
           id?: string
           instructor_id?: string | null
+          lesson_id?: string | null
           lesson_title?: string
           marketing_consent?: boolean | null
           notes?: string | null
@@ -196,6 +202,13 @@ export type Database = {
             columns: ["instructor_id"]
             isOneToOne: false
             referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_reports_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
             referencedColumns: ["id"]
           },
         ]
