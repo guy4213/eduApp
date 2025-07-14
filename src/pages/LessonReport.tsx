@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, FileText, CheckCircle, X } from 'lucide-react';
+import { Camera, FileText, CheckCircle, X, Eye, Calendar, User, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -25,32 +27,64 @@ const LessonReport = () => {
   const [lesson, setLesson] = useState<any>(null);
   const [lessonTasks, setLessonTasks] = useState<any[]>([]);
   const [checkedTasks, setCheckedTasks] = useState<string[]>([]);
-const { user } = useAuth(); // Assuming useAuth is available to get the current user
-const isInstructor= user?.user_metadata.role === 'instructor';
+  const [allReports, setAllReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const isInstructor = user?.user_metadata.role === 'instructor';
   useEffect(() => {
-    if (!id) return;
+    if (isInstructor && !id) return;
+    
+    if (isInstructor) {
+      // Fetch lesson data for instructors
+      const fetchLessonData = async () => {
+        const [lessonRes, tasksRes] = await Promise.all([
+          supabase.from('lessons').select('*').eq('id', id).single(),
+          supabase.from('lesson_tasks').select('*').eq('lesson_id', id),
+        ]);
 
-    const fetchLessonData = async () => {
-      const [lessonRes, tasksRes] = await Promise.all([
-        supabase.from('lessons').select('*').eq('id', id).single(),
-        supabase.from('lesson_tasks').select('*').eq('lesson_id', id),
-      ]);
+        if (lessonRes.error) {
+          console.error('Lesson fetch error:', lessonRes.error);
+        } else {
+          setLesson(lessonRes.data);
+        }
 
-      if (lessonRes.error) {
-        console.error('Lesson fetch error:', lessonRes.error);
-      } else {
-        setLesson(lessonRes.data);
-      }
+        if (tasksRes.error) {
+          console.error('Tasks fetch error:', tasksRes.error);
+        } else {
+          setLessonTasks(tasksRes.data || []);
+        }
+      };
 
-      if (tasksRes.error) {
-        console.error('Tasks fetch error:', tasksRes.error);
-      } else {
-        setLessonTasks(tasksRes.data || []);
-      }
-    };
+      fetchLessonData();
+    } else {
+      // Fetch all reports for admins/managers
+      const fetchAllReports = async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('lesson_reports')
+          .select(`
+            *,
+            lesson:lessons(title, course:courses(name)),
+            instructor:profiles!instructor_id(full_name)
+          `)
+          .order('created_at', { ascending: false });
 
-    fetchLessonData();
-  }, [id]);
+        if (error) {
+          console.error('Reports fetch error:', error);
+          toast({
+            title: 'שגיאה',
+            description: 'שגיאה בטעינת הדיווחים',
+            variant: 'destructive',
+          });
+        } else {
+          setAllReports(data || []);
+        }
+        setLoading(false);
+      };
+
+      fetchAllReports();
+    }
+  }, [id, isInstructor, toast]);
 
   const handleToggleTask = (taskId: string) => {
     setCheckedTasks((prev) =>
@@ -282,7 +316,97 @@ const isInstructor= user?.user_metadata.role === 'instructor';
           </Card>
         </div>
         :
-        <div> all reports</div>}
+        <div className="space-y-6">
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">טוען דיווחים...</p>
+            </div>
+          ) : allReports.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-8">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">אין דיווחים זמינים</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <FileText className="h-5 w-5 ml-2" />
+                  כל הדיווחים ({allReports.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>כותרת השיעור</TableHead>
+                        <TableHead>קורס</TableHead>
+                        <TableHead>מדריך</TableHead>
+                        <TableHead>משתתפים</TableHead>
+                        <TableHead>תאריך</TableHead>
+                        <TableHead>משוב</TableHead>
+                        <TableHead>פעולות</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allReports.map((report) => (
+                        <TableRow key={report.id}>
+                          <TableCell className="font-medium">
+                            {report.lesson_title}
+                          </TableCell>
+                          <TableCell>
+                            {report.lesson?.course?.name || 'לא זמין'}
+                          </TableCell>
+                          <TableCell className="flex items-center">
+                            <User className="h-4 w-4 ml-1" />
+                            {report.instructor?.full_name || 'לא זמין'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center">
+                              <Users className="h-4 w-4 ml-1" />
+                              {report.participants_count || 0}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center">
+                              <Calendar className="h-4 w-4 ml-1" />
+                              {new Date(report.created_at).toLocaleDateString('he-IL')}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {report.feedback ? (
+                              <Badge variant="secondary">יש משוב</Badge>
+                            ) : (
+                              <Badge variant="outline">אין משוב</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // Show detailed view
+                                toast({
+                                  title: 'פרטי הדיווח',
+                                  description: report.feedback || report.notes || 'אין פרטים נוספים',
+                                });
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>}
       </div>
     </div>
   );
