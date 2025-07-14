@@ -60,13 +60,18 @@ const LessonReport = () => {
       // Fetch all reports for admins/managers
       const fetchAllReports = async () => {
         setLoading(true);
-        const { data, error } = await supabase
-          .from('lesson_reports')
-          .select(`
-            *,
-            lesson:lessons(title, course:courses(name)),
-            instructor:profiles!instructor_id(full_name)
-          `)
+    const { data, error } = await supabase
+            .from('lesson_reports')
+            .select(`
+              *,
+              profiles ( full_name ),
+              lessons (
+                course_id,
+                courses (
+                  name
+                )
+              )
+            `)
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -94,6 +99,7 @@ const LessonReport = () => {
     );
   };
 
+  console.log("Reports" , allReports);
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
     setFiles((prev) => [...prev, ...selectedFiles]);
@@ -358,11 +364,11 @@ const LessonReport = () => {
                             {report.lesson_title}
                           </TableCell>
                           <TableCell>
-                            {report.lesson?.course?.name || 'לא זמין'}
+                            {report.lessons?.courses?.name || 'לא זמין'}
                           </TableCell>
                           <TableCell className="flex items-center">
                             <User className="h-4 w-4 ml-1" />
-                            {report.instructor?.full_name || 'לא זמין'}
+                          {report.profiles?.full_name || 'לא זמין'}    
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center">
