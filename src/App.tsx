@@ -53,6 +53,17 @@ const App = () => (
                   </ProtectedRoute>
                 } 
               />
+                  <Route 
+                path="/lesson-report" 
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen">
+                      <Navigation />
+                      <LessonReport />
+                    </div>
+                  </ProtectedRoute>
+                } 
+              />
               <Route 
                 path="/lesson-report/:id" 
                 element={

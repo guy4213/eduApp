@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import { useParams } from 'react-router-dom';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const LessonReport = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -24,7 +25,8 @@ const LessonReport = () => {
   const [lesson, setLesson] = useState<any>(null);
   const [lessonTasks, setLessonTasks] = useState<any[]>([]);
   const [checkedTasks, setCheckedTasks] = useState<string[]>([]);
-
+const { user } = useAuth(); // Assuming useAuth is available to get the current user
+const isInstructor= user?.user_metadata.role === 'instructor';
   useEffect(() => {
     if (!id) return;
 
@@ -174,10 +176,15 @@ const LessonReport = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="md:hidden"><MobileNavigation /></div>
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">דיווח שיעור - {lesson?.title}</h1>
-        <p className="text-gray-600 mb-6">דיווח על שיעור שהתקיים או בתהליך</p>
+{   isInstructor?     
+<h1 className="text-3xl font-bold text-gray-900 mb-2">דיווח שיעור - {lesson?.title}</h1>
+:
+<h1 className="text-3xl font-bold text-gray-900 mb-2">כלל השיעורים שדווחו </h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+}
+
+       { isInstructor?   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Report Form */}
           <Card>
             <CardHeader>
@@ -274,6 +281,8 @@ const LessonReport = () => {
             </CardContent>
           </Card>
         </div>
+        :
+        <div> all reports</div>}
       </div>
     </div>
   );
