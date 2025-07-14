@@ -347,61 +347,94 @@ const LessonReport = () => {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>כותרת השיעור</TableHead>
-                        <TableHead>קורס</TableHead>
-                        <TableHead>מדריך</TableHead>
-                        <TableHead>משתתפים</TableHead>
-                        <TableHead>תאריך</TableHead>
-                        <TableHead>משוב</TableHead>
-                        <TableHead>פעולות</TableHead>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold">כותרת השיעור</TableHead>
+                        <TableHead className="font-semibold">קורס</TableHead>
+                        <TableHead className="font-semibold">מדריך</TableHead>
+                        <TableHead className="font-semibold">משתתפים</TableHead>
+                        <TableHead className="font-semibold">משימות שבוצעו</TableHead>
+                        <TableHead className="font-semibold">תאריך</TableHead>
+                        <TableHead className="font-semibold">משוב</TableHead>
+                        <TableHead className="font-semibold">צפייה</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {allReports.map((report) => (
-                        <TableRow key={report.id}>
+                        <TableRow key={report.id} className="hover:bg-muted/30 transition-colors">
                           <TableCell className="font-medium">
-                            {report.lesson_title}
+                            <div className="font-semibold text-foreground">
+                              {report.lesson_title}
+                            </div>
                           </TableCell>
                           <TableCell>
-                            {report.lessons?.courses?.name || 'לא זמין'}
-                          </TableCell>
-                          <TableCell className="flex items-center">
-                            <User className="h-4 w-4 ml-1" />
-                          {report.profiles?.full_name || 'לא זמין'}    
+                            <Badge variant="outline" className="font-normal">
+                              {report.lessons?.courses?.name || 'לא זמין'}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center">
-                              <Users className="h-4 w-4 ml-1" />
-                              {report.participants_count || 0}
+                              <User className="h-4 w-4 ml-1 text-muted-foreground" />
+                              <span className="font-medium">{report.profiles?.full_name || 'לא זמין'}</span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center">
-                              <Calendar className="h-4 w-4 ml-1" />
-                              {new Date(report.created_at).toLocaleDateString('he-IL')}
+                              <Users className="h-4 w-4 ml-1 text-muted-foreground" />
+                              <span className="font-medium">{report.participants_count || 0}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              {report.completed_task_ids && report.completed_task_ids.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  <Badge variant="secondary" className="text-xs">
+                                    {report.completed_task_ids.length} משימות
+                                  </Badge>
+                                  <CheckCircle className="h-4 w-4 text-green-600" />
+                                </div>
+                              ) : (
+                                <div className="flex items-center text-muted-foreground">
+                                  <span className="text-xs">אין משימות</span>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center">
+                              <Calendar className="h-4 w-4 ml-1 text-muted-foreground" />
+                              <span className="text-sm">
+                                {new Date(report.created_at).toLocaleDateString('he-IL')}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell>
                             {report.feedback ? (
-                              <Badge variant="secondary">יש משוב</Badge>
+                              <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
+                                יש משוב
+                              </Badge>
                             ) : (
-                              <Badge variant="outline">אין משוב</Badge>
+                              <Badge variant="outline" className="text-muted-foreground">
+                                אין משוב
+                              </Badge>
                             )}
                           </TableCell>
                           <TableCell>
                             <Button
                               variant="outline"
                               size="sm"
+                              className="hover:bg-primary hover:text-primary-foreground transition-colors"
                               onClick={() => {
-                                // Show detailed view
+                                const feedbackContent = report.feedback || report.notes || 'אין פרטים נוספים';
+                                const completedTasks = report.completed_task_ids?.length || 0;
+                                
                                 toast({
-                                  title: 'פרטי הדיווח',
-                                  description: report.feedback || report.notes || 'אין פרטים נוספים',
+                                  title: `משוב לשיעור: ${report.lesson_title}`,
+                                  description: `${feedbackContent}\n\nמשימות שבוצעו: ${completedTasks}`,
                                 });
                               }}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye className="h-4 w-4 ml-1" />
+                              צפה במשוב
                             </Button>
                           </TableCell>
                         </TableRow>
