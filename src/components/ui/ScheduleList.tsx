@@ -3,11 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client"; // adjust this path
 import { useAuth } from "../auth/AuthProvider";
 
-interface ScheduleListProps {
-  lessons: any[];
-}
 
-export const ScheduleList: React.FC<ScheduleListProps> = ({ lessons }) => {
+
+export const ScheduleList: React.FC<any> = ({ lessons }) => {
   const nav = useNavigate();
   const [instructors, setInstructors] = useState<{ id: string; full_name: string }[]>([]);
  const {user}=useAuth();
@@ -58,14 +56,14 @@ export const ScheduleList: React.FC<ScheduleListProps> = ({ lessons }) => {
                <div className="text-lg font-semibold">{instructorName}</div>
               )}
             </div>
-            <button
+          {user.user_metadata?.role==="instructor" && <button
               onClick={() => {
              nav(`/lesson-report/${item.id}`);
               }}
               className="bg-green-300 rounded-full p-2 items-center font-bold"
             >
               דיווח שיעור
-            </button>
+            </button>}
           </div>
         );
       })}

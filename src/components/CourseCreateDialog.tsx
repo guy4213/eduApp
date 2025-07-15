@@ -13,6 +13,7 @@ import CourseDetailsForm from './course/CourseDetailsForm';
 import CourseLessonsSection, { Lesson } from './course/CourseLessonsSection';
 import { useCourseData } from './course/useCourseData';
 import { useCourseSubmit } from './course/useCourseSubmit';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CourseCreateDialogProps {
   open: boolean;
@@ -50,32 +51,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
           price_per_lesson: editCourse.price_per_lesson.toString(),
         });
         
-        // Convert tasks to lessons format
-        const lessonsMap = new Map();
-        editCourse.tasks.forEach(task => {
-          const lessonKey = task.lesson_number;
-          if (!lessonsMap.has(lessonKey)) {
-            lessonsMap.set(lessonKey, {
-              id: `lesson-${lessonKey}`,
-              title: task.lesson_title || `שיעור ${lessonKey}`,
-              tasks: []
-            });
-          }
-          lessonsMap.get(lessonKey).tasks.push({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            estimated_duration: task.estimated_duration,
-            is_mandatory: task.is_mandatory,
-            order_index: task.order_index
-          });
-        });
-        
-        const formattedLessons = Array.from(lessonsMap.values()).sort((a, b) => 
-          parseInt(a.id.split('-')[1]) - parseInt(b.id.split('-')[1])
-        );
-        
-        setLessons(formattedLessons);
+        loadExistingLessons(editCourse.id);
       } else {
         // Reset form for new course
         setFormData({
@@ -88,6 +64,48 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
       }
     }
   }, [open, editCourse]);
+
+  const loadExistingLessons = async (courseId: string) => {
+    try {
+      const { data: lessonsData, error } = await supabase
+        .from('lessons')
+        .select(`
+          id,
+          title,
+          lesson_tasks (
+            id,
+            title,
+            description,
+            estimated_duration,
+            is_mandatory,
+            order_index
+          )
+        `)
+        .eq('course_id', courseId)
+        .order('created_at');
+
+      if (error) throw error;
+
+      if (lessonsData) {
+        const formattedLessons: Lesson[] = lessonsData.map(lesson => ({
+          id: lesson.id, // שימוש ב-ID האמיתי מהמסד נתונים
+          title: lesson.title,
+          tasks: lesson.lesson_tasks.map(task => ({
+            id: task.id, // שימוש ב-ID האמיתי של המשימה
+            title: task.title,
+            description: task.description,
+            estimated_duration: task.estimated_duration,
+            is_mandatory: task.is_mandatory,
+            order_index: task.order_index
+          })).sort((a, b) => a.order_index - b.order_index)
+        }));
+
+        setLessons(formattedLessons);
+      }
+    } catch (error) {
+      console.error('Error loading existing lessons:', error);
+    }
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({

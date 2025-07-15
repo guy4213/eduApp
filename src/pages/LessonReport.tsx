@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
+import FeedbackDialog from '@/components/FeedbackDialog';
 
 const LessonReport = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -30,6 +31,8 @@ const LessonReport = () => {
   const [allReports, setAllReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
+ const [selectedReport, setSelectedReport] = useState<any | null>(null);
+const [dialogOpen, setDialogOpen] = useState(false);
   const isInstructor = user?.user_metadata.role === 'instructor';
   useEffect(() => {
     if (isInstructor && !id) return;
@@ -430,31 +433,15 @@ const LessonReport = () => {
                               size="sm"
                               className="hover:bg-primary hover:text-primary-foreground transition-colors"
                               onClick={() => {
-                                const feedbackContent = report.feedback || report.notes || 'אין פרטים נוספים';
-                                const allTasks = report.lessons?.lesson_tasks || [];
-                                const completedTaskIds = report.completed_task_ids || [];
-                                
-                                // Get completed tasks details
-                                const completedTasks = allTasks.filter(task => 
-                                  completedTaskIds.includes(task.id)
-                                );
-                                
-                                const tasksInfo = completedTasks.length > 0 
-                                  ? completedTasks.map(task => 
-                                      `• ${task.title}${task.description ? `: ${task.description.substring(0, 100)}...` : ''}`
-                                    ).join('\n')
-                                  : 'לא בוצעו משימות';
-                                
-                                toast({
-                                  title: `משוב לשיעור: ${report.lesson_title}`,
-                                  description: `משוב: ${feedbackContent}\n\nמשימות שבוצעו (${completedTasks.length} מתוך ${allTasks.length}):\n${tasksInfo}`,
-                                  duration: 8000,
-                                });
+                                 setSelectedReport(report);
+                                setDialogOpen(true);
                               }}
                             >
                               <Eye className="h-4 w-4 ml-1" />
                               צפה במשוב
                             </Button>
+
+
                           </TableCell>
                         </TableRow>
                       ))}
@@ -466,6 +453,11 @@ const LessonReport = () => {
           )}
         </div>}
       </div>
+      <FeedbackDialog
+  open={dialogOpen}
+  onOpenChange={setDialogOpen}
+  report={selectedReport}
+/>
     </div>
   );
 };

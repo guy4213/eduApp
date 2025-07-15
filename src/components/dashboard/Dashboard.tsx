@@ -28,6 +28,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { WeeklyCalendar } from "../ui/WeeklyCalendar";
 import { Lesson } from "../course/CourseLessonsSection";
+import { DailyLessonsCard } from "@/components/DailyLessonsCard";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardStats {
   totalLessons: number;
@@ -94,7 +96,7 @@ const Dashboard = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [lessons, setLessons] = useState<any>();
-
+  const nav=useNavigate();
   useEffect(() => {
     //ADMIN & MANAGER dashboard data fetching
     const fetchDashboardData = async () => {
@@ -199,7 +201,7 @@ const Dashboard = () => {
       {/* Desktop View */}
       <div className="hidden md:block min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Welcome Section */}
           <div className="mb-8">
             {userProfile?.role !== "instructor" ? (
@@ -239,225 +241,14 @@ const Dashboard = () => {
             />
           </div>
           <div className="lg:col-span-2">
-            <div className="p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <CalendarIcon className="w-5 h-5 text-gray-500" />
-                <span>בחר תאריך:</span>
-              </div>
-
-              {/* ✅ Correct usage */}
-              <WeeklyCalendar
-                selectedDate={selectedDate}
-                setSelectedDate={setSelectedDate}
-                lessons={lessons}
-              />
-            </div>
+      
           </div>
           {/* Main Dashboard Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* Daily Calendar */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="flex items-center text-xl">
-                    <Calendar className="h-6 w-6 mr-3" />
-                    יומן יומי - 18.6.2025
-                  </CardTitle>
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white shadow-md"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    הוסף שיעור
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6 space-y-4">
-                {/* Lesson 1 */}
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border-r-4 border-blue-500 shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-3 space-x-reverse">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                      >
-                        החזר שיעור
-                      </Button>
-                      <div>
-                        <p className="font-semibold text-gray-900">
-                          בית ספר אשלים ראשון לציון
-                        </p>
-                        <p className="text-sm text-gray-600">שעת בגו גלי-ח-כ</p>
-                        <p className="text-sm text-gray-600">
-                          משתתפים: 12 תלמידים
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-left">
-                      <p className="text-lg font-bold text-blue-600">
-                        09:00-10:30
-                      </p>
-                      <span className="inline-block px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full font-medium">
-                        כביש
-                      </span>
-                      <p className="text-sm text-gray-500 mt-1">
-                        תל אביב יפו 21 דקות מכאן
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Lesson 2 */}
-                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border-r-4 border-green-500 shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-3 space-x-reverse">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-green-600 border-green-600 hover:bg-green-50"
-                      >
-                        דווח מופעים
-                      </Button>
-                      <div>
-                        <p className="font-semibold text-gray-900">גימע רמות</p>
-                        <p className="text-sm text-gray-600">שעת בגו גלי-ח-כ</p>
-                        <p className="text-sm text-gray-600">
-                          משתתפים: 12 תלמידים
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-left">
-                      <p className="text-lg font-bold text-green-600">
-                        11:00-12:30
-                      </p>
-                      <span className="inline-block px-3 py-1 text-xs bg-green-100 text-green-800 rounded-full font-medium">
-                        הושלם
-                      </span>
-                      <p className="text-sm text-gray-500 mt-1">
-                        תל אביב יפו 2 דקות מכאן
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Lesson 3 */}
-                <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 border-r-4 border-purple-500 shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-3 space-x-reverse">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-purple-600 border-purple-600 hover:bg-purple-50"
-                      >
-                        דווח מופעים
-                      </Button>
-                      <span className="text-sm text-purple-600 font-medium bg-purple-100 px-2 py-1 rounded">
-                        התחל שיעור
-                      </span>
-                      <div>
-                        <p className="font-semibold text-gray-900">
-                          דת שלום רמות
-                        </p>
-                        <p className="text-sm text-gray-600">שעת בגו גלי-א-כ</p>
-                        <p className="text-sm text-gray-600">
-                          משתתפים: 18 תלמידים
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-left">
-                      <p className="text-lg font-bold text-purple-600">
-                        14:00-15:30
-                      </p>
-                      <span className="inline-block px-3 py-1 text-xs bg-purple-100 text-purple-800 rounded-full font-medium">
-                        עוד מעט
-                      </span>
-                      <p className="text-sm text-gray-500 mt-1">
-                        תל אביב יפו מקום קבוע
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Performance Statistics */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-t-lg">
-                <CardTitle className="text-xl">ביצועים מדדים 📊</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 space-y-6">
-                {/* Performance Metrics */}
-                <div className="space-y-6">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-semibold text-gray-700">
-                        דבר כהן
-                      </span>
-                      <div className="text-left">
-                        <div className="text-sm text-gray-600 flex items-center">
-                          <Star className="h-4 w-4 text-yellow-500 ml-1" />
-                          שיעורי החירדני 24 מ 4.8
-                        </div>
-                        <div className="text-lg font-bold text-gray-900">
-                          4.8/5
-                        </div>
-                      </div>
-                    </div>
-                    <Progress value={96} className="h-3 bg-gray-200" />
-                    <div className="flex justify-between text-xs text-gray-600 mt-2">
-                      <span>96%</span>
-                      <span>דירוג כללי</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-semibold text-gray-700">
-                        שרה לוי
-                      </span>
-                      <div className="text-left">
-                        <div className="text-sm text-gray-600 flex items-center">
-                          <Star className="h-4 w-4 text-yellow-500 ml-1" />
-                          שיעורי החירדני 19 מ 4.5
-                        </div>
-                        <div className="text-lg font-bold text-gray-900">
-                          4.5/5
-                        </div>
-                      </div>
-                    </div>
-                    <Progress value={92} className="h-3 bg-gray-200" />
-                    <div className="flex justify-between text-xs text-gray-600 mt-2">
-                      <span>92%</span>
-                      <span>דירוג כללי</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-semibold text-gray-700">
-                        מיכל אברהם
-                      </span>
-                      <div className="text-left">
-                        <div className="text-sm text-gray-600 flex items-center">
-                          <Star className="h-4 w-4 text-yellow-500 ml-1" />
-                          שיעורי החירדני 21 מ 4.3
-                        </div>
-                        <div className="text-lg font-bold text-gray-900">
-                          4.3/5
-                        </div>
-                      </div>
-                    </div>
-                    <Progress value={88} className="h-3 bg-gray-200" />
-                    <div className="flex justify-between text-xs text-gray-600 mt-2">
-                      <span>88%</span>
-                      <span>דירוג כללי</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+            <DailyLessonsCard
+      dateLabel={new Date(Date.now()).toLocaleString().split(",")[0]}
+        onAddLesson={() => nav('/courses')}
+        lessons={lessons}
+      />
 
           {/* Summary Card */}
           <Card className="bg-gradient-to-l from-yellow-100 to-amber-100 border-yellow-300 shadow-lg mb-8">
