@@ -7,7 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Edit, Trash2, Clock, CheckCircle2, Circle } from 'lucide-react';
+import { Plus, Edit, Trash2, Clock, CheckCircle2, Circle, CalendarIcon } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 export interface Task {
   id: string;
@@ -23,18 +28,22 @@ export interface Lesson {
   title: string;
   description: string;
   order_index: number;
+  lesson_date?: string;
   tasks: Task[];
 }
 
 interface CourseLessonsSectionProps {
   lessons: Lesson[];
   onLessonsChange: (lessons: Lesson[]) => void;
+  courseStartDate?: string;
+  courseEndDate?: string;
 }
 
-const CourseLessonsSection = ({ lessons, onLessonsChange }: CourseLessonsSectionProps) => {
+const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, courseEndDate }: CourseLessonsSectionProps) => {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [index, setIndex] = useState<any>(0);
-  const [newLesson, setNewLesson] = useState({ title: '', description: '' });
+  const [newLesson, setNewLesson] = useState({ title: '', description: '', lesson_date: '' });
+  const { toast } = useToast();
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
@@ -42,19 +51,37 @@ const CourseLessonsSection = ({ lessons, onLessonsChange }: CourseLessonsSection
     is_mandatory: false
   });
 
+  const isDateInRange = (date: string) => {
+    if (!courseStartDate || !courseEndDate) return true;
+    const lessonDate = new Date(date);
+    const startDate = new Date(courseStartDate);
+    const endDate = new Date(courseEndDate);
+    return lessonDate >= startDate && lessonDate <= endDate;
+  };
+
   const addLesson = () => {
     if (!newLesson.title.trim()) return;
+    
+    if (newLesson.lesson_date && !isDateInRange(newLesson.lesson_date)) {
+      toast({
+        title: "שגיאה",
+        description: "תאריך השיעור חייב להיות בטווח התאריכים של הקורס",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const lesson: Lesson = {
       id: `lesson-${Date.now()}`,
       title: newLesson.title,
       description: newLesson.description,
       order_index: lessons.length,
+      lesson_date: newLesson.lesson_date,
       tasks: []
     };
 
     onLessonsChange([...lessons, lesson]);
-    setNewLesson({ title: '', description: '' });
+    setNewLesson({ title: '', description: '', lesson_date: '' });
     setSelectedLessonId(lesson.id);
   };
 
@@ -129,6 +156,36 @@ const CourseLessonsSection = ({ lessons, onLessonsChange }: CourseLessonsSection
                 rows={2}
               />
             </div>
+            <div>
+              <Label htmlFor="lesson-date">תאריך השיעור</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !newLesson.lesson_date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {newLesson.lesson_date ? format(new Date(newLesson.lesson_date), "dd/MM/yyyy") : "בחר תאריך שיעור"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={newLesson.lesson_date ? new Date(newLesson.lesson_date) : undefined}
+                    onSelect={(date) => setNewLesson(prev => ({ ...prev, lesson_date: date ? date.toISOString().split('T')[0] : '' }))}
+                    disabled={(date) => {
+                      if (!courseStartDate || !courseEndDate) return false;
+                      return date < new Date(courseStartDate) || date > new Date(courseEndDate);
+                    }}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
             <Button onClick={addLesson} disabled={!newLesson.title.trim()}>
               <Plus className="h-4 w-4 mr-2" />
               הוסף שיעור
@@ -153,6 +210,9 @@ const CourseLessonsSection = ({ lessons, onLessonsChange }: CourseLessonsSection
                       <CardTitle className="text-sm">שיעור {index + 1}: {lesson.title}</CardTitle>
                       {lesson.description && (
                         <p className="text-xs text-gray-600 mt-1">{lesson.description}</p>
+                      )}
+                      {lesson.lesson_date && (
+                        <p className="text-xs text-blue-600 mt-1">📅 {format(new Date(lesson.lesson_date), "dd/MM/yyyy")}</p>
                       )}
                     </div>
                     <Button

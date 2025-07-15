@@ -19,6 +19,8 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
             grade_level: formData.grade_level,
             max_participants: parseInt(formData.max_participants) || null,
             price_per_lesson: parseFloat(formData.price_per_lesson) || null,
+            start_date: formData.start_date || null,
+            approx_end_date: formData.approx_end_date || null,
           })
           .eq('id', editCourseId)
           .select('id, instructor_id')
@@ -35,8 +37,8 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
             grade_level: formData.grade_level,
             max_participants: parseInt(formData.max_participants) || null,
             price_per_lesson: parseFloat(formData.price_per_lesson) || null,
-            start_date: new Date().toISOString(),
-            approx_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            start_date: formData.start_date || null,
+            approx_end_date: formData.approx_end_date || null,
           })
           .select('id')
           .single();
