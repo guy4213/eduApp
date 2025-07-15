@@ -100,7 +100,15 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
             is_mandatory: task.is_mandatory,
             order_index: task.order_index,
           }));
-          await supabase.from('lesson_tasks').insert(tasksToInsert);
+          
+          console.log('Inserting tasks for new lesson:', tasksToInsert);
+          const { data: insertedTasks, error: tasksError } = await supabase.from('lesson_tasks').insert(tasksToInsert);
+          
+          if (tasksError) {
+            console.error('Error inserting tasks for new lesson:', tasksError);
+            throw tasksError;
+          }
+          console.log('Tasks for new lesson inserted successfully:', insertedTasks);
         }
       }
     }
@@ -135,7 +143,8 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           })
           .eq('id', existingTask.id);
       } else {
-        await supabase.from('lesson_tasks').insert({
+        console.log('Inserting new task for lesson:', lessonId, newTask);
+        const { data: insertedTask, error: insertError } = await supabase.from('lesson_tasks').insert({
           lesson_id: lessonId,
           title: newTask.title,
           description: newTask.description,
@@ -143,6 +152,12 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           is_mandatory: newTask.is_mandatory,
           order_index: newTask.order_index,
         });
+        
+        if (insertError) {
+          console.error('Error inserting new task:', insertError);
+          throw insertError;
+        }
+        console.log('New task inserted successfully:', insertedTask);
       }
     }
 
@@ -180,7 +195,17 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           is_mandatory: task.is_mandatory,
           order_index: task.order_index,
         }));
-        await supabase.from('lesson_tasks').insert(tasksToInsert);
+        
+        console.log('Inserting tasks:', tasksToInsert);
+        const { data: insertedTasks, error: tasksError } = await supabase
+          .from('lesson_tasks')
+          .insert(tasksToInsert);
+          
+        if (tasksError) {
+          console.error('Error inserting tasks:', tasksError);
+          throw tasksError;
+        }
+        console.log('Tasks inserted successfully:', insertedTasks);
       }
     }
   };
