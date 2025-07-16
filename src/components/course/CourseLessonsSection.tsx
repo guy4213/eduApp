@@ -76,7 +76,7 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
       title: newLesson.title,
       description: newLesson.description,
       order_index: lessons.length,
-      lesson_date: newLesson.lesson_date,
+      // lesson_date: newLesson.lesson_date,
       tasks: []
     };
 
@@ -156,36 +156,7 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
                 rows={2}
               />
             </div>
-            <div>
-              <Label htmlFor="lesson-date">תאריך השיעור</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !newLesson.lesson_date && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {newLesson.lesson_date ? format(new Date(newLesson.lesson_date), "dd/MM/yyyy") : "בחר תאריך שיעור"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={newLesson.lesson_date ? new Date(newLesson.lesson_date) : undefined}
-                    onSelect={(date) => setNewLesson(prev => ({ ...prev, lesson_date: date ? date.toISOString().split('T')[0] : '' }))}
-                    disabled={(date) => {
-                      if (!courseStartDate || !courseEndDate) return false;
-                      return date < new Date(courseStartDate) || date > new Date(courseEndDate);
-                    }}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+          
             <Button onClick={addLesson} disabled={!newLesson.title.trim()}>
               <Plus className="h-4 w-4 mr-2" />
               הוסף שיעור

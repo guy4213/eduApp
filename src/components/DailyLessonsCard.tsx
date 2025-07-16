@@ -71,8 +71,8 @@ export const DailyLessonsCard: React.FC<any> = ({
   if (!c.scheduled_start) return true;
 
   const classDate = new Date(c.scheduled_start);
-  const selected = new Date(Date.now());
-// 1*24 * 60 * 60 * 1000
+  const selected = new Date(Date.now()-24 * 60 * 60 * 1000);
+// -*24 * 60 * 60 * 1000
   // Normalize both dates to YYYY-MM-DD strings
   const classDateStr = classDate.toISOString().split("T")[0];
   const selectedDateStr = selected.toISOString().split("T")[0];
@@ -102,11 +102,17 @@ export const DailyLessonsCard: React.FC<any> = ({
     }, []);
   
     // Create a lookup map for fast access
-    const instructorMap = useMemo(() => {
-      const map = new Map<string, string>();
-      instructors.forEach((instr) => map.set(instr.id, instr.full_name));
-      return map;
-    }, [instructors]);
+const instructorMap = useMemo(() => {
+  const lessonInstructorIds = new Set(lessons.map(lesson => lesson.instructor_id));
+
+  const map = new Map<string, string>();
+  instructors
+    // .filter(instr => lessonInstructorIds.has(instr.id))
+    .forEach(instr => map.set(instr.id, instr.full_name));
+
+  return map;
+}, [instructors, lessons]);
+
   return (
     <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
       <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
@@ -115,7 +121,7 @@ export const DailyLessonsCard: React.FC<any> = ({
             <Calendar className="h-8 w-6 mr-3" />
             יומן יומי - {dateLabel}
           </CardTitle>
-          {onAddLesson && (
+          {onAddLesson && user.user_metadata.role!=="instructor" && (
             <Button
               size="sm"
               onClick={onAddLesson}
@@ -137,7 +143,7 @@ export const DailyLessonsCard: React.FC<any> = ({
 
           return (
             <div
-              key={lesson.id}
+              key={lesson.lesson_id}
               className={`bg-gradient-to-r ${color.bg} rounded-xl p-4 border-r-4 ${color.border} shadow-sm`}
             >
               <div className="flex justify-between items-center">
@@ -152,9 +158,7 @@ export const DailyLessonsCard: React.FC<any> = ({
                   </Button>
                   <div>
                     <p className="font-semibold text-gray-900">{lesson.title}</p>
-                    {lesson.instructorName && (
-                      <p className="text-sm text-gray-600">{lesson.instructorName}</p>
-                    )}
+            
                     <b className="text-sm text-gray-600">
                        {instructorName} 
                     </b>
@@ -164,7 +168,7 @@ export const DailyLessonsCard: React.FC<any> = ({
                { user.user_metadata?.role==="instructor" &&
                 <button
               onClick={() => {
-             nav(`/lesson-report/${lesson.id}`);
+             nav(`/lesson-report/${lesson.lesson_id}`);
               }}
               className="bg-green-300 rounded-full p-2 items-center font-bold"
             >

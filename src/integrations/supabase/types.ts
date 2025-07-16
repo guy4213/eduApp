@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      course_instances: {
+        Row: {
+          course_id: string | null
+          created_at: string | null
+          grade_level: string | null
+          id: string
+          institution_id: string | null
+          instructor_id: string | null
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string | null
+          grade_level?: string | null
+          id?: string
+          institution_id?: string | null
+          instructor_id?: string | null
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string | null
+          grade_level?: string | null
+          id?: string
+          institution_id?: string | null
+          instructor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_instances_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_instances_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "educational_institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_instances_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_instances_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           approx_end_date: string | null
@@ -206,6 +262,45 @@ export type Database = {
           },
           {
             foreignKeyName: "lesson_reports_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_schedules: {
+        Row: {
+          course_instance_id: string | null
+          id: string
+          lesson_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+        }
+        Insert: {
+          course_instance_id?: string | null
+          id?: string
+          lesson_id?: string | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+        }
+        Update: {
+          course_instance_id?: string | null
+          id?: string
+          lesson_id?: string | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_schedules_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_schedules_lesson_id_fkey"
             columns: ["lesson_id"]
             isOneToOne: false
             referencedRelation: "lessons"

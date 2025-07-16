@@ -67,6 +67,10 @@ const [dialogOpen, setDialogOpen] = useState(false);
           .from('lesson_reports')
           .select(`
             *,
+            instructor:instructor_id(
+            id,
+            full_name
+            )
             profiles ( full_name ),
             lessons (
               id,
@@ -77,7 +81,8 @@ const [dialogOpen, setDialogOpen] = useState(false);
               lesson_tasks (
                 id,
                 title,
-                description
+                description,
+                is_mandatory
               )
             )
           `)
@@ -108,7 +113,6 @@ const [dialogOpen, setDialogOpen] = useState(false);
     );
   };
 
-  console.log("Reports" , allReports);
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
     setFiles((prev) => [...prev, ...selectedFiles]);

@@ -9,12 +9,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
 import CourseDetailsForm from './course/CourseDetailsForm';
 import CourseLessonsSection, { Lesson } from './course/CourseLessonsSection';
 import { useCourseData } from './course/useCourseData';
 import { useCourseSubmit } from './course/useCourseSubmit';
-import { supabase } from '@/integrations/supabase/client';
 
 interface CourseCreateDialogProps {
   open: boolean;
@@ -22,22 +20,22 @@ interface CourseCreateDialogProps {
   onCourseCreated: () => void;
   editCourse?: {
     id: string;
+    instance_id:string;
     name: string;
     grade_level: string;
     max_participants: number;
     price_per_lesson: number;
-    start_date?: string;
-    approx_end_date?: string;
     tasks: any[];
+    start_date:string;
+    approx_end_date:string;
   } | null;
+  
 }
 
 const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }: CourseCreateDialogProps) => {
   const { institutions } = useCourseData();
   const { loading, handleSubmit } = useCourseSubmit(onCourseCreated, onOpenChange);
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [activeTab, setActiveTab] = useState("details");
-  const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: '',
     grade_level: '',
@@ -56,8 +54,8 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
           grade_level: editCourse.grade_level,
           max_participants: editCourse.max_participants.toString(),
           price_per_lesson: editCourse.price_per_lesson.toString(),
-          start_date: editCourse.start_date || '',
-          approx_end_date: editCourse.approx_end_date || '',
+          start_date: editCourse.start_date,
+          approx_end_date:  editCourse.approx_end_date,
         });
         
         loadExistingLessons(editCourse.id);
@@ -78,41 +76,36 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
 
   const loadExistingLessons = async (courseId: string) => {
     try {
-      const { data: lessonsData, error } = await supabase
-        .from('lessons')
-        .select(`
-          id,
-          title,
-          lesson_tasks (
-            id,
-            title,
-            description,
-            estimated_duration,
-            is_mandatory,
-            order_index
-          )
-        `)
-        .eq('course_id', courseId)
-        .order('created_at');
+      // This would load from Supabase - placeholder for now
+      // Convert tasks to lessons format
+      if (editCourse?.tasks) {
+        const lessonsMap = new Map();
 
-      if (error) throw error;
+        editCourse.tasks.forEach(task => {
+          const lessonId = task.lesson_id || `lesson-${task.lesson_number}`;
 
-      if (lessonsData) {
-        const formattedLessons: Lesson[] = lessonsData.map((lesson, index) => ({
-          id: lesson.id, // שימוש ב-ID האמיתי מהמסד נתונים
-          title: lesson.title,
-          description: '', // Default empty description
-          order_index: index,
-          tasks: lesson.lesson_tasks.map(task => ({
-            id: task.id, // שימוש ב-ID האמיתי של המשימה
+          if (!lessonsMap.has(lessonId)) {
+            lessonsMap.set(lessonId, {
+              id: lessonId,
+              title: task.lesson_title || `שיעור ${task.lesson_number}`,
+              tasks: []
+            });
+          }
+
+          lessonsMap.get(lessonId).tasks.push({
+            id: task.id,
             title: task.title,
             description: task.description,
             estimated_duration: task.estimated_duration,
             is_mandatory: task.is_mandatory,
             order_index: task.order_index
-          })).sort((a, b) => a.order_index - b.order_index)
-        }));
+          });
+        });
 
+        const formattedLessons = Array.from(lessonsMap.values()).sort((a, b) => 
+          parseInt(a.id.split('-')[1]) - parseInt(b.id.split('-')[1])
+        );
+        
         setLessons(formattedLessons);
       }
     } catch (error) {
@@ -127,24 +120,9 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
     }));
   };
 
-  const isDateRangeValid = () => {
-    return formData.start_date && formData.approx_end_date && 
-           new Date(formData.start_date) <= new Date(formData.approx_end_date);
-  };
-
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!isDateRangeValid()) {
-      toast({
-        title: "שגיאה",
-        description: "יש להגדיר טווח תאריכים תקין לפני יצירת הקורס",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    await handleSubmit(formData, lessons, editCourse?.id);
+    await handleSubmit(formData, lessons, editCourse?.instance_id);
   };
 
   return (
@@ -156,10 +134,10 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs defaultValue="details" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="details">פרטי התוכנית</TabsTrigger>
-              <TabsTrigger value="lessons" disabled={!isDateRangeValid()}>שיעורים ומשימות</TabsTrigger>
+              <TabsTrigger value="lessons">שיעורים ומשימות</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="space-y-4">
@@ -170,12 +148,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
             </TabsContent>
 
             <TabsContent value="lessons" className="space-y-4">
-              <CourseLessonsSection 
-                lessons={lessons} 
-                onLessonsChange={setLessons}
-                courseStartDate={formData.start_date}
-                courseEndDate={formData.approx_end_date}
-              />
+              <CourseLessonsSection lessons={lessons} onLessonsChange={setLessons} />
             </TabsContent>
           </Tabs>
 

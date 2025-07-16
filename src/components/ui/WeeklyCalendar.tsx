@@ -21,7 +21,6 @@ interface WeeklyCalendarProps {
 
 export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ selectedDate, setSelectedDate, lessons }) => {
   // Sync internal state removed; use the controlled selectedDate prop from parent
-console.log("LESSONS ",lessons)
   // Filter lessons by selectedDate day (if date info available)
 const filteredClasses = (lessons??[]).filter((c) => {
   console.log("DATE", c.scheduled_start);

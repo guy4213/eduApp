@@ -49,38 +49,7 @@ export interface ClassItem {
   status: "available" | "booked";
   date?: string; // optional ISO date for filtering
 }
-const mockClasses: ClassItem[] = [
-  {
-    time: "08:00",
-    title: "איגרוף שקים",
-    instructor: "יוסף חיים בצלאל",
-    booked: 11,
-    capacity: 14,
-    avatars: ["/avatar1.png", "/avatar2.png", "/avatar3.png"],
-    status: "available", // ✅ string literal, matches the union
-    date: "2025-06-18T08:00:00Z", // example date
-  },
-  {
-    time: "09:05",
-    title: "BOXING METCON",
-    instructor: "יוסף חיים בצלאל",
-    booked: 4,
-    capacity: 14,
-    avatars: ["/avatar1.png", "/avatar4.png"],
-    status: "available",
-    date: "2025-06-18T08:00:00Z", // example date
-  },
-  {
-    time: "10:10",
-    title: "איגרוף קלאסי",
-    instructor: "דביר סלע",
-    booked: 10,
-    capacity: 14,
-    avatars: ["/avatar5.png", "/avatar6.png", "/avatar7.png"],
-    status: "booked", // ✅ this is the only other valid value
-    date: "2025-06-18T08:00:00Z", // example date
-  },
-];
+
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -97,57 +66,96 @@ const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [lessons, setLessons] = useState<any>();
   const nav=useNavigate();
-  useEffect(() => {
-    //ADMIN & MANAGER dashboard data fetching
-    const fetchDashboardData = async () => {
-      if (!user) return;
+useEffect(() => {
+const fetchDashboardData = async () => {
+  if (!user) return;
+  
+  try {
 
-      try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id);
-        // Fetch lessons count
-        const { data: lessons } = await supabase.from("lessons").select("*");
+    // פרופיל המשתמש
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id);
 
-        // Fetch courses count
-        const { data: courses } = await supabase
-          .from("courses")
-          .select("*")
-          .eq("instructor_id", user.id);
+    // קודם מושכים את כל ה-course_instances של המדריך
+    const { data: courses } = await supabase
+      .from("course_instances")
+      .select("id")
+      // .eq("instructor_id", user.id);
 
-        setUserProfile(profile[0] || null);
-        setLessons(lessons || []);
+    console.log("User courses:", courses);
 
-        // Calculate stats
-        const thisWeekLessons =
-          lessons?.filter((lesson) => {
-            const lessonDate = new Date(lesson.scheduled_start);
-            const today = new Date();
-            const weekFromNow = new Date(
-              today.getTime() + 7 * 24 * 60 * 60 * 1000
-            );
-            return lessonDate >= today && lessonDate <= weekFromNow;
-          }) || [];
+    if (!courses || courses.length === 0) {
+      console.log("No courses found for instructor");
+      setLessons([]);
+      setStats({
+        totalLessons: 0,
+        activeStudents: 0,
+        activeCourses: 0,
+        monthlyEarnings: 0,
+        upcomingLessons: [],
+        recentActivity: [],
+      });
+      return;
+    }
 
-        setStats({
-          totalLessons: thisWeekLessons.length,
-          activeStudents: 45,
-          activeCourses: courses?.length || 0,
-          monthlyEarnings: 4350,
-          upcomingLessons: thisWeekLessons.slice(0, 3),
-          recentActivity: lessons?.slice(-3) || [],
-        });
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const courseIds = courses.map(c => c.id);
 
-    fetchDashboardData();
-  }, [user]);
+    // עכשיו מושכים רק schedules של הקורסים האלה
+    const { data: schedules } = await supabase
+      .from("lesson_schedules")
+      .select(`
+        id,
+        scheduled_start,
+        lesson:lesson_id (
+          id,
+          title
+        ),
+        course_instance:course_instance_id (
+          id,
+          grade_level,
+          instructor:instructor_id (
+            id,
+            full_name
+          )
+        )
+      `)
+      .in("course_instance_id", courseIds);
 
+    console.log("schedules", schedules);
+
+    // שאר הקוד...
+    const adaptedLessons = (schedules || []).map((s) => ({
+      id: s.id,
+      scheduled_start: s.scheduled_start,
+      title: s.lesson?.title || "ללא כותרת",
+      instructorName: s.course_instance?.instructor?.full_name || "לא ידוע",
+      instructor_id: s.course_instance?.instructor?.id || "לא ידוע",
+      lesson_id: s.lesson?.id 
+    }));
+
+    console.log("cccccccc   ", adaptedLessons);
+    
+    setLessons(adaptedLessons);
+    setStats({
+      totalLessons: adaptedLessons.length,
+      activeStudents: 45,
+      activeCourses: courses?.length || 0,
+      monthlyEarnings: 4350,
+      upcomingLessons: adaptedLessons.slice(0, 3),
+      recentActivity: adaptedLessons.slice(-3),
+    });
+
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  fetchDashboardData();
+}, [user]);
   const menuItems = [
     {
       icon: Calendar,
@@ -204,7 +212,7 @@ const Dashboard = () => {
         <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Welcome Section */}
           <div className="mb-8">
-            {userProfile?.role !== "instructor" ? (
+            {user?.user_metadata.role !== "instructor" ? (
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
                 ברוך הבא למערכת ניהול המנחים והמרצים
               </h2>

@@ -22,7 +22,26 @@ const Calendar = () => {
         try {
         
           // Fetch lessons count
-          const { data: lessons } = await supabase.from("lessons").select("*");
+          const { data: lessons } = await supabase.from("lesson_schedules")
+          .select(`
+            scheduled_start,
+            scheduled_end,
+            lesson:lesson_id(
+            id,
+            title
+            ),
+            course_instances:course_instance_id(
+            id,
+            instructor:instructor_id(
+            id,
+            full_name
+            )
+            
+            )
+            
+            
+            
+            `);
   
           // Fetch courses count
           const { data: courses } = await supabase
