@@ -80,7 +80,8 @@ const [dialogOpen, setDialogOpen] = useState(false);
       lesson_tasks (
         id,
         title,
-        description
+        description,
+        is_mandatory
       ),
       courses:course_id (
         name

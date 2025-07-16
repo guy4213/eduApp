@@ -12,6 +12,7 @@ interface Task {
   id: string;
   title: string;
   description?: string;
+  is_mandatory:boolean;
 }
 
 interface Report {
@@ -32,9 +33,10 @@ interface FeedbackDialogProps {
 
 const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ open, onOpenChange, report }) => {
   if (!report) return null;
-
+console.log("report",report);
   const allTasks = report.lessons?.lesson_tasks || [];
   const completedTaskIds = report.completed_task_ids || [];
+  console.log("allTasks  ",allTasks)
 
   const completedTasks = allTasks.filter(task => completedTaskIds.includes(task.id));
 const uncompletedTasks = allTasks.filter(task => !completedTaskIds.includes(task.id));
@@ -60,6 +62,7 @@ const uncompletedTasks = allTasks.filter(task => !completedTaskIds.includes(task
                 <li key={task.id}>
                   <strong>{task.title}</strong>
                   {task.description ? ` – ${task.description.slice(0, 100)}...` : ''}
+                {task.is_mandatory&&  <b className=' mr-6 p-1 border-2 border-green-400 rounded-full bg-green-400'>{'   משימת חובה - '} <span className='text-blue-800'>בוצעה</span></b>}
                 </li>
               ))}
             </ul>
@@ -78,6 +81,8 @@ const uncompletedTasks = allTasks.filter(task => !completedTaskIds.includes(task
                 <li key={task.id}>
                   <strong>{task.title}</strong>
                   {task.description ? ` – ${task.description.slice(0, 100)}...` : ''}
+                {task.is_mandatory&&  <b className=' mr-6 p-1 border-2 border-red-400 rounded-full bg-red-400 text-white'>{'   משימת חובה - '} <span className='text-black'> לא בוצעה  </span> </b>}
+
                 </li>
               ))}
             </ul>
