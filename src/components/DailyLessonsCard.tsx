@@ -159,9 +159,9 @@ const instructorMap = useMemo(() => {
                   <div>
                     <p className="font-semibold text-gray-900">{lesson.title}</p>
             
-                    <b className="text-sm text-gray-600">
+                    {user.user_metadata.role!=="instructor" &&<b className="text-sm text-gray-600">
                        {instructorName} 
-                    </b>
+                    </b>}
                   </div>
                 </div>
                 <div className="text-left">
