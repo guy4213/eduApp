@@ -37,6 +37,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ open, onOpenChange, rep
   const completedTaskIds = report.completed_task_ids || [];
 
   const completedTasks = allTasks.filter(task => completedTaskIds.includes(task.id));
+const uncompletedTasks = allTasks.filter(task => !completedTaskIds.includes(task.id));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,7 +67,24 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ open, onOpenChange, rep
             <p className="text-muted-foreground text-sm">לא בוצעו משימות.</p>
           )}
         </div>
+        <div className="mt-6 text-right space-y-2">
+          <h4 className="font-semibold text-red-600">
+            משימות שלא בוצעו ({uncompletedTasks.length}):
+          </h4>
 
+          {uncompletedTasks.length > 0 ? (
+            <ul className="list-disc pr-4 text-sm leading-6 text-red-600">
+              {uncompletedTasks.map(task => (
+                <li key={task.id}>
+                  <strong>{task.title}</strong>
+                  {task.description ? ` – ${task.description.slice(0, 100)}...` : ''}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground text-sm">כל המשימות בוצעו.</p>
+          )}
+        </div>
         <div className="flex justify-end pt-4">
           <Button variant="outline" onClick={() => window.print()}>
             🖨️ הדפס

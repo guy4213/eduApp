@@ -63,30 +63,31 @@ const [dialogOpen, setDialogOpen] = useState(false);
       // Fetch all reports for admins/managers
       const fetchAllReports = async () => {
         setLoading(true);
-        const { data, error } = await supabase
-          .from('lesson_reports')
-          .select(`
-            *,
-            instructor:instructor_id(
-            id,
-            full_name
-            )
-            profiles ( full_name ),
-            lessons (
-              id,
-              course_id,
-              courses (
-                name
-              ),
-              lesson_tasks (
-                id,
-                title,
-                description,
-                is_mandatory
-              )
-            )
-          `)
-          .order('created_at', { ascending: false });
+       const { data, error } = await supabase
+  .from('lesson_reports')
+  .select(`
+    *,
+    instructor:instructor_id (
+      id,
+      full_name
+    ),
+    profiles (
+      full_name
+    ),
+    lessons:lesson_id (
+      id,
+      course_id,
+      lesson_tasks (
+        id,
+        title,
+        description
+      ),
+      courses:course_id (
+        name
+      )
+    )
+  `)
+  .order('created_at', { ascending: false });
 
         if (error) {
           console.error('Reports fetch error:', error);
@@ -130,6 +131,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  console.log("allReports",allReports)
   const uploadFile = async (file: File, lessonReportId: string) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
@@ -387,7 +389,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
                           <TableCell>
                             <div className="flex items-center">
                               <User className="h-4 w-4 ml-1 text-muted-foreground" />
-                              <span className="font-medium">{report.profiles?.full_name || 'לא זמין'}</span>
+                              <span className="font-medium">{report.instructor?.full_name || 'לא זמין'}</span>
                             </div>
                           </TableCell>
                           <TableCell>
