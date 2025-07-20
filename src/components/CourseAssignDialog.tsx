@@ -139,7 +139,7 @@ const CourseAssignDialog = ({
         .order('created_at');
 
       if (error) throw error;
-      setLessons(data || []);
+      setLessons((data || []).map(lesson => ({ ...lesson, order_index: 0 })));
       
       // Initialize lesson schedules
       const initialSchedules = (data || []).map(lesson => ({

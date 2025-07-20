@@ -363,81 +363,95 @@ const [dialogOpen, setDialogOpen] = useState(false);
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
+            <Card className="border-border/50 shadow-lg">
+              <CardHeader className="border-b border-border/50 bg-muted/10">
+                <CardTitle className="flex items-center text-primary">
                   <FileText className="h-5 w-5 ml-2" />
                   כל הדיווחים ({allReports.length})
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold">כותרת השיעור</TableHead>
-                        <TableHead className="font-semibold">קורס</TableHead>
-                        <TableHead className="font-semibold">מדריך</TableHead>
-                        <TableHead className="font-semibold">משתתפים</TableHead>
-                        <TableHead className="font-semibold">משימות שבוצעו</TableHead>
-                        <TableHead className="font-semibold">תאריך</TableHead>
-                        <TableHead className="font-semibold">משוב</TableHead>
-                        <TableHead className="font-semibold ">התנהל כשורה</TableHead>
-                        <TableHead className="font-semibold">צפייה</TableHead>
+                      <TableRow className="bg-primary/5 border-b-2 border-primary/20 hover:bg-primary/10">
+                        <TableHead className="font-bold text-primary py-4 px-6 text-right">כותרת השיעור</TableHead>
+                        <TableHead className="font-bold text-primary py-4 px-6 text-right">קורס</TableHead>
+                        <TableHead className="font-bold text-primary py-4 px-6 text-right">מדריך</TableHead>
+                        <TableHead className="font-bold text-primary py-4 px-6 text-right">משתתפים</TableHead>
+                        <TableHead className="font-bold text-primary py-4 px-6 text-right">משימות שבוצעו</TableHead>
+                        <TableHead className="font-bold text-primary py-4 px-6 text-right">תאריך</TableHead>
+                        <TableHead className="font-bold text-primary py-4 px-6 text-right">משוב</TableHead>
+                        <TableHead className="font-bold text-primary py-4 px-6 text-right">התנהל כשורה</TableHead>
+                        <TableHead className="font-bold text-primary py-4 px-6 text-right">צפייה</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {allReports.map((report) => (
-                        <TableRow key={report.id} className="hover:bg-muted/30 transition-colors">
-                          <TableCell className="font-medium">
-                            <div className="font-semibold text-foreground">
+                      {allReports.map((report, index) => (
+                        <TableRow 
+                          key={report.id} 
+                          className={`
+                            hover:bg-primary/5 transition-all duration-200 border-b border-border/30
+                            ${index % 2 === 0 ? 'bg-background' : 'bg-muted/20'}
+                          `}
+                        >
+                          <TableCell className="font-medium py-4 px-6">
+                            <div className="font-bold text-foreground text-base">
                               {report.lesson_title}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="font-normal">
+                          <TableCell className="py-4 px-6">
+                            <Badge variant="outline" className="font-medium border-primary/30 text-primary bg-primary/5 hover:bg-primary/10">
                               {report.lessons?.courses?.name || 'לא זמין'}
                             </Badge>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              <User className="h-4 w-4 ml-1 text-muted-foreground" />
-                              <span className="font-medium">{report.instructor?.full_name || 'לא זמין'}</span>
+                          <TableCell className="py-4 px-6">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-primary/10 rounded-full">
+                                <User className="h-4 w-4 text-primary" />
+                              </div>
+                              <span className="font-medium text-foreground">{report.instructor?.full_name || 'לא זמין'}</span>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              <Users className="h-4 w-4 ml-1 text-muted-foreground" />
-                              <span className="font-medium">{report.participants_count || 0}</span>
+                          <TableCell className="py-4 px-6">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-accent/20 rounded-full">
+                                <Users className="h-4 w-4 text-accent-foreground" />
+                              </div>
+                              <span className="font-bold text-lg text-accent-foreground">{report.participants_count || 0}</span>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-4 px-6">
                             <div className="space-y-1">
                               {report.lessons?.lesson_tasks && report.lessons.lesson_tasks.length > 0 ? (
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="secondary" className="text-xs">
+                                <div className="flex items-center gap-3">
+                                  <Badge variant="secondary" className="text-sm font-medium bg-secondary/80 text-secondary-foreground px-3 py-1">
                                     {report.completed_task_ids?.length || 0} מתוך {report.lessons.lesson_tasks.length}
                                   </Badge>
-                                  <CheckCircle className="h-4 w-4 text-green-600" />
+                                  <div className="p-1 bg-emerald-100 rounded-full">
+                                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                                  </div>
                                 </div>
                               ) : (
                                 <div className="flex items-center text-muted-foreground">
-                                  <span className="text-xs">אין משימות</span>
+                                  <span className="text-sm font-medium">אין משימות</span>
                                 </div>
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              <Calendar className="h-4 w-4 ml-1 text-muted-foreground" />
-                              <span className="text-sm">
+                          <TableCell className="py-4 px-6">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-muted rounded-full">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                              <span className="text-sm font-medium text-foreground">
                                 {new Date(report.created_at).toLocaleDateString('he-IL')}
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-4 px-6">
                             {report.feedback ? (
-                              <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
+                              <Badge variant="default" className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-medium">
                                 יש משוב
                               </Badge>
                             ) : (
