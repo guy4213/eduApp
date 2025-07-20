@@ -30,6 +30,8 @@ const LessonReport = () => {
   const [checkedTasks, setCheckedTasks] = useState<string[]>([]);
   const [allReports, setAllReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+   const [isLessonOk, setIsLessonOk] = useState(false);
+  
   const { user } = useAuth();
  const [selectedReport, setSelectedReport] = useState<any | null>(null);
 const [dialogOpen, setDialogOpen] = useState(false);
@@ -183,6 +185,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
           feedback,
           marketing_consent: marketingConsent,
           instructor_id: user.id,
+          is_lesson_ok:isLessonOk,
           completed_task_ids: checkedTasks,
           lesson_id: id,
         })
@@ -256,7 +259,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
                 <Label htmlFor="participants">מספר משתתפים</Label>
                 <Input id="participants" type="number" value={participants} onChange={(e) => setParticipants(e.target.value)} />
               </div>
-
+             
               <div>
                 <Label>משימות</Label>
                 {lessonTasks.map((task) => (
@@ -271,7 +274,15 @@ const [dialogOpen, setDialogOpen] = useState(false);
                   </div>
                 ))}
               </div>
-
+                 <div className="flex items-center  ">
+                    <input
+                      type="checkbox"
+                      checked={isLessonOk}
+                      onChange={() => setIsLessonOk(!isLessonOk)}
+                      className="w-4 h-4"
+                    />
+                    <label className="text-sm pr-1">האם השיעור התנהל כשורה </label>
+                  </div>
               <div>
                 <Label htmlFor="feedback">משוב כללי</Label>
                 <Textarea id="feedback" value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} />
@@ -371,6 +382,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
                         <TableHead className="font-semibold">משימות שבוצעו</TableHead>
                         <TableHead className="font-semibold">תאריך</TableHead>
                         <TableHead className="font-semibold">משוב</TableHead>
+                        <TableHead className="font-semibold ">התנהל כשורה</TableHead>
                         <TableHead className="font-semibold">צפייה</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -434,17 +446,27 @@ const [dialogOpen, setDialogOpen] = useState(false);
                               </Badge>
                             )}
                           </TableCell>
+                         <TableCell> {report.is_lesson_ok? (
+                              <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
+                                כן 
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground bg-red-100  hover:bg-red-200">
+                                 לא
+                              </Badge>
+                            )}
+                            </TableCell>
                           <TableCell>
                             <Button
                               variant="outline"
                               size="sm"
                               className="hover:bg-primary hover:text-primary-foreground transition-colors"
                               onClick={() => {
-                                 setSelectedReport(report);
+                                setSelectedReport(report);
                                 setDialogOpen(true);
                               }}
                             >
-                              <Eye className="h-4 w-4 ml-1" />
+                              <Eye className="h-3 w-3 " />
                               צפה במשוב
                             </Button>
 

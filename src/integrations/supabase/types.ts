@@ -212,6 +212,7 @@ export type Database = {
           feedback: string | null
           id: string
           instructor_id: string | null
+          is_lesson_ok: boolean | null
           lesson_id: string | null
           lesson_title: string
           marketing_consent: boolean | null
@@ -225,6 +226,7 @@ export type Database = {
           feedback?: string | null
           id?: string
           instructor_id?: string | null
+          is_lesson_ok?: boolean | null
           lesson_id?: string | null
           lesson_title: string
           marketing_consent?: boolean | null
@@ -238,6 +240,7 @@ export type Database = {
           feedback?: string | null
           id?: string
           instructor_id?: string | null
+          is_lesson_ok?: boolean | null
           lesson_id?: string | null
           lesson_title?: string
           marketing_consent?: boolean | null

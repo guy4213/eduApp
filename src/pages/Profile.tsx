@@ -21,7 +21,7 @@ interface Profile {
 }
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user,loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,10 +31,14 @@ const Profile = () => {
     email: '',
     phone: '',
   });
+  const [reports, setReports] = useState<any[]>([]);
 
   useEffect(() => {
     fetchProfile();
   }, [user]);
+
+
+
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -122,6 +126,30 @@ const Profile = () => {
     }
   };
 
+  console.log("profiles", profile)
+ useEffect(() => {
+    if (authLoading || !user) return;
+
+    const fetchReports = async () => {
+      const { data, error } = await supabase
+        .from('lesson_reports')
+        .select('id,instructor_id')
+        .eq('instructor_id', user.id); // user.id מתוך useAuth
+
+      if (error) {
+        console.error('Error fetching lesson reports:', error.message);
+      } else {
+        setReports(data || []);
+      }
+
+      setLoading(false);
+    };
+
+    fetchReports();
+  }, [user, authLoading]);
+
+
+  console.log("REPOR   ",reports)
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -236,7 +264,7 @@ const Profile = () => {
               <Label htmlFor="work_hours">שעות עבודה נוכחיות</Label>
               <Input
                 id="work_hours"
-                value={profile.current_work_hours || 0}
+                value={reports?.length || 0}
                 disabled
                 className="bg-muted cursor-not-allowed"
               />

@@ -66,6 +66,11 @@ const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [lessons, setLessons] = useState<any>();
   const nav=useNavigate();
+
+
+
+
+
 useEffect(() => {
 const fetchDashboardData = async () => {
   if (!user) return;
@@ -103,24 +108,30 @@ const fetchDashboardData = async () => {
     const courseIds = courses.map(c => c.id);
 
     // עכשיו מושכים רק schedules של הקורסים האלה
-    const { data: schedules } = await supabase
-      .from("lesson_schedules")
-      .select(`
+    const { data: schedules, error } = await supabase
+  .from("lesson_schedules")
+  .select(`
+    id,
+    scheduled_start,
+    scheduled_end,
+    lesson:lesson_id (
+      id,
+      title
+    ),
+    course_instance:course_instance_id (
+      id,
+      grade_level,
+      institution:institution_id (
         id,
-        scheduled_start,
-        lesson:lesson_id (
-          id,
-          title
-        ),
-        course_instance:course_instance_id (
-          id,
-          grade_level,
-          instructor:instructor_id (
-            id,
-            full_name
-          )
-        )
-      `)
+        name
+      ),
+      instructor:instructor_id (
+        id,
+        full_name
+      )
+    )
+  `)
+
       .in("course_instance_id", courseIds);
 
     console.log("schedules", schedules);
@@ -128,7 +139,9 @@ const fetchDashboardData = async () => {
     // שאר הקוד...
     const adaptedLessons = (schedules || []).map((s) => ({
       id: s.id,
+      institution_name: s.course_instance?.institution?.name || "לא ידוע",
       scheduled_start: s.scheduled_start,
+      scheduled_end:s.scheduled_end,
       title: s.lesson?.title || "ללא כותרת",
       instructorName: s.course_instance?.instructor?.full_name || "לא ידוע",
       instructor_id: s.course_instance?.instructor?.id || "לא ידוע",

@@ -79,6 +79,11 @@ export const DailyLessonsCard: React.FC<any> = ({
 
   return classDateStr === selectedDateStr;
 });
+  const formatTime = (isoString: string) => {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  
   const nav=useNavigate();
    const [instructors, setInstructors] = useState<{ id: string; full_name: string }[]>([]);
    const {user}=useAuth();
@@ -135,6 +140,7 @@ const instructorMap = useMemo(() => {
       </CardHeader>
       <CardContent className="p-6 space-y-4">
         {filteredClasses.map((lesson,index) => {
+          console.log("lesson",lesson)
           const colorKey = lesson.color || getColorById(lesson.id);
           const color = statusColors[colorKey];
           const instructorName = lesson.instructor_id
@@ -156,13 +162,17 @@ const instructorMap = useMemo(() => {
                   >
                     {lesson.buttonLabel}
                   </Button>
-                  <div>
-                    <p className="font-semibold text-gray-900">{lesson.title}</p>
+                  <div className="flex flex-col gap-2">
+                    <p className="font-bold text-[1.2rem] text-gray-900">{lesson?.institution_name}</p>
+
+                    <p className="font-semibold text-gray-900">{lesson?.title}</p>
             
                     {user.user_metadata.role!=="instructor" &&<b className="text-sm text-gray-600">
                        {instructorName} 
                     </b>}
+                    <p className="text-[1rem] text-gray-900">{formatTime(lesson.scheduled_start)}-{formatTime(lesson.scheduled_end)}</p>
                   </div>
+              
                 </div>
                 <div className="text-left">
                { user.user_metadata?.role==="instructor" &&

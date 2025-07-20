@@ -41,6 +41,7 @@ const formatTime = (isoString: string) => {
 return (
   <div className="flex flex-col gap-4 px-4 py-6 max-w-4xl mx-auto">
     {lessons.map((item, index) => {
+      console.log("lesson CAL",item)
       const instructorName =
         instructorMap.get(item?.course_instances?.instructor?.id) ||
         item?.course_instances?.instructor?.full_name ||
@@ -56,7 +57,10 @@ return (
         >
           {/* Left: Lesson Info */}
           <div className="flex flex-col gap-1 text-gray-800">
-            <div className="text-xl font-bold">{item?.lesson?.title}</div>
+               <div className="text-xl text-gray-500 font-bold">
+            {item?.course_instances?.institution?.name}
+            </div>
+            <div className="text-base font-semibold">{item?.lesson?.title}</div>
 
             {!item?.course_instances?.instructor?.full_name ? (
               <div className="text-red-600 font-semibold">אין מדריך לקורס הזה</div>
@@ -67,9 +71,9 @@ return (
                 </div>
               )
             )}
-
+         
             <div className="text-sm text-gray-500">
-              {startTime} - {endTime}
+            {endTime}   -   {startTime}
             </div>
           </div>
 
