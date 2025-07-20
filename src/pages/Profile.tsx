@@ -248,7 +248,7 @@ const Profile = () => {
               />
             </div>
 
-            {profile.role === 'instructor' && (
+            {/* {profile.role === 'instructor' && (
               <div>
                 <Label htmlFor="hourly_rate">תעריף שעתי</Label>
                 <Input
@@ -258,7 +258,7 @@ const Profile = () => {
                   className="bg-muted cursor-not-allowed"
                 />
               </div>
-            )}
+            )} */}
 
             <div>
               <Label htmlFor="work_hours">שעות עבודה נוכחיות</Label>

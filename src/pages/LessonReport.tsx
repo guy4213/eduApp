@@ -169,7 +169,14 @@ const [dialogOpen, setDialogOpen] = useState(false);
       });
       return;
     }
-
+  if (!isLessonOk && !feedback.trim()) {
+    toast({
+      title: 'שגיאה',
+      description: 'בבקשה הזן משוב במידה והשיעור לא התנהל כשורה',
+      variant: 'destructive',
+    });
+    return;
+  }
     setIsSubmitting(true);
 
     try {
@@ -234,7 +241,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="md:hidden"><MobileNavigation /></div>
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto ">
 {   isInstructor?     
 <h1 className="text-3xl font-bold text-gray-900 mb-2">דיווח שיעור - {lesson?.title}</h1>
 :
@@ -285,7 +292,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
                   </div>
               <div>
                 <Label htmlFor="feedback">משוב כללי</Label>
-                <Textarea id="feedback" value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} />
+                <Textarea id="feedback" value={feedback} required={!isLessonOk} onChange={(e) => setFeedback(e.target.value)} rows={3} />
               </div>
 
               <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
@@ -349,7 +356,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
           </Card>
         </div>
         :
-        <div className="space-y-6">
+        <div className="space-y-6 ">
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -400,12 +407,12 @@ const [dialogOpen, setDialogOpen] = useState(false);
                               {report.lesson_title}
                             </div>
                           </TableCell>
-                          <TableCell className="py-4 px-6">
+                          <TableCell className="py-4 ml-4">
                             <Badge variant="outline" className="font-medium border-primary/30 text-primary bg-primary/5 hover:bg-primary/10">
                               {report.lessons?.courses?.name || 'לא זמין'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="py-4 px-6">
+                          <TableCell className="py-4 ">
                             <div className="flex items-center gap-2">
                               <div className="p-1.5 bg-primary/10 rounded-full">
                                 <User className="h-4 w-4 text-primary" />
@@ -460,7 +467,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
                               </Badge>
                             )}
                           </TableCell>
-                         <TableCell> {report.is_lesson_ok? (
+                         <TableCell className='px-12'> {report.is_lesson_ok? (
                               <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
                                 כן 
                               </Badge>
