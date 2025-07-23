@@ -135,10 +135,11 @@ const Courses = () => {
       const assignedCourseIds =
         coursesData?.map((instance) => instance.course.id) || [];
 
-      // Find unassigned courses - courses that don't have instances
-      const unassignedCourses = allCoursesData?.filter((course) => 
-        !assignedCourseIds.includes(course.id)
-      ) || [];
+      // Show ALL courses, but mark which ones are already assigned
+      const allCoursesWithAssignmentStatus = allCoursesData?.map((course) => ({
+        ...course,
+        hasAssignments: assignedCourseIds.includes(course.id)
+      })) || [];
 
       // Fetch lessons and tasks for all courses (both assigned and unassigned)
       const allCourseIds = allCoursesData?.map((course) => course.id) || [];
@@ -274,14 +275,14 @@ const Courses = () => {
           formatCourseData(instance.course, true, instance)
         ) || [];
 
-      // Format unassigned courses
-      const formattedUnassignedCourses = unassignedCourses.map((course: any) =>
+      // Format template courses (show all courses as templates)
+      const formattedTemplateCourses = allCoursesWithAssignmentStatus.map((course: any) =>
         formatCourseData(course, false)
       );
 
-      // Combine both arrays
+      // Combine template courses and assigned instances
       const allFormattedCourses = [
-        ...formattedUnassignedCourses,
+        ...formattedTemplateCourses,
         ...formattedAssignedCourses,
       ];
 
