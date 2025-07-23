@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import MobileNavigation from '@/components/layout/MobileNavigation';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
 import FeedbackDialog from '@/components/FeedbackDialog';
 
@@ -24,7 +24,13 @@ const LessonReport = () => {
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const { id } = useParams<{ id: string }>();
+
+
+  const { id } = useParams<{ id: string }>(); // lesson.lesson_id from URL path
+const location = useLocation();
+const queryParams = new URLSearchParams(location.search);
+const scheduleId = queryParams.get('scheduleId'); // lesson.id from query string
+
   const [lesson, setLesson] = useState<any>(null);
   const [lessonTasks, setLessonTasks] = useState<any[]>([]);
   const [checkedTasks, setCheckedTasks] = useState<string[]>([]);
@@ -194,6 +200,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
           instructor_id: user.id,
           is_lesson_ok:isLessonOk,
           completed_task_ids: checkedTasks,
+          lesson_schedule_id: scheduleId,
           lesson_id: id,
         })
         .select()

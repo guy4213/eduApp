@@ -178,7 +178,7 @@ const instructorMap = useMemo(() => {
                { user.user_metadata?.role==="instructor" &&
                 <button
               onClick={() => {
-             nav(`/lesson-report/${lesson.lesson_id}`);
+            nav(`/lesson-report/${lesson.lesson_id}?scheduleId=${lesson.id}`);
               }}
               className="bg-green-300 rounded-full p-2 items-center font-bold"
             >
