@@ -45,10 +45,10 @@ const Calendar = () => {
             
             `);
 
-        // Fetch courses count
-        const { data: courses } = await supabase
-          .from("courses")
-          .select("*")
+        // Fetch course instances for this instructor
+        const { data: courseInstances } = await supabase
+          .from("course_instances")
+          .select("id, course:course_id(name)")
           .eq("instructor_id", user.id);
 
         setLessons(lessons || []);
