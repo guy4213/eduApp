@@ -38,11 +38,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [formData, setFormData] = useState({
     name: '',
-    grade_level: '',
-    max_participants: '',
-    price_per_lesson: '',
-    start_date: '',
-    approx_end_date: '',
   });
 
   useEffect(() => {
@@ -51,11 +46,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         // Pre-fill form with existing course data
         setFormData({
           name: editCourse.name,
-          grade_level: editCourse.grade_level,
-          max_participants: editCourse.max_participants.toString(),
-          price_per_lesson: editCourse.price_per_lesson.toString(),
-          start_date: editCourse.start_date,
-          approx_end_date:  editCourse.approx_end_date,
         });
         
         loadExistingLessons(editCourse.id);
@@ -63,11 +53,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         // Reset form for new course
         setFormData({
           name: '',
-          grade_level: '',
-          max_participants: '',
-          price_per_lesson: '',
-          start_date: '',
-          approx_end_date: '',
         });
         setLessons([]);
       }

@@ -9,58 +9,35 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
   const handleSubmit = async (formData: any, lessons: Lesson[], editCourseId?: string) => {
     setLoading(true);
     try {
-
-      
       let courseId = editCourseId;
-console.log("INSTANCE   ",editCourseId)
+
       if (editCourseId) {
-    // שלב 1: עדכון טבלת course_instances עם הנתונים ששייכים לה
-    const { data: updatedInstance, error: instanceError } = await supabase
-      .from('course_instances') // עדכן את הטבלה הנכונה
-      .update({
-        // שדות שרלוונטיים לטבלת course_instances
-        grade_level: formData.grade_level,
-     
-      })
-      .eq('id', editCourseId) // כאן ה-ID מתאים
-      .select('id, course_id, instructor_id') // בקש את ה-ID של הקורס המקורי (course_id)
-      .single();
+        // Get the course instance to find the course_id
+        const { data: instanceData, error: instanceError } = await supabase
+          .from('course_instances')
+          .select('course_id')
+          .eq('id', editCourseId)
+          .single();
 
-    // עצור אם יש שגיאה בשלב הראשון
-    if (instanceError) throw instanceError;
+        if (instanceError) throw instanceError;
 
-    // שלב 2: עדכון טבלת courses עם הנתונים ששייכים לה
-    const { error: courseError } = await supabase
-      .from('courses')
-      .update({
-        // שדות שרלוונטיים לטבלת courses
-          grade_level: '',
-        start_date: formData.start_date || null,
-        approx_end_date: formData.approx_end_date || null,
-        name: formData.name,
-        max_participants: parseInt(formData.max_participants) || null,
-        price_per_lesson: parseFloat(formData.price_per_lesson) || null,
-      })
-      .eq('id', courseId); // השתמש ב-ID הנכון (course_id) שקיבלנו מהשלב הקודם
+        // Update only the course name
+        const { error: courseError } = await supabase
+          .from('courses')
+          .update({
+            name: formData.name,
+          })
+          .eq('id', instanceData.course_id);
 
-    // עצור אם יש שגיאה בשלב השני
-    if (courseError) throw courseError;
-    
-    // קריאה לפונקציות ההמשך עם ה-ID הנכון של הקורס (לא של המופע)
-    courseId = updatedInstance.course_id; 
-    console.log("ORIGINAL",courseId)
-    await updateExistingLessonsAndTasks(courseId, lessons, updatedInstance.instructor_id);
-
-} else {
+        if (courseError) throw courseError;
+        
+        courseId = instanceData.course_id;
+        await updateExistingLessonsAndTasks(courseId, lessons);
+      } else {
         const { data: savedCourse, error: courseError } = await supabase
           .from('courses')
           .insert({
             name: formData.name,
-            grade_level: formData.grade_level,
-            max_participants: parseInt(formData.max_participants) || null,
-            price_per_lesson: parseFloat(formData.price_per_lesson) || null,
-            start_date: formData.start_date || null,
-            approx_end_date: formData.approx_end_date || null,
           })
           .select('id')
           .single();
@@ -81,7 +58,7 @@ console.log("INSTANCE   ",editCourseId)
     }
   };
 
-  const updateExistingLessonsAndTasks = async (courseId: string, lessons: Lesson[], instructorId?: string) => {
+  const updateExistingLessonsAndTasks = async (courseId: string, lessons: Lesson[]) => {
     const { data: existingLessons } = await supabase
       .from('lessons')
       .select(`id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)`)  
@@ -106,7 +83,6 @@ console.log("INSTANCE   ",editCourseId)
             scheduled_start: new Date().toISOString(),
             scheduled_end: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
             status: 'scheduled',
-            instructor_id: instructorId || null,
           })
           .select('id')
           .single();

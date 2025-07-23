@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,33 +33,43 @@ const Reports = () => {
       if (!user) return;
 
       try {
-        // Fetch lessons data for reports
-        const { data: lessons } = await supabase
-          .from('lessons')
+        // Fetch lesson schedules for this instructor
+        const { data: schedules } = await supabase
+          .from('lesson_schedules')
           .select(`
             *,
-            courses(price_per_lesson)
+            lesson:lesson_id (
+              id,
+              title,
+              status
+            ),
+            course_instance:course_instance_id (
+              id,
+              price_for_instructor,
+              instructor_id
+            )
           `)
-          .eq('instructor_id', user.id);
+          .eq('course_instance.instructor_id', user.id);
 
         // Process data for current month
         const currentMonth = new Date().getMonth();
         const currentYear = new Date().getFullYear();
         
-        const currentMonthLessons = lessons?.filter(lesson => {
-          const lessonDate = new Date(lesson.scheduled_start);
-          return lessonDate.getMonth() === currentMonth && lessonDate.getFullYear() === currentYear;
+        const currentMonthSchedules = schedules?.filter(schedule => {
+          if (!schedule.scheduled_start) return false;
+          const scheduleDate = new Date(schedule.scheduled_start);
+          return scheduleDate.getMonth() === currentMonth && scheduleDate.getFullYear() === currentYear;
         }) || [];
 
-        const completedLessons = currentMonthLessons.filter(l => l.status === 'completed');
-        const totalEarnings = completedLessons.reduce((sum, lesson) => {
-          return sum + (lesson.courses?.price_per_lesson || 0);
+        const completedSchedules = currentMonthSchedules.filter(s => s.lesson?.status === 'completed');
+        const totalEarnings = completedSchedules.reduce((sum, schedule) => {
+          return sum + (schedule.course_instance?.price_for_instructor || 0);
         }, 0);
 
         setCurrentMonthStats({
           totalEarnings,
-          totalLessons: currentMonthLessons.length,
-          completionRate: currentMonthLessons.length > 0 ? (completedLessons.length / currentMonthLessons.length) * 100 : 0,
+          totalLessons: currentMonthSchedules.length,
+          completionRate: currentMonthSchedules.length > 0 ? (completedSchedules.length / currentMonthSchedules.length) * 100 : 0,
           averageRating: 4.8 // Mock data
         });
 
@@ -71,19 +80,20 @@ const Reports = () => {
           date.setMonth(date.getMonth() - i);
           const month = date.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
           
-          const monthLessons = lessons?.filter(lesson => {
-            const lessonDate = new Date(lesson.scheduled_start);
-            return lessonDate.getMonth() === date.getMonth() && lessonDate.getFullYear() === date.getFullYear();
+          const monthSchedules = schedules?.filter(schedule => {
+            if (!schedule.scheduled_start) return false;
+            const scheduleDate = new Date(schedule.scheduled_start);
+            return scheduleDate.getMonth() === date.getMonth() && scheduleDate.getFullYear() === date.getFullYear();
           }) || [];
 
-          const completed = monthLessons.filter(l => l.status === 'completed');
-          const cancelled = monthLessons.filter(l => l.status === 'cancelled');
+          const completed = monthSchedules.filter(s => s.lesson?.status === 'completed');
+          const cancelled = monthSchedules.filter(s => s.lesson?.status === 'cancelled');
           
           monthlyData.push({
             month,
-            totalLessons: monthLessons.length,
-            totalHours: monthLessons.length * 1.5, // Assuming 1.5 hours per lesson
-            totalEarnings: completed.reduce((sum, lesson) => sum + (lesson.courses?.price_per_lesson || 0), 0),
+            totalLessons: monthSchedules.length,
+            totalHours: monthSchedules.length * 1.5, // Assuming 1.5 hours per lesson
+            totalEarnings: completed.reduce((sum, schedule) => sum + (schedule.course_instance?.price_for_instructor || 0), 0),
             completedLessons: completed.length,
             cancelledLessons: cancelled.length
           });

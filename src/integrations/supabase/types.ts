@@ -18,26 +18,41 @@ export type Database = {
         Row: {
           course_id: string | null
           created_at: string | null
+          end_date: string | null
           grade_level: string | null
           id: string
           institution_id: string | null
           instructor_id: string | null
+          max_participants: number | null
+          price_for_customer: number | null
+          price_for_instructor: number | null
+          start_date: string | null
         }
         Insert: {
           course_id?: string | null
           created_at?: string | null
+          end_date?: string | null
           grade_level?: string | null
           id?: string
           institution_id?: string | null
           instructor_id?: string | null
+          max_participants?: number | null
+          price_for_customer?: number | null
+          price_for_instructor?: number | null
+          start_date?: string | null
         }
         Update: {
           course_id?: string | null
           created_at?: string | null
+          end_date?: string | null
           grade_level?: string | null
           id?: string
           institution_id?: string | null
           instructor_id?: string | null
+          max_participants?: number | null
+          price_for_customer?: number | null
+          price_for_instructor?: number | null
+          start_date?: string | null
         }
         Relationships: [
           {
@@ -72,64 +87,21 @@ export type Database = {
       }
       courses: {
         Row: {
-          approx_end_date: string | null
           created_at: string | null
-          grade_level: string | null
           id: string
-          institution_id: string | null
-          instructor_id: string | null
-          max_participants: number | null
           name: string
-          price_per_lesson: number | null
-          start_date: string | null
         }
         Insert: {
-          approx_end_date?: string | null
           created_at?: string | null
-          grade_level?: string | null
           id?: string
-          institution_id?: string | null
-          instructor_id?: string | null
-          max_participants?: number | null
           name: string
-          price_per_lesson?: number | null
-          start_date?: string | null
         }
         Update: {
-          approx_end_date?: string | null
           created_at?: string | null
-          grade_level?: string | null
           id?: string
-          institution_id?: string | null
-          instructor_id?: string | null
-          max_participants?: number | null
           name?: string
-          price_per_lesson?: number | null
-          start_date?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "courses_institution_id_fkey"
-            columns: ["institution_id"]
-            isOneToOne: false
-            referencedRelation: "educational_institutions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "courses_instructor_id_fkey"
-            columns: ["instructor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "courses_instructor_id_fkey"
-            columns: ["instructor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles_public"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       educational_institutions: {
         Row: {
@@ -214,6 +186,7 @@ export type Database = {
           instructor_id: string | null
           is_lesson_ok: boolean | null
           lesson_id: string | null
+          lesson_schedule_id: string | null
           lesson_title: string
           marketing_consent: boolean | null
           notes: string | null
@@ -228,6 +201,7 @@ export type Database = {
           instructor_id?: string | null
           is_lesson_ok?: boolean | null
           lesson_id?: string | null
+          lesson_schedule_id?: string | null
           lesson_title: string
           marketing_consent?: boolean | null
           notes?: string | null
@@ -242,6 +216,7 @@ export type Database = {
           instructor_id?: string | null
           is_lesson_ok?: boolean | null
           lesson_id?: string | null
+          lesson_schedule_id?: string | null
           lesson_title?: string
           marketing_consent?: boolean | null
           notes?: string | null
@@ -268,6 +243,13 @@ export type Database = {
             columns: ["lesson_id"]
             isOneToOne: false
             referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_reports_lesson_schedule_id_fkey"
+            columns: ["lesson_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_schedules"
             referencedColumns: ["id"]
           },
         ]

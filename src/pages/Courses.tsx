@@ -98,14 +98,15 @@ const Courses = () => {
       ).select(`
           id,
           grade_level,
+          max_participants,
+          price_for_customer,
+          price_for_instructor,
+          start_date,
+          end_date,
           created_at,
           course:course_id (
             id,
-            name,
-            max_participants,
-            price_per_lesson,
-            start_date,
-            approx_end_date
+            name
           ),
           instructor:instructor_id (
             id,
@@ -124,12 +125,7 @@ const Courses = () => {
         "courses"
       ).select(`
           id,
-          instructor_id,
           name,
-          max_participants,
-          price_per_lesson,
-          start_date,
-          approx_end_date,
           created_at
         `);
 
@@ -139,9 +135,10 @@ const Courses = () => {
       const assignedCourseIds =
         coursesData?.map((instance) => instance.course.id) || [];
 
-      // Find unassigned courses
-      const unassignedCourses =
-        allCoursesData?.filter((course) => course.instructor_id === null) || [];
+      // Find unassigned courses - courses that don't have instances
+      const unassignedCourses = allCoursesData?.filter((course) => 
+        !assignedCourseIds.includes(course.id)
+      ) || [];
 
       // Fetch lessons and tasks for all courses (both assigned and unassigned)
       const allCourseIds = allCoursesData?.map((course) => course.id) || [];
@@ -248,13 +245,13 @@ const Courses = () => {
           instance_id: instanceData?.id || null,
           name: course.name || "ללא שם קורס",
           grade_level: instanceData?.grade_level || "לא צוין",
-          max_participants: course.max_participants || 0,
-          price_per_lesson: course.price_per_lesson || 0,
+          max_participants: instanceData?.max_participants || 0,
+          price_per_lesson: instanceData?.price_for_customer || 0,
           institution_name: instanceData?.institution?.name || "לא צוין",
           instructor_name: instanceData?.instructor?.full_name || "לא צוין",
           lesson_count: courseLessons.length,
-          start_date: course.start_date,
-          approx_end_date: course.approx_end_date,
+          start_date: instanceData?.start_date || null,
+          approx_end_date: instanceData?.end_date || null,
           is_assigned: isAssigned,
           tasks: allCourseTasks.map((task: any) => ({
             id: task.id,
