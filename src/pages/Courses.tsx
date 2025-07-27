@@ -92,35 +92,10 @@ const Courses = () => {
     if (!user) return;
 
     try {
-      // Fetch course instances (assigned courses)
-      const { data: coursesData, error: instancesError } = await supabase.from(
-        "course_instances"
-      ).select(`
-          id,
-          grade_level,
-          max_participants,
-          price_for_customer,
-          price_for_instructor,
-          start_date,
-          end_date,
-          created_at,
-          course:course_id (
-            id,
-            name
-          ),
-          instructor:instructor_id (
-            id,
-            full_name
-          ),
-          institution:institution_id (
-            id,
-            name
-          )
-        `);
+      // Only fetch template courses for the courses page
+      // Course instances are now handled in the CourseAssignments page
 
-      if (instancesError) throw instancesError;
-
-      // Fetch all courses (including unassigned ones)
+      // Fetch all courses for templates
       const { data: allCoursesData, error: coursesError } = await supabase.from(
         "courses"
       ).select(`
@@ -131,21 +106,10 @@ const Courses = () => {
 
       if (coursesError) throw coursesError;
 
-      // Get course IDs that are already assigned to instances
-      const assignedCourseIds =
-        coursesData?.map((instance) => instance.course.id) || [];
-
-      // Show ALL courses, but mark which ones are already assigned
-      const allCoursesWithAssignmentStatus = allCoursesData?.map((course) => ({
-        ...course,
-        hasAssignments: assignedCourseIds.includes(course.id)
-      })) || [];
-
-      // Fetch lessons and tasks for all courses (both assigned and unassigned)
+      // Fetch lessons and tasks for template courses
       const allCourseIds = allCoursesData?.map((course) => course.id) || [];
       let lessonsData: any[] = [];
       let tasksData: any[] = [];
-      let schedulesData: any[] = [];
 
       if (allCourseIds.length > 0) {
         // Fetch lessons
@@ -178,22 +142,6 @@ const Courses = () => {
             tasksData = tasks || [];
           }
         }
-
-        // Fetch lesson schedules for assigned courses only
-        const courseInstanceIds =
-          coursesData?.map((instance) => instance.id) || [];
-        if (courseInstanceIds.length > 0) {
-          const { data: schedules, error: schedulesError } = await supabase
-            .from("lesson_schedules")
-            .select("*")
-            .in("course_instance_id", courseInstanceIds);
-
-          if (schedulesError) {
-            console.error("Error fetching lesson schedules:", schedulesError);
-          } else {
-            schedulesData = schedules || [];
-          }
-        }
       }
 
       // Fetch instructors data
@@ -206,12 +154,8 @@ const Courses = () => {
         console.error("Error fetching instructors:", instructorsError);
       }
 
-      // Helper function to format course data
-      const formatCourseData = (
-        course: any,
-        isAssigned: boolean = false,
-        instanceData?: any
-      ) => {
+      // Helper function to format template course data
+      const formatCourseData = (course: any) => {
         const courseLessons = lessonsData.filter(
           (lesson) => lesson.course_id === course.id
         );
@@ -220,40 +164,27 @@ const Courses = () => {
             (task) => task.lesson_id === lesson.id
           );
 
-          // Find schedule for this lesson if it's an assigned course
-          let lessonSchedule = null;
-          if (isAssigned && instanceData) {
-            lessonSchedule = schedulesData.find(
-              (schedule) =>
-                schedule.lesson_id === lesson.id &&
-                schedule.course_instance_id === instanceData.id
-            );
-          }
-
           return lessonTasks.map((task) => ({
             ...task,
             lesson_title: lesson.title,
             lesson_number:
               courseLessons.findIndex((l) => l.id === lesson.id) + 1,
-            // Add schedule information to tasks
-            scheduled_start: lessonSchedule?.scheduled_start || null,
-            scheduled_end: lessonSchedule?.scheduled_end || null,
           }));
         });
 
         return {
           id: course.id,
-          instance_id: instanceData?.id || null,
+          instance_id: null,
           name: course.name || "ללא שם קורס",
-          grade_level: instanceData?.grade_level || "לא צוין",
-          max_participants: instanceData?.max_participants || 0,
-          price_per_lesson: instanceData?.price_for_customer || 0,
-          institution_name: instanceData?.institution?.name || "לא צוין",
-          instructor_name: instanceData?.instructor?.full_name || "לא צוין",
+          grade_level: "לא צוין",
+          max_participants: 0,
+          price_per_lesson: 0,
+          institution_name: "תבנית קורס",
+          instructor_name: "לא הוקצה",
           lesson_count: courseLessons.length,
-          start_date: instanceData?.start_date || null,
-          approx_end_date: instanceData?.end_date || null,
-          is_assigned: isAssigned,
+          start_date: null,
+          approx_end_date: null,
+          is_assigned: false,
           tasks: allCourseTasks.map((task: any) => ({
             id: task.id,
             title: task.title,
@@ -263,31 +194,15 @@ const Courses = () => {
             lesson_number: task.lesson_number,
             lesson_title: task.lesson_title,
             order_index: task.order_index,
-            scheduled_start: task.scheduled_start,
-            scheduled_end: task.scheduled_end,
           })),
         };
       };
 
-      // Format assigned courses (course instances)
-      const formattedAssignedCourses =
-        coursesData?.map((instance: any) =>
-          formatCourseData(instance.course, true, instance)
-        ) || [];
+      // Format template courses only
+      const formattedTemplateCourses = allCoursesData?.map(formatCourseData) || [];
 
-      // Format template courses (show all courses as templates)
-      const formattedTemplateCourses = allCoursesWithAssignmentStatus.map((course: any) =>
-        formatCourseData(course, false)
-      );
-
-      // Combine template courses and assigned instances
-      const allFormattedCourses = [
-        ...formattedTemplateCourses,
-        ...formattedAssignedCourses,
-      ];
-
-      console.log("All formatted courses: ", allFormattedCourses);
-      setCourses(allFormattedCourses);
+      console.log("Template courses: ", formattedTemplateCourses);
+      setCourses(formattedTemplateCourses);
     } catch (error) {
       console.error("Error fetching courses:", error);
     } finally {
@@ -479,39 +394,21 @@ const Courses = () => {
                     </div>
                     {user.user_metadata.role !== "instructor" && (
                       <div className="flex gap-2">
-                        {course.is_assigned && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-white hover:bg-white/20"
-                            onClick={() =>
-                              handleAssignCourse(
-                                course.id,
-                                course.instance_id,
-                                course.name
-                              )
-                            }
-                          >
-                            <UserPlus className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {!course.is_assigned && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-white hover:bg-white/20"
-                            onClick={() =>
-                              handleAssignCourse(
-                                course.id,
-                                course.instance_id,
-                                course.name
-                              )
-                            }
-                          >
-                            <UserPlus className="h-4 w-4" />
-                            <span className="mr-1">הקצה</span>
-                          </Button>
-                        )}
+                         <Button
+                           variant="ghost"
+                           size="sm"
+                           className="text-white hover:bg-white/20"
+                           onClick={() =>
+                             handleAssignCourse(
+                               course.id,
+                               course.instance_id || "",
+                               course.name
+                             )
+                           }
+                         >
+                           <UserPlus className="h-4 w-4" />
+                           <span className="mr-1">הקצה</span>
+                         </Button>
                       </div>
                     )}
                   </div>

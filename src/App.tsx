@@ -12,6 +12,8 @@ import Auth from "./pages/Auth";
 import Calendar from "./pages/Calendar";
 import LessonReport from "./pages/LessonReport";
 import Courses from "./pages/Courses";
+import CourseAssignments from "./pages/CourseAssignments";
+import Rewards from "./pages/Rewards";
 import Reports from "./pages/Reports";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -75,19 +77,41 @@ const App = () => (
                   </ProtectedRoute>
                 } 
               />
-              <Route 
-                path="/courses" 
-                element={
-                  <ProtectedRoute>
-                    <div className="min-h-screen">
-                      <Navigation />
-                      <Courses />
-                    </div>
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/reports" 
+               <Route 
+                 path="/courses" 
+                 element={
+                   <ProtectedRoute>
+                     <div className="min-h-screen">
+                       <Navigation />
+                       <Courses />
+                     </div>
+                   </ProtectedRoute>
+                 } 
+               />
+               <Route 
+                 path="/course-assignments" 
+                 element={
+                   <ProtectedRoute>
+                     <div className="min-h-screen">
+                       <Navigation />
+                       <CourseAssignments />
+                     </div>
+                   </ProtectedRoute>
+                 } 
+               />
+               <Route 
+                 path="/rewards" 
+                 element={
+                   <ProtectedRoute>
+                     <div className="min-h-screen">
+                       <Navigation />
+                       <Rewards />
+                     </div>
+                   </ProtectedRoute>
+                 } 
+               />
+               <Route 
+                 path="/reports"
                 element={
                   <ProtectedRoute>
                     <div className="min-h-screen">

@@ -11,12 +11,16 @@ const Navigation = () => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
+  const isAdminOrManager = ['admin', 'pedagogical_manager'].includes(user?.user_metadata?.role);
+  
   const navigationItems = [
     { path: '/', label: 'דשבורד', icon: BookOpen },
     { path: '/calendar', label: 'יומן', icon: Calendar },
     { path: '/lesson-report', label: 'דיווח שיעור', icon: FileText },
     { path: '/courses', label: 'קורסים', icon: Users },
+    ...(isAdminOrManager ? [{ path: '/course-assignments', label: 'הקצאות קורסים', icon: Users }] : []),
     { path: '/reports', label: 'דוחות ושכר', icon: BarChart3 },
+    { path: '/rewards', label: 'תגמולים', icon: BarChart3 },
     { path: '/profile', label: 'פרופיל', icon: User },
   ];
 
