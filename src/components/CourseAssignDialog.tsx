@@ -24,11 +24,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { CalendarIcon, Plus, Trash2 } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Institution {
   id: string;
@@ -66,21 +64,58 @@ interface LessonSchedule {
   instance_start_date: string;
 }
 
+interface EditData {
+  instance_id: string;
+  name: string;
+  grade_level: string;
+  max_participants: number;
+  price_for_customer: number;
+  price_for_instructor: number;
+  institution_name: string;
+  instructor_name: string;
+  start_date: string;
+  approx_end_date: string;
+}
+
+// Utility function to combine class names
+const cn = (...classes: (string | undefined | null | boolean)[]) => {
+  return classes.filter(Boolean).join(' ');
+};
+
+// Date formatting function
+const formatDate = (date: Date, formatString: string) => {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  
+  if (formatString === "dd/MM/yyyy") {
+    return `${day}/${month}/${year}`;
+  }
+  if (formatString === "dd/MM") {
+    return `${day}/${month}`;
+  }
+  return date.toLocaleDateString();
+};
+
 interface CourseAssignDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  courseId: string;
-  courseName: string;
-  instanceId: string;
+  mode?: 'create' | 'edit';
+  courseId?: string;
+  courseName?: string;
+  instanceId?: string;
+  editData?: EditData;
   onAssignmentComplete: () => void;
 }
 
 const CourseAssignDialog = ({
   open,
   onOpenChange,
+  mode = 'create',
   courseId,
   courseName,
   instanceId,
+  editData,
   onAssignmentComplete,
 }: CourseAssignDialogProps) => {
   const { toast } = useToast();
@@ -103,15 +138,98 @@ const CourseAssignDialog = ({
 
   const dayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
+  // Helper function to find institution/instructor ID by name
+  const findIdByName = (items: any[], name: string) => {
+    const item = items.find(item => 
+      item.name === name || item.full_name === name
+    );
+    return item?.id || "";
+  };
+
+  // Reset form when dialog opens
+  const resetForm = () => {
+    setFormData({
+      institution_id: "",
+      instructor_id: "",
+      grade_level: "",
+      price_for_customer: "",
+      price_for_instructor: "",
+      max_participants: "",
+      start_date: "",
+      end_date: "",
+    });
+    setStep(1);
+    setLessonSchedules([]);
+  };
+
   useEffect(() => {
     if (open) {
       fetchInstitutions();
       fetchInstructors();
-      fetchCourseLessons();
-      setStep(1);
-      setLessonSchedules([]);
+      
+      if (mode === 'create') {
+        resetForm();
+        if (courseId) {
+          fetchCourseLessons();
+        }
+      } else if (mode === 'edit') {
+        // Reset to step 1 for editing
+        setStep(1);
+        setLessonSchedules([]);
+      }
     }
-  }, [open, courseId]);
+  }, [open, courseId, mode]);
+
+  // Debug function to check if we can access the record
+  const debugCourseInstance = async () => {
+    if (mode === 'edit' && editData?.instance_id) {
+      try {
+        const { data, error } = await supabase
+          .from("course_instances")
+          .select("*")
+          .eq("id", editData.instance_id)
+          .single();
+
+        console.log('DEBUG - Can read record:', data);
+        console.log('DEBUG - Read error:', error);
+        
+        if (error) {
+          toast({
+            title: "שגיאה",
+            description: `לא ניתן לגשת לרשומה: ${error.message}`,
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('DEBUG - Exception reading record:', error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (open && mode === 'edit') {
+      debugCourseInstance();
+    }
+  }, [open, mode, editData]);
+
+  // Populate form data when institutions/instructors are loaded and editData is available
+  useEffect(() => {
+    if (mode === 'edit' && editData && institutions.length > 0 && instructors.length > 0) {
+      const institutionId = findIdByName(institutions, editData.institution_name);
+      const instructorId = findIdByName(instructors, editData.instructor_name);
+      
+      setFormData({
+        institution_id: institutionId,
+        instructor_id: instructorId,
+        grade_level: editData.grade_level,
+        price_for_customer: editData.price_for_customer.toString(),
+        price_for_instructor: editData.price_for_instructor.toString(),
+        max_participants: editData.max_participants.toString(),
+        start_date: editData.start_date || "",
+        end_date: editData.approx_end_date || "",
+      });
+    }
+  }, [mode, editData, institutions, instructors]);
 
   const fetchInstitutions = async () => {
     try {
@@ -153,16 +271,19 @@ const CourseAssignDialog = ({
   };
 
   const fetchCourseLessons = async () => {
+    if (!courseId) return;
+    
     try {
       const { data, error } = await supabase
         .from("lessons")
-        .select("id, title")
+        .select("id, title, order_index")
         .eq("course_id", courseId)
-        .order("created_at");
+        .order("order_index");
 
       if (error) throw error;
-      setLessons((data || []).map((lesson) => ({ ...lesson, order_index: 0 })));
-      const courseStartDate = formData.start_date || ""; // Ensure fallback if not filled yet
+      
+      setLessons(data || []);
+      const courseStartDate = formData.start_date || "";
 
       const initialSchedules = (data || []).map((lesson) => ({
         lesson_id: lesson.id,
@@ -189,37 +310,54 @@ const CourseAssignDialog = ({
 
   const handleCourseAssignment = async (): Promise<string | null> => {
     try {
-      const { data, error } = await supabase
-        .from("course_instances")
-        .insert([
-          {
-            course_id: courseId,
+      if (mode === 'create') {
+        // Create new course instance
+        const { data, error } = await supabase
+          .from("course_instances")
+          .insert([
+            {
+              course_id: courseId,
+              institution_id: formData.institution_id,
+              instructor_id: formData.instructor_id,
+              grade_level: formData.grade_level,
+              max_participants: parseInt(formData.max_participants),
+              price_for_customer: parseFloat(formData.price_for_customer),
+              price_for_instructor: parseFloat(formData.price_for_instructor),
+              start_date: formData.start_date,
+              end_date: formData.end_date,
+            },
+          ])
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data.id;
+      } else {
+        // Edit mode - update existing instance
+        const { error } = await supabase
+          .from("course_instances")
+          .update({
             institution_id: formData.institution_id,
             instructor_id: formData.instructor_id,
             grade_level: formData.grade_level,
-            price_for_customer: formData.price_for_customer
-              ? parseFloat(formData.price_for_customer)
-              : null,
-            price_for_instructor: formData.price_for_instructor
-              ? parseFloat(formData.price_for_instructor)
-              : null,
-            max_participants: formData.max_participants
-              ? parseInt(formData.max_participants)
-              : null,
-            start_date: formData.start_date || null,
-            end_date: formData.end_date || null,
-          },
-        ])
-        .select()
-        .single();
+            max_participants: parseInt(formData.max_participants),
+            price_for_customer: parseFloat(formData.price_for_customer),
+            price_for_instructor: parseFloat(formData.price_for_instructor),
+            start_date: formData.start_date,
+            end_date: formData.end_date,
+          })
+          .eq("id", editData?.instance_id);
 
-      if (error) throw error;
-      return data.id;
+        if (error) throw error;
+        return editData?.instance_id || null;
+      }
     } catch (error) {
-      console.error("Error assigning course:", error);
+      console.error("Error with course assignment:", error);
       toast({
         title: "שגיאה",
-        description: "אירעה שגיאה בשיוך התוכנית",
+        description: mode === 'create' 
+          ? "אירעה שגיאה בשיוך התוכנית" 
+          : "אירעה שגיאה בעדכון התוכנית",
         variant: "destructive",
       });
       return null;
@@ -232,7 +370,7 @@ const CourseAssignDialog = ({
     const courseEnd = new Date(formData.end_date);
 
     const instances = [];
-    let currentDate = new Date(schedule.instance_start_date);
+    const currentDate = new Date(schedule.instance_start_date);
     let createdCount = 0;
 
     let lastInstanceDate: Date | null = null;
@@ -268,7 +406,7 @@ const CourseAssignDialog = ({
             instance_number: createdCount + 1,
           });
 
-          lastInstanceDate = new Date(currentDate); // Save last valid
+          lastInstanceDate = new Date(currentDate);
           createdCount++;
         }
       }
@@ -299,7 +437,6 @@ const CourseAssignDialog = ({
 
     for (const schedule of lessonSchedules) {
       if (schedule.create_instances) {
-        // Validate instance start date
         const instanceStart = new Date(schedule.instance_start_date);
         if (instanceStart < courseStart || instanceStart > courseEnd) {
           return {
@@ -308,7 +445,6 @@ const CourseAssignDialog = ({
           };
         }
       } else {
-        // Validate single lesson date
         if (!schedule.scheduled_date) continue;
         const lessonDate = new Date(schedule.scheduled_date);
         if (lessonDate < courseStart || lessonDate > courseEnd) {
@@ -322,9 +458,38 @@ const CourseAssignDialog = ({
 
     return { valid: true };
   };
+
+  const saveLessonSchedules = async (instanceId: string, allInstances: any[]) => {
+    try {
+      const { error } = await supabase
+        .from("lesson_schedules")
+        .insert(allInstances);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error saving lesson schedules:", error);
+      throw error;
+    }
+  };
+
   const handleFinalSave = async () => {
     setLoading(true);
     try {
+      if (mode === 'edit') {
+        // For edit mode, just update the course instance
+        const result = await handleCourseAssignment();
+        if (result) {
+          toast({
+            title: "הצלחה",
+            description: "התוכנית עודכנה בהצלחה!",
+          });
+          onAssignmentComplete();
+          onOpenChange(false);
+        }
+        return;
+      }
+
+      // Create mode - proceed with full flow including lesson scheduling
       const validation = validateLessonDates();
       if (!validation.valid) {
         toast({
@@ -335,50 +500,57 @@ const CourseAssignDialog = ({
         setLoading(false);
         return;
       }
-      // 1. Create course instance
 
       const instanceId = await handleCourseAssignment();
       if (!instanceId) return;
 
-      // 2. Generate all lesson schedule instances
       const allInstances = [];
       let totalCount = 0;
 
       for (const schedule of lessonSchedules) {
-        const result = generateLessonInstances(schedule);
+        if (schedule.create_instances) {
+          const result = generateLessonInstances(schedule);
 
-        if (!result.success) {
-          toast({
-            title: "שגיאה",
-            variant: "destructive",
-            description: result.error, // Includes the reason and final attempted date
+          if (!result.success) {
+            toast({
+              title: "שגיאה",
+              variant: "destructive",
+              description: result.error,
+            });
+            return;
+          }
+
+          result.instances.forEach((instance) => {
+            instance.course_instance_id = instanceId;
           });
-          return; // Stop the loop and prevent insertion
+
+          allInstances.push(...result.instances);
+          totalCount += result.instances.length;
+
+          console.log(result.finalDateMessage);
+        } else {
+          // Single lesson schedule
+          if (schedule.scheduled_date && schedule.start_time && schedule.end_time) {
+            allInstances.push({
+              course_instance_id: instanceId,
+              lesson_id: schedule.lesson_id,
+              scheduled_start: `${schedule.scheduled_date}T${schedule.start_time}:00`,
+              scheduled_end: `${schedule.scheduled_date}T${schedule.end_time}:00`,
+            });
+            totalCount++;
+          }
         }
-
-        result.instances.forEach((instance) => {
-          instance.course_instance_id = instanceId;
-        });
-
-        allInstances.push(...result.instances);
-        totalCount += result.instances.length;
-
-        // Optional: log or show the final instance date for each lesson
-        console.log(result.finalDateMessage);
       }
 
-      // Insert to DB only if all succeeded
-      const { error } = await supabase
-        .from("lesson_schedules")
-        .insert(allInstances);
-
-      if (error) throw error;
+      if (allInstances.length > 0) {
+        await saveLessonSchedules(instanceId, allInstances);
+      }
 
       toast({
         title: "הצלחה",
-        description: `התוכנית נשמרה עם ${totalCount} מופעי שיעורים!\n${
+        description: `התוכנית נשמרה עם ${totalCount} מופעי שיעורים!${
           allInstances.length > 0
-            ? "המפגש האחרון בתוכנית יתקיים בתאריך " +
+            ? "\nהמפגש האחרון בתוכנית יתקיים בתאריך " +
               allInstances[allInstances.length - 1].scheduled_start.split(
                 "T"
               )[0]
@@ -388,7 +560,7 @@ const CourseAssignDialog = ({
       onAssignmentComplete();
       onOpenChange(false);
     } catch (error) {
-      console.error("Error saving schedule:", error);
+      console.error("Error saving:", error);
       toast({
         title: "שגיאה",
         description: "אירעה שגיאה בשמירה",
@@ -429,16 +601,13 @@ const CourseAssignDialog = ({
             ? schedule.days_of_week.filter((d) => d !== dayIndex)
             : [...schedule.days_of_week, dayIndex];
 
-          // Update day_schedules accordingly
           let newDaySchedules = [...schedule.day_schedules];
 
           if (isRemoving) {
-            // Remove the day schedule
             newDaySchedules = newDaySchedules.filter(
               (ds) => ds.day !== dayIndex
             );
           } else {
-            // Add a new day schedule
             newDaySchedules.push({
               day: dayIndex,
               start_time: "",
@@ -480,6 +649,8 @@ const CourseAssignDialog = ({
     <form
       onSubmit={(e) => {
         e.preventDefault();
+        
+        // Validation
         if (
           !formData.institution_id ||
           !formData.instructor_id ||
@@ -492,7 +663,28 @@ const CourseAssignDialog = ({
           });
           return;
         }
-        setStep(2);
+
+        // Additional validation for edit mode
+        if (mode === 'edit' && !editData?.instance_id) {
+          toast({
+            title: "שגיאה בטופס",
+            description: "חסר מזהה ההקצאה לעדכון.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        console.log('Form submission - Mode:', mode);
+        console.log('Form submission - Form Data:', formData);
+        console.log('Form submission - Edit Data:', editData);
+        
+        if (mode === 'edit') {
+          // In edit mode, save immediately without going to step 2
+          handleFinalSave();
+        } else {
+          // In create mode, proceed to lesson scheduling
+          setStep(2);
+        }
       }}
       className="space-y-4"
     >
@@ -616,7 +808,10 @@ const CourseAssignDialog = ({
           ביטול
         </Button>
         <Button type="submit" disabled={loading}>
-          {loading ? "משייך..." : "המשך לתזמון שיעורים"}
+          {loading 
+            ? (mode === 'edit' ? "מעדכן..." : "משייך...") 
+            : (mode === 'edit' ? "עדכן" : "המשך לתזמון שיעורים")
+          }
         </Button>
       </DialogFooter>
     </form>
@@ -636,7 +831,6 @@ const CourseAssignDialog = ({
           >
             <h4 className="font-medium text-right">{schedule.lesson_title}</h4>
 
-            {/* Checkbox for creating multiple instances */}
             <div className="flex items-center space-x-2">
               <Checkbox
                 id={`instances-${schedule.lesson_id}`}
@@ -655,7 +849,6 @@ const CourseAssignDialog = ({
             </div>
 
             {!schedule.create_instances ? (
-              // Single instance UI
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label>תאריך</Label>
@@ -670,7 +863,7 @@ const CourseAssignDialog = ({
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {schedule.scheduled_date
-                          ? format(
+                          ? formatDate(
                               new Date(schedule.scheduled_date),
                               "dd/MM/yyyy"
                             )
@@ -692,7 +885,6 @@ const CourseAssignDialog = ({
                             date ? date.toISOString().split("T")[0] : ""
                           )
                         }
-                        initialFocus
                         disabled={(date) => {
                           const courseStart = new Date(formData.start_date);
                           courseStart.setDate(courseStart.getDate() - 1);
@@ -735,9 +927,7 @@ const CourseAssignDialog = ({
                 </div>
               </div>
             ) : (
-              // Multiple instances UI
               <div className="space-y-4">
-                {/* Days of week selection */}
                 <div className="space-y-2">
                   <Label>ימים בשבוע</Label>
                   <div className="flex flex-wrap gap-2">
@@ -761,7 +951,6 @@ const CourseAssignDialog = ({
                   </div>
                 </div>
 
-                {/* Per-day timing configuration */}
                 {schedule.days_of_week.length > 0 && (
                   <div className="space-y-3">
                     <Label className="text-sm font-medium">
@@ -837,7 +1026,7 @@ const CourseAssignDialog = ({
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {schedule.instance_start_date
-                            ? format(
+                            ? formatDate(
                                 new Date(schedule.instance_start_date),
                                 "dd/MM"
                               )
@@ -859,7 +1048,6 @@ const CourseAssignDialog = ({
                               date ? date.toISOString().split("T")[0] : ""
                             )
                           }
-                          initialFocus
                           disabled={(date) => {
                             const courseStart = new Date(formData.start_date);
                             courseStart.setDate(courseStart.getDate() - 1);
@@ -910,11 +1098,17 @@ const CourseAssignDialog = ({
       <DialogContent className="max-w-[700px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {step === 1 ? "שיוך תוכנית לימוד" : "תזמון שיעורים"}
+            {step === 1 
+              ? (mode === 'edit' ? "עריכת הקצאת תוכנית" : "שיוך תוכנית לימוד") 
+              : "תזמון שיעורים"
+            }
           </DialogTitle>
           <DialogDescription>
             {step === 1
-              ? `שיוך התוכנית "${courseName}" למדריך, כיתה ומוסד לימודים`
+              ? (mode === 'edit' 
+                  ? `עריכת הקצאת התוכנית "${editData?.name || courseName}"` 
+                  : `שיוך התוכנית "${courseName}" למדריך, כיתה ומוסד לימודים`
+                )
               : `תזמון השיעורים עבור התוכנית "${courseName}"`}
           </DialogDescription>
         </DialogHeader>

@@ -49,7 +49,8 @@ interface CourseAssignment {
   name: string;
   grade_level: string;
   max_participants: number;
-  price_per_lesson: number;
+  price_for_instructor: number;
+  price_for_customer: number;
   institution_name: string;
   instructor_name: string;
   lesson_count: number;
@@ -62,15 +63,19 @@ const CourseAssignments = () => {
   const { user } = useAuth();
   const [assignments, setAssignments] = useState<CourseAssignment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
   const [selectedCourse, setSelectedCourse] = useState<{
     id: string;
     instanceId: string;
     name: string;
   } | null>(null);
+  const [editData, setEditData] = useState<CourseAssignment | null>(null);
 
-  // Check if user has admin or pedagogical_manager role
-  const hasPermission = ['admin', 'pedagogical_manager'].includes(user?.user_metadata?.role);
+  // Check user role and permissions
+  const userRole = user?.user_metadata?.role;
+  const hasAdminAccess = ['admin', 'pedagogical_manager'].includes(userRole);
+  const isInstructor = userRole === 'instructor';
 
   const groupTasksByLesson = (tasks: Task[]) => {
     const grouped: Record<number, Task[]> = {};
@@ -84,39 +89,43 @@ const CourseAssignments = () => {
   };
 
   const fetchAssignments = async () => {
-    if (!user || !hasPermission) return;
+    if (!user) return;
 
     try {
-      // Fetch course instances (assigned courses)
-      const { data: coursesData, error: instancesError } = await supabase.from(
-        "course_instances"
-      ).select(`
+      let query = supabase.from("course_instances").select(`
+        id,
+        grade_level,
+        max_participants,
+        price_for_customer,
+        price_for_instructor,
+        start_date,
+        end_date,
+        created_at,
+        course:course_id (
           id,
-          grade_level,
-          max_participants,
-          price_for_customer,
-          price_for_instructor,
-          start_date,
-          end_date,
-          created_at,
-          course:course_id (
-            id,
-            name
-          ),
-          instructor:instructor_id (
-            id,
-            full_name
-          ),
-          institution:institution_id (
-            id,
-            name
-          )
-        `);
+          name
+        ),
+        instructor:instructor_id (
+          id,
+          full_name
+        ),
+        institution:institution_id (
+          id,
+          name
+        )
+      `);
+
+      // If user is instructor, filter by their assignments only
+      if (isInstructor && user?.id) {
+        query = query.eq('instructor_id', user.id);
+      }
+
+      const { data: coursesData, error: instancesError } = await query;
 
       if (instancesError) throw instancesError;
 
       // Fetch lessons and tasks for assigned courses
-      const courseIds = coursesData?.map((instance) => instance.course.id) || [];
+      const courseIds = coursesData?.map((instance: any) => instance.course?.id).filter(Boolean) || [];
       let lessonsData: any[] = [];
       let tasksData: any[] = [];
       let schedulesData: any[] = [];
@@ -202,7 +211,8 @@ const CourseAssignments = () => {
           name: course.name || "ללא שם קורס",
           grade_level: instanceData.grade_level || "לא צוין",
           max_participants: instanceData.max_participants || 0,
-          price_per_lesson: instanceData.price_for_customer || 0,
+          price_for_customer: instanceData.price_for_customer || 0,
+          price_for_instructor: instanceData.price_for_instructor || 0,
           institution_name: instanceData.institution?.name || "לא צוין",
           instructor_name: instanceData.instructor?.full_name || "לא צוין",
           lesson_count: courseLessons.length,
@@ -234,8 +244,9 @@ const CourseAssignments = () => {
 
   useEffect(() => {
     fetchAssignments();
-  }, [user, hasPermission]);
+  }, [user]);
 
+  // Handle creating new assignment
   const handleAssignCourse = (
     courseId: string,
     instanceId: string,
@@ -246,11 +257,24 @@ const CourseAssignments = () => {
       instanceId: instanceId,
       name: courseName,
     });
-    setShowAssignDialog(true);
+    setDialogMode('create');
+    setEditData(null);
+    setShowDialog(true);
+  };
+
+  // Handle editing existing assignment
+  const handleEditAssignment = (assignment: CourseAssignment) => {
+    setEditData(assignment);
+    setDialogMode('edit');
+    setSelectedCourse(null);
+    console.log("Editing assignment:", assignment);
+    setShowDialog(true);
   };
 
   const handleAssignmentComplete = () => {
     fetchAssignments();
+    setSelectedCourse(null);
+    setEditData(null);
   };
 
   const formatDate = (isoDate: string) => {
@@ -273,8 +297,8 @@ const CourseAssignments = () => {
     return `${day}.${month}.${year} ${hours}:${minutes}`;
   };
 
-  // Redirect if user doesn't have permission
-  if (!hasPermission) {
+  // Redirect if user doesn't have permission to view page
+  if (!hasAdminAccess && !isInstructor) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-red-100">
         <Card className="text-center py-16 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
@@ -284,7 +308,7 @@ const CourseAssignments = () => {
               אין הרשאה לצפייה בדף זה
             </h3>
             <p className="text-gray-600 mb-6 text-lg">
-              רק מנהלים ומנהלים פדגוגיים יכולים לצפות בהקצאות קורסים
+              רק מנהלים, מנהלים פדגוגיים ומדריכים יכולים לצפות בהקצאות קורסים
             </p>
           </CardContent>
         </Card>
@@ -311,10 +335,13 @@ const CourseAssignments = () => {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              הקצאות קורסים
+              {isInstructor ? "הקורסים שלי" : "הקצאות קורסים"}
             </h1>
             <p className="text-gray-600 text-lg">
-              ניהול וצפייה בכל הקורסים שהוקצו למדריכים
+              {isInstructor 
+                ? "צפייה בקורסים שהוקצו לך" 
+                : "ניהול וצפייה בכל הקורסים שהוקצו למדריכים"
+              }
             </p>
           </div>
         </div>
@@ -324,10 +351,13 @@ const CourseAssignments = () => {
             <CardContent>
               <Users className="h-16 w-16 text-gray-400 mx-auto mb-6" />
               <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                אין הקצאות קורסים עדיין
+                {isInstructor ? "אין קורסים מוקצים" : "אין הקצאות קורסים עדיין"}
               </h3>
               <p className="text-gray-600 mb-6 text-lg">
-                לא נמצאו קורסים שהוקצו למדריכים
+                {isInstructor 
+                  ? "לא נמצאו קורסים שהוקצו לך"
+                  : "לא נמצאו קורסים שהוקצו למדריכים"
+                }
               </p>
             </CardContent>
           </Card>
@@ -356,22 +386,35 @@ const CourseAssignments = () => {
                         {assignment.institution_name} • מדריך: {assignment.instructor_name}
                       </CardDescription>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-white hover:bg-white/20"
-                        onClick={() =>
-                          handleAssignCourse(
-                            assignment.id,
-                            assignment.instance_id,
-                            assignment.name
-                          )
-                        }
-                      >
-                        <UserPlus className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {/* Only show action buttons for admin/pedagogical_manager */}
+                    {hasAdminAccess && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-white hover:bg-white/20"
+                          onClick={() => handleEditAssignment(assignment)}
+                          title="עריכת הקצאה"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-white hover:bg-white/20"
+                          onClick={() =>
+                            handleAssignCourse(
+                              assignment.id,
+                              assignment.instance_id,
+                              assignment.name
+                            )
+                          }
+                          title="הקצאה חדשה"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
 
@@ -413,7 +456,7 @@ const CourseAssignments = () => {
                         <span className="font-medium">מחיר ללקוח</span>
                       </div>
                       <span className="text-lg font-bold text-gray-900">
-                        ₪{assignment.price_per_lesson}
+                        ₪{assignment.price_for_customer}
                       </span>
                     </div>
                   </div>
@@ -501,14 +544,27 @@ const CourseAssignments = () => {
           </div>
         )}
 
-        {/* Course Assignment Dialog */}
-        {selectedCourse && (
+        {/* Course Assignment Dialog - Works for both create and edit modes */}
+        {hasAdminAccess && (
           <CourseAssignDialog
-            open={showAssignDialog}
-            onOpenChange={setShowAssignDialog}
-            courseId={selectedCourse.id}
-            courseName={selectedCourse.name}
-            instanceId={selectedCourse.instanceId}
+            open={showDialog}
+            onOpenChange={setShowDialog}
+            mode={dialogMode}
+            courseId={selectedCourse?.id}
+            courseName={selectedCourse?.name}
+            instanceId={selectedCourse?.instanceId}
+            editData={editData ? {
+              instance_id: editData.instance_id,
+              name: editData.name,
+              grade_level: editData.grade_level,
+              max_participants: editData.max_participants,
+              price_for_customer: editData.price_for_customer,
+              price_for_instructor: editData.price_for_instructor,
+              institution_name: editData.institution_name,
+              instructor_name: editData.instructor_name,
+              start_date: editData.start_date,
+              approx_end_date: editData.approx_end_date,
+            } : undefined}
             onAssignmentComplete={handleAssignmentComplete}
           />
         )}
