@@ -612,7 +612,7 @@ export default function Rewards() {
         console.error('Error fetching sales leads:', error);
         return;
       }
-
+      console.log("SALES",data)
       setSalesLeads(data || []);
     } catch (error) {
       console.error('Error fetching sales leads:', error);
