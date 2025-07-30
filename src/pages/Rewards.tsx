@@ -462,6 +462,7 @@ import {
 } from "lucide-react";
 import SalesLeadAssignmentDialog from "@/components/SalesLeadAssignmentDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 interface SalesLead {
   id: string;
@@ -501,6 +502,7 @@ const leadStatuses = [
 ];
 
 export default function Rewards() {
+  const  {user}= useAuth();
   const [salesLeads, setSalesLeads] = useState<SalesLead[]>([]);
   const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -625,7 +627,7 @@ export default function Rewards() {
     const teaching_incentives = Math.floor(totalPotentialValue * 0.4); // 40% for teaching incentives
     const closing_bonuses = Math.floor(totalPotentialValue * 0.3); // 30% for closing bonuses  
     const team_rewards = Math.floor(totalPotentialValue * 0.1); // 10% for team rewards
-    const total = teaching_incentives + closing_bonuses + team_rewards;
+    const total = totalPotentialValue;
 
     return {
       teaching_incentives,
@@ -727,7 +729,7 @@ export default function Rewards() {
             </h1>
           </div>
           <p className="text-xl text-gray-700 mb-2">
-            שלום דביר! אתה בדרך לסגור את החודש הגדול שלך 
+            שלום {user.user_metadata.full_name}! אתה בדרך לסגור את החודש הגדול שלך 
             <Flame className="h-6 w-6 text-orange-500 inline mx-2" />
           </p>
           <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-4 inline-block">
@@ -899,8 +901,8 @@ export default function Rewards() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-              <div className="text-center">
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-6 mb-6">
+              {/* <div className="text-center">
                 <p className="text-purple-100 text-sm mb-1">תמריצי הוראה</p>
                 <p className="text-2xl font-bold">₪{monthlySummary.teaching_incentives.toLocaleString()}</p>
               </div>
@@ -911,7 +913,7 @@ export default function Rewards() {
               <div className="text-center">
                 <p className="text-purple-100 text-sm mb-1">תגמולים קבוצתיים</p>
                 <p className="text-2xl font-bold">₪{monthlySummary.team_rewards.toLocaleString()}</p>
-              </div>
+              </div> */}
               <div className="text-center bg-white/20 rounded-lg p-4">
                 <p className="text-purple-100 text-sm mb-1">סה״כ צפוי</p>
                 <p className="text-3xl font-bold flex items-center justify-center">
