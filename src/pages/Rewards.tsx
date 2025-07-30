@@ -440,6 +440,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Trophy,
   Plus,
   TrendingUp,
@@ -481,6 +488,17 @@ interface MonthlySummary {
   team_rewards: number;
   total: number;
 }
+
+const leadStatuses = [
+  { value: "new", label: "חדש" },
+  { value: "contacted", label: "נוצר קשר" },
+  { value: "meeting_scheduled", label: "נקבעה פגישה" },
+  { value: "proposal_sent", label: "נשלחה הצעה" },
+  { value: "negotiation", label: "במשא ומתן" },
+  { value: "follow_up", label: "מעקב" },
+  { value: "closed_won", label: "נסגר - זכייה" },
+  { value: "closed_lost", label: "נסגר - הפסד" },
+];
 
 export default function Rewards() {
   const [salesLeads, setSalesLeads] = useState<SalesLead[]>([]);
@@ -597,6 +615,26 @@ export default function Rewards() {
     fetchSalesLeads();
   }, []);
 
+  const calculateMonthlySummary = (leads: SalesLead[]) => {
+    const totalPotentialValue = leads.reduce((sum, lead) => {
+      return sum + (lead.potential_value || 0);
+    }, 0);
+
+    // Calculate different reward types based on potential values
+    // You can adjust these percentages as needed
+    const teaching_incentives = Math.floor(totalPotentialValue * 0.4); // 40% for teaching incentives
+    const closing_bonuses = Math.floor(totalPotentialValue * 0.3); // 30% for closing bonuses  
+    const team_rewards = Math.floor(totalPotentialValue * 0.1); // 10% for team rewards
+    const total = teaching_incentives + closing_bonuses + team_rewards;
+
+    return {
+      teaching_incentives,
+      closing_bonuses,
+      team_rewards,
+      total
+    };
+  };
+
   const fetchSalesLeads = async () => {
     try {
       setLoading(true);
@@ -614,6 +652,12 @@ export default function Rewards() {
       }
       console.log("SALES",data)
       setSalesLeads(data || []);
+      
+      // Calculate and update monthly summary based on actual data
+      if (data) {
+        const calculatedSummary = calculateMonthlySummary(data);
+        setMonthlySummary(calculatedSummary);
+      }
     } catch (error) {
       console.error('Error fetching sales leads:', error);
     } finally {
@@ -624,6 +668,51 @@ export default function Rewards() {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('he-IL');
+  };
+
+  const updateLeadStatus = async (leadId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('sales_leads')
+        .update({ 
+          status: newStatus,
+          // If closing the lead, set closed_at date
+          ...(newStatus.startsWith('closed_') ? { closed_at: new Date().toISOString() } : {})
+        })
+        .eq('id', leadId);
+
+      if (error) {
+        console.error('Error updating lead status:', error);
+        return;
+      }
+
+      // Update local state
+      setSalesLeads(prev => prev.map(lead => 
+        lead.id === leadId 
+          ? { 
+              ...lead, 
+              status: newStatus,
+              ...(newStatus.startsWith('closed_') ? { closed_at: new Date().toISOString() } : {})
+            }
+          : lead
+      ));
+
+      // Recalculate monthly summary
+      const updatedLeads = salesLeads.map(lead => 
+        lead.id === leadId 
+          ? { 
+              ...lead, 
+              status: newStatus,
+              ...(newStatus.startsWith('closed_') ? { closed_at: new Date().toISOString() } : {})
+            }
+          : lead
+      );
+      const calculatedSummary = calculateMonthlySummary(updatedLeads);
+      setMonthlySummary(calculatedSummary);
+      
+    } catch (error) {
+      console.error('Error updating lead status:', error);
+    }
   };
 
   return (
@@ -699,9 +788,23 @@ export default function Rewards() {
                         {getStatusIcon(lead.status)}
                         <CardTitle className="text-xl mr-3">{lead.institution_name}</CardTitle>
                       </div>
-                      <Badge className={getStatusColor(lead.status)}>
-                        {getStatusLabel(lead.status)}
-                      </Badge>
+                      <div className="min-w-[180px]">
+                        <Select 
+                          value={lead.status || "new"} 
+                          onValueChange={(value) => updateLeadStatus(lead.id, value)}
+                        >
+                          <SelectTrigger className={`${getStatusColor(lead.status)} border-0 font-medium`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {leadStatuses.map((status) => (
+                              <SelectItem key={status.value} value={status.value}>
+                                {status.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </CardHeader>
                   
