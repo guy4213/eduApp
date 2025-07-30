@@ -170,9 +170,53 @@ export default function SalesLeadAssignmentDialog({
     }
   };
 
+  const checkAndCreateInstitution = async (institutionName: string) => {
+    try {
+      // Check if institution already exists
+      const { data: existingInstitution, error: checkError } = await supabase
+        .from("educational_institutions")
+        .select("id, name")
+        .eq("name", institutionName)
+        .single();
+
+      if (checkError && checkError.code !== "PGRST116") {
+        // PGRST116 is "not found" error, which is expected if institution doesn't exist
+        throw checkError;
+      }
+
+      // If institution exists, return it
+      if (existingInstitution) {
+        return existingInstitution;
+      }
+
+      // If institution doesn't exist, create it
+      const { data: newInstitution, error: createError } = await supabase
+        .from("educational_institutions")
+        .insert([{
+          name: institutionName,
+          address: null,
+          contact_person: null,
+          contact_phone: null,
+          contact_email: null,
+        }])
+        .select("id, name")
+        .single();
+
+      if (createError) throw createError;
+
+      return newInstitution;
+    } catch (error) {
+      console.error("Error checking/creating institution:", error);
+      throw error;
+    }
+  };
+
   const onSubmit = async (data: SalesLeadFormData) => {
     setIsSubmitting(true);
     try {
+      // Check and create institution if it doesn't exist
+      await checkAndCreateInstitution(data.institution_name);
+
       const leadData = {
         institution_name: data.institution_name,
         instructor_id: data.instructor_id,
@@ -195,6 +239,9 @@ export default function SalesLeadAssignmentDialog({
         title: "הוקצה ליד בהצלחה",
         description: "ליד המכירות נוצר ונשמר במערכת",
       });
+
+      // Refresh institutions list to include the newly created one
+      fetchInstitutions();
 
       form.reset();
       onOpenChange(false);
