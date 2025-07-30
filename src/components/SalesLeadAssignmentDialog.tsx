@@ -46,9 +46,17 @@ const salesLeadSchema = z.object({
   instructor_id: z.string().min(1, "יש לבחור מדריך"),
   contact_person: z.string().min(1, "שם איש קשר הוא שדה חובה"),
   contact_phone: z.string().min(1, "טלפון איש קשר הוא שדה חובה"),
+  email: z
+    .string()
+    .min(1, "      כתוב מייל")
+    .email("יש להכניס כתובת מייל תקינה"),
+  address: z.string().min(6, " הקש כתובת "),
   status: z.string().min(1, "יש לבחור סטטוס"),
   potential_value: z.number().min(0, "ערך פוטנציאלי חייב להיות חיובי"),
-  commission_percentage: z.number().min(0).max(100, "אחוז עמלה חייב להיות בין 0 ל-100"),
+  commission_percentage: z
+    .number()
+    .min(0)
+    .max(100, "אחוז עמלה חייב להיות בין 0 ל-100"),
   target_date: z.date().optional(),
   notes: z.string().optional(),
 });
@@ -67,7 +75,10 @@ interface Institution {
   name: string;
   contact_person: string | null;
   contact_phone: string | null;
+  address: string | null;
+  contact_email: string | null;
 }
+
 
 interface SalesLeadAssignmentDialogProps {
   open: boolean;
@@ -99,16 +110,18 @@ export default function SalesLeadAssignmentDialog({
 
   const form = useForm<SalesLeadFormData>({
     resolver: zodResolver(salesLeadSchema),
-    defaultValues: {
-      institution_name: "",
-      instructor_id: "",
-      contact_person: "",
-      contact_phone: "",
-      status: "new",
-      potential_value: 0,
-      commission_percentage: 10,
-      notes: "",
-    },
+  defaultValues: {
+  institution_name: "",
+  instructor_id: "",
+  contact_person: "",
+  contact_phone: "",
+  email: "",
+  address: "",
+  status: "new",
+  potential_value: 0,
+  commission_percentage: 10,
+  notes: "",
+},
   });
 
   useEffect(() => {
@@ -142,7 +155,7 @@ export default function SalesLeadAssignmentDialog({
     try {
       const { data, error } = await supabase
         .from("educational_institutions")
-        .select("id, name, contact_person, contact_phone")
+      .select("id, name, contact_person, contact_phone, address, contact_email")
         .order("name");
 
       if (error) throw error;
@@ -158,7 +171,7 @@ export default function SalesLeadAssignmentDialog({
   };
 
   const onSelectInstitution = (institutionId: string) => {
-    const institution = institutions.find(inst => inst.id === institutionId);
+    const institution = institutions.find((inst) => inst.id === institutionId);
     if (institution) {
       form.setValue("institution_name", institution.name);
       if (institution.contact_person) {
@@ -167,16 +180,22 @@ export default function SalesLeadAssignmentDialog({
       if (institution.contact_phone) {
         form.setValue("contact_phone", institution.contact_phone);
       }
+      if (institution.address) {
+        form.setValue("address", institution.address);
+      }
+      if (institution.contact_email) {
+        form.setValue("email", institution.contact_email);
+      }
     }
   };
 
-  const checkAndCreateInstitution = async (institutionName: string) => {
+  const checkAndCreateInstitution = async (data: SalesLeadFormData) => {
     try {
       // Check if institution already exists
       const { data: existingInstitution, error: checkError } = await supabase
         .from("educational_institutions")
         .select("id, name")
-        .eq("name", institutionName)
+        .eq("name", data.institution_name)
         .single();
 
       if (checkError && checkError.code !== "PGRST116") {
@@ -192,13 +211,15 @@ export default function SalesLeadAssignmentDialog({
       // If institution doesn't exist, create it
       const { data: newInstitution, error: createError } = await supabase
         .from("educational_institutions")
-        .insert([{
-          name: institutionName,
-          address: null,
-          contact_person: null,
-          contact_phone: null,
-          contact_email: null,
-        }])
+        .insert([
+          {
+            name: data.institution_name,
+            address: data.address,
+            contact_person: data.contact_person,
+            contact_phone: data.contact_phone,
+            contact_email: data.email,
+          },
+        ])
         .select("id, name")
         .single();
 
@@ -215,7 +236,6 @@ export default function SalesLeadAssignmentDialog({
     setIsSubmitting(true);
     try {
       // Check and create institution if it doesn't exist
-      await checkAndCreateInstitution(data.institution_name);
 
       const leadData = {
         institution_name: data.institution_name,
@@ -229,12 +249,10 @@ export default function SalesLeadAssignmentDialog({
         created_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
-        .from("sales_leads")
-        .insert([leadData]);
+      const { error } = await supabase.from("sales_leads").insert([leadData]);
 
       if (error) throw error;
-
+      await checkAndCreateInstitution(data);
       toast({
         title: "הוקצה ליד בהצלחה",
         description: "ליד המכירות נוצר ונשמר במערכת",
@@ -294,7 +312,10 @@ export default function SalesLeadAssignmentDialog({
                         </SelectTrigger>
                         <SelectContent>
                           {institutions.map((institution) => (
-                            <SelectItem key={institution.id} value={institution.id}>
+                            <SelectItem
+                              key={institution.id}
+                              value={institution.id}
+                            >
                               {institution.name}
                             </SelectItem>
                           ))}
@@ -313,7 +334,10 @@ export default function SalesLeadAssignmentDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>מדריך</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="בחר מדריך" />
@@ -346,7 +370,10 @@ export default function SalesLeadAssignmentDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>סטטוס נוכחי בליד</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="בחר סטטוס" />
@@ -360,6 +387,44 @@ export default function SalesLeadAssignmentDialog({
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {/* Email */}
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>דוא"ל של איש הקשר</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="example@email.com"
+                        {...field}
+                        className="text-right"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Address */}
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>כתובת המוסד</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="רחוב, עיר..."
+                        {...field}
+                        className="text-right"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
