@@ -453,16 +453,26 @@ import {
   Flame,
   Crown,
 } from "lucide-react";
+import SalesLeadAssignmentDialog from "@/components/SalesLeadAssignmentDialog";
+import { supabase } from "@/integrations/supabase/client";
 
-interface Institution {
+interface SalesLead {
   id: string;
-  name: string;
-  status: 'proposal_sent' | 'initial_call' | 'meeting_scheduled' | 'follow_up' | 'closed';
-  next_step: string;
-  potential_reward: number;
-  progress: number;
-  notes: string;
-  meeting_date?: string;
+  institution_name: string;
+  instructor_id: string | null;
+  contact_person: string | null;
+  contact_phone: string | null;
+  status: string | null;
+  potential_value: number | null;
+  commission_percentage: number | null;
+  notes: string | null;
+  created_at: string | null;
+  closed_at: string | null;
+  instructor?: {
+    id: string;
+    full_name: string;
+    phone: string | null;
+  };
 }
 
 interface MonthlySummary {
@@ -473,7 +483,9 @@ interface MonthlySummary {
 }
 
 export default function Rewards() {
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [salesLeads, setSalesLeads] = useState<SalesLead[]>([]);
+  const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [monthlySummary, setMonthlySummary] = useState<MonthlySummary>({
     teaching_incentives: 2600,
     closing_bonuses: 1350,
@@ -481,100 +493,138 @@ export default function Rewards() {
     total: 4350
   });
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string | null) => {
+    if (!status) return <AlertCircle className="h-5 w-5 text-gray-600" />;
+    
     switch (status) {
-      case 'proposal_sent':
-        return <CheckCircle className="h-5 w-5 text-green-600" />;
-      case 'initial_call':
+      case 'new':
+        return <Plus className="h-5 w-5 text-blue-600" />;
+      case 'contacted':
         return <Phone className="h-5 w-5 text-yellow-600" />;
       case 'meeting_scheduled':
         return <Calendar className="h-5 w-5 text-blue-600" />;
+      case 'proposal_sent':
+        return <CheckCircle className="h-5 w-5 text-green-600" />;
+      case 'negotiation':
+        return <TrendingUp className="h-5 w-5 text-orange-600" />;
       case 'follow_up':
         return <Clock className="h-5 w-5 text-orange-600" />;
-      case 'closed':
+      case 'closed_won':
         return <Trophy className="h-5 w-5 text-purple-600" />;
+      case 'closed_lost':
+        return <AlertCircle className="h-5 w-5 text-red-600" />;
       default:
         return <AlertCircle className="h-5 w-5 text-gray-600" />;
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: string | null) => {
+    if (!status) return 'ללא סטטוס';
+    
     switch (status) {
+      case 'new':
+        return 'חדש';
+      case 'contacted':
+        return 'נוצר קשר';
+      case 'meeting_scheduled':
+        return 'נקבעה פגישה';
       case 'proposal_sent':
         return 'נשלחה הצעה';
-      case 'initial_call':
-        return 'שיחת טלפון ראשונית';
-      case 'meeting_scheduled':
-        return 'קביעת פגישה';
+      case 'negotiation':
+        return 'במשא ומתן';
       case 'follow_up':
         return 'מעקב';
-      case 'closed':
-        return 'נסגר';
+      case 'closed_won':
+        return 'נסגר - זכייה';
+      case 'closed_lost':
+        return 'נסגר - הפסד';
       default:
         return status;
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
+    if (!status) return 'bg-gray-100 text-gray-800 border-gray-200';
+    
     switch (status) {
-      case 'proposal_sent':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'initial_call':
+      case 'new':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'contacted':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'meeting_scheduled':
         return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'proposal_sent':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'negotiation':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'follow_up':
         return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'closed':
+      case 'closed_won':
         return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'closed_lost':
+        return 'bg-red-100 text-red-800 border-red-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  const getProgressColor = (progress: number) => {
-    if (progress >= 80) return 'bg-green-500';
-    if (progress >= 60) return 'bg-blue-500';
-    if (progress >= 40) return 'bg-yellow-500';
-    return 'bg-gray-400';
+  const getProgressFromStatus = (status: string | null) => {
+    if (!status) return 0;
+    
+    switch (status) {
+      case 'new':
+        return 10;
+      case 'contacted':
+        return 25;
+      case 'meeting_scheduled':
+        return 50;
+      case 'proposal_sent':
+        return 75;
+      case 'negotiation':
+        return 85;
+      case 'follow_up':
+        return 60;
+      case 'closed_won':
+        return 100;
+      case 'closed_lost':
+        return 0;
+      default:
+        return 0;
+    }
   };
 
   useEffect(() => {
-    // Mock data for demonstration
-    const mockInstitutions: Institution[] = [
-      {
-        id: '1',
-        name: 'אשלים ראשון לציון',
-        status: 'proposal_sent',
-        next_step: 'פגישה ביום חמישי',
-        potential_reward: 400,
-        progress: 80,
-        notes: 'קרוב! עוד פגישה אחת לסגירה 💥',
-        meeting_date: '2025-01-30'
-      },
-      {
-        id: '2',
-        name: 'נועם רחובות',
-        status: 'initial_call',
-        next_step: 'שלח תזכורת כדי לעבור לשלב הבא',
-        potential_reward: 250,
-        progress: 40,
-        notes: 'תגובה חיובית מהרכז!',
-      },
-      {
-        id: '3',
-        name: 'דה שליט רחובות',
-        status: 'meeting_scheduled',
-        next_step: 'תזכורת נשלחה – שמור מומנטום!',
-        potential_reward: 700,
-        progress: 60,
-        notes: 'הוצעה פגישה ליום שני',
-        meeting_date: '2025-01-27'
-      }
-    ];
-
-    setInstitutions(mockInstitutions);
+    fetchSalesLeads();
   }, []);
+
+  const fetchSalesLeads = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('sales_leads')
+        .select(`
+          *,
+          instructor:profiles(id, full_name, phone)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching sales leads:', error);
+        return;
+      }
+      console.log("SALES",data)
+      setSalesLeads(data || []);
+    } catch (error) {
+      console.error('Error fetching sales leads:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleDateString('he-IL');
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50">
@@ -606,70 +656,135 @@ export default function Rewards() {
               <Target className="h-6 w-6 ml-2 text-blue-600" />
               פייפליין – התקדמות מול מוסדות
             </h2>
-            <Button className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg">
+            <Button 
+              className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg"
+              onClick={() => setIsAssignmentDialogOpen(true)}
+            >
               <Plus className="h-4 w-4" />
-              <span>הוסף מוסד חדש לפייפליין</span>
+              <span>הקצה ליד למדריך</span>
             </Button>
           </div>
 
-          <div className="space-y-4">
-            {institutions.map((institution) => (
-              <Card key={institution.id} className="shadow-lg border-0 bg-white/90 backdrop-blur-sm hover:shadow-xl transition-all">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      {getStatusIcon(institution.status)}
-                      <CardTitle className="text-xl mr-3">{institution.name}</CardTitle>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+              <span className="mr-2 text-gray-600">טוען לידים...</span>
+            </div>
+          ) : salesLeads.length === 0 ? (
+            <Card className="text-center py-16 shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+              <CardContent>
+                <Target className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  אין לידים במערכת
+                </h3>
+                <p className="text-gray-600 mb-6 text-lg">
+                  התחל ליצור לידים עבור המדריכים
+                </p>
+                <Button 
+                  className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg"
+                  onClick={() => setIsAssignmentDialogOpen(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  צור ליד חדש
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {salesLeads.map((lead) => (
+                <Card key={lead.id} className="shadow-lg border-0 bg-white/90 backdrop-blur-sm hover:shadow-xl transition-all">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        {getStatusIcon(lead.status)}
+                        <CardTitle className="text-xl mr-3">{lead.institution_name}</CardTitle>
+                      </div>
+                      <Badge className={getStatusColor(lead.status)}>
+                        {getStatusLabel(lead.status)}
+                      </Badge>
                     </div>
-                    <Badge className={getStatusColor(institution.status)}>
-                      ✅ {getStatusLabel(institution.status)} ✔️
-                    </Badge>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-1">השלב הבא:</p>
-                      <p className="text-gray-900 flex items-center">
-                        <Calendar className="h-4 w-4 ml-1 text-blue-500" />
-                        {institution.next_step}
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-1">תגמול פוטנציאלי:</p>
-                      <p className="text-lg font-bold text-green-600 flex items-center">
-                        <DollarSign className="h-4 w-4 ml-1" />
-                        ₪{institution.potential_reward}
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-2">התקדמות:</p>
-                      <div className="flex items-center space-x-3 space-x-reverse">
-                        <Progress 
-                          value={institution.progress} 
-                          className="flex-1 h-3"
-                        />
-                        <span className="text-sm font-bold text-gray-700 min-w-[35px]">
-                          {institution.progress}%
-                        </span>
+                  </CardHeader>
+                  
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-1">מדריך:</p>
+                        <p className="text-gray-900 flex items-center">
+                          <Crown className="h-4 w-4 ml-1 text-purple-500" />
+                          {lead.instructor?.full_name || 'לא הוקצה'}
+                        </p>
+                        {lead.instructor?.phone && (
+                          <p className="text-sm text-gray-500">{lead.instructor.phone}</p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-1">איש קשר:</p>
+                        <p className="text-gray-900">{lead.contact_person || 'לא צוין'}</p>
+                        {lead.contact_phone && (
+                          <p className="text-sm text-gray-500 flex items-center">
+                            <Phone className="h-3 w-3 ml-1" />
+                            {lead.contact_phone}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-1">ערך פוטנציאלי:</p>
+                        <p className="text-lg font-bold text-green-600 flex items-center">
+                          <DollarSign className="h-4 w-4 ml-1" />
+                          ₪{lead.potential_value?.toLocaleString() || '0'}
+                        </p>
+                        {lead.commission_percentage && (
+                          <p className="text-sm text-gray-500">עמלה: {lead.commission_percentage}%</p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-2">התקדמות:</p>
+                        <div className="flex items-center space-x-3 space-x-reverse">
+                          <Progress 
+                            value={getProgressFromStatus(lead.status)} 
+                            className="flex-1 h-3"
+                          />
+                          <span className="text-sm font-bold text-gray-700 min-w-[35px]">
+                            {getProgressFromStatus(lead.status)}%
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  {institution.notes && (
-                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                      <p className="text-blue-800 font-medium">
-                        {institution.notes}
-                      </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-1">תאריך יצירה:</p>
+                        <p className="text-sm text-gray-600">
+                          {formatDate(lead.created_at)}
+                        </p>
+                      </div>
+                      
+                      {lead.closed_at && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-1">תאריך סגירה:</p>
+                          <p className="text-sm text-gray-600">
+                            {formatDate(lead.closed_at)}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    
+                    {lead.notes && (
+                      <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                        <p className="text-sm font-medium text-blue-900 mb-1">הערות:</p>
+                        <p className="text-blue-800">
+                          {lead.notes}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Monthly Summary */}
@@ -704,6 +819,15 @@ export default function Rewards() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Sales Lead Assignment Dialog */}
+        <SalesLeadAssignmentDialog
+          open={isAssignmentDialogOpen}
+          onOpenChange={setIsAssignmentDialogOpen}
+          onLeadCreated={() => {
+            fetchSalesLeads(); // Refresh the leads list
+          }}
+        />
       </main>
     </div>
   );
