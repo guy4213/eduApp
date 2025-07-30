@@ -453,6 +453,7 @@ import {
   Flame,
   Crown,
 } from "lucide-react";
+import SalesLeadAssignmentDialog from "@/components/SalesLeadAssignmentDialog";
 
 interface Institution {
   id: string;
@@ -474,6 +475,7 @@ interface MonthlySummary {
 
 export default function Rewards() {
   const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
   const [monthlySummary, setMonthlySummary] = useState<MonthlySummary>({
     teaching_incentives: 2600,
     closing_bonuses: 1350,
@@ -606,9 +608,12 @@ export default function Rewards() {
               <Target className="h-6 w-6 ml-2 text-blue-600" />
               פייפליין – התקדמות מול מוסדות
             </h2>
-            <Button className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg">
+            <Button 
+              className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg"
+              onClick={() => setIsAssignmentDialogOpen(true)}
+            >
               <Plus className="h-4 w-4" />
-              <span>הוסף מוסד חדש לפייפליין</span>
+              <span>הקצה ליד למדריך</span>
             </Button>
           </div>
 
@@ -704,6 +709,16 @@ export default function Rewards() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Sales Lead Assignment Dialog */}
+        <SalesLeadAssignmentDialog
+          open={isAssignmentDialogOpen}
+          onOpenChange={setIsAssignmentDialogOpen}
+          onLeadCreated={() => {
+            // Optionally refresh the institutions list or show a success message
+            console.log("Lead created successfully!");
+          }}
+        />
       </main>
     </div>
   );
