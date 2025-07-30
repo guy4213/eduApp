@@ -41,7 +41,7 @@ interface Instructor {
 interface Lesson {
   id: string;
   title: string;
-  order_index: number;
+
 }
 
 interface DaySchedule {
@@ -276,9 +276,9 @@ const CourseAssignDialog = ({
     try {
       const { data, error } = await supabase
         .from("lessons")
-        .select("id, title, order_index")
+        .select("id, title")
         .eq("course_id", courseId)
-        .order("order_index");
+    
 
       if (error) throw error;
       
