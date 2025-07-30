@@ -440,6 +440,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Trophy,
   Plus,
   TrendingUp,
@@ -455,6 +462,7 @@ import {
 } from "lucide-react";
 import SalesLeadAssignmentDialog from "@/components/SalesLeadAssignmentDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 interface SalesLead {
   id: string;
@@ -482,7 +490,19 @@ interface MonthlySummary {
   total: number;
 }
 
+const leadStatuses = [
+  { value: "new", label: "חדש" },
+  { value: "contacted", label: "נוצר קשר" },
+  { value: "meeting_scheduled", label: "נקבעה פגישה" },
+  { value: "proposal_sent", label: "נשלחה הצעה" },
+  { value: "negotiation", label: "במשא ומתן" },
+  { value: "follow_up", label: "מעקב" },
+  { value: "closed_won", label: "נסגר - זכייה" },
+  { value: "closed_lost", label: "נסגר - הפסד" },
+];
+
 export default function Rewards() {
+  const  {user}= useAuth();
   const [salesLeads, setSalesLeads] = useState<SalesLead[]>([]);
   const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -597,6 +617,26 @@ export default function Rewards() {
     fetchSalesLeads();
   }, []);
 
+  const calculateMonthlySummary = (leads: SalesLead[]) => {
+    const totalPotentialValue = leads.reduce((sum, lead) => {
+      return sum + (lead.potential_value || 0);
+    }, 0);
+
+    // Calculate different reward types based on potential values
+    // You can adjust these percentages as needed
+    const teaching_incentives = Math.floor(totalPotentialValue * 0.4); // 40% for teaching incentives
+    const closing_bonuses = Math.floor(totalPotentialValue * 0.3); // 30% for closing bonuses  
+    const team_rewards = Math.floor(totalPotentialValue * 0.1); // 10% for team rewards
+    const total = totalPotentialValue;
+
+    return {
+      teaching_incentives,
+      closing_bonuses,
+      team_rewards,
+      total
+    };
+  };
+
   const fetchSalesLeads = async () => {
     try {
       setLoading(true);
@@ -614,6 +654,12 @@ export default function Rewards() {
       }
       console.log("SALES",data)
       setSalesLeads(data || []);
+      
+      // Calculate and update monthly summary based on actual data
+      if (data) {
+        const calculatedSummary = calculateMonthlySummary(data);
+        setMonthlySummary(calculatedSummary);
+      }
     } catch (error) {
       console.error('Error fetching sales leads:', error);
     } finally {
@@ -624,6 +670,51 @@ export default function Rewards() {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('he-IL');
+  };
+
+  const updateLeadStatus = async (leadId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('sales_leads')
+        .update({ 
+          status: newStatus,
+          // If closing the lead, set closed_at date
+          ...(newStatus.startsWith('closed_') ? { closed_at: new Date().toISOString() } : {})
+        })
+        .eq('id', leadId);
+
+      if (error) {
+        console.error('Error updating lead status:', error);
+        return;
+      }
+
+      // Update local state
+      setSalesLeads(prev => prev.map(lead => 
+        lead.id === leadId 
+          ? { 
+              ...lead, 
+              status: newStatus,
+              ...(newStatus.startsWith('closed_') ? { closed_at: new Date().toISOString() } : {})
+            }
+          : lead
+      ));
+
+      // Recalculate monthly summary
+      const updatedLeads = salesLeads.map(lead => 
+        lead.id === leadId 
+          ? { 
+              ...lead, 
+              status: newStatus,
+              ...(newStatus.startsWith('closed_') ? { closed_at: new Date().toISOString() } : {})
+            }
+          : lead
+      );
+      const calculatedSummary = calculateMonthlySummary(updatedLeads);
+      setMonthlySummary(calculatedSummary);
+      
+    } catch (error) {
+      console.error('Error updating lead status:', error);
+    }
   };
 
   return (
@@ -638,7 +729,7 @@ export default function Rewards() {
             </h1>
           </div>
           <p className="text-xl text-gray-700 mb-2">
-            שלום דביר! אתה בדרך לסגור את החודש הגדול שלך 
+            שלום {user.user_metadata.full_name}! אתה בדרך לסגור את החודש הגדול שלך 
             <Flame className="h-6 w-6 text-orange-500 inline mx-2" />
           </p>
           <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-4 inline-block">
@@ -699,9 +790,23 @@ export default function Rewards() {
                         {getStatusIcon(lead.status)}
                         <CardTitle className="text-xl mr-3">{lead.institution_name}</CardTitle>
                       </div>
-                      <Badge className={getStatusColor(lead.status)}>
-                        {getStatusLabel(lead.status)}
-                      </Badge>
+                      <div className="min-w-[180px]">
+                        <Select 
+                          value={lead.status || "new"} 
+                          onValueChange={(value) => updateLeadStatus(lead.id, value)}
+                        >
+                          <SelectTrigger className={`${getStatusColor(lead.status)} border-0 font-medium`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {leadStatuses.map((status) => (
+                              <SelectItem key={status.value} value={status.value}>
+                                {status.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </CardHeader>
                   
@@ -796,8 +901,8 @@ export default function Rewards() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-              <div className="text-center">
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-6 mb-6">
+              {/* <div className="text-center">
                 <p className="text-purple-100 text-sm mb-1">תמריצי הוראה</p>
                 <p className="text-2xl font-bold">₪{monthlySummary.teaching_incentives.toLocaleString()}</p>
               </div>
@@ -808,7 +913,7 @@ export default function Rewards() {
               <div className="text-center">
                 <p className="text-purple-100 text-sm mb-1">תגמולים קבוצתיים</p>
                 <p className="text-2xl font-bold">₪{monthlySummary.team_rewards.toLocaleString()}</p>
-              </div>
+              </div> */}
               <div className="text-center bg-white/20 rounded-lg p-4">
                 <p className="text-purple-100 text-sm mb-1">סה״כ צפוי</p>
                 <p className="text-3xl font-bold flex items-center justify-center">

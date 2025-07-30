@@ -361,6 +361,7 @@ interface DashboardStats {
   activeStudents: number;
   activeCourses: number;
   monthlyEarnings: number;
+  rewardsTotal: number;
   upcomingLessons: any[];
   recentActivity: any[];
 }
@@ -383,6 +384,7 @@ const Dashboard = () => {
     activeStudents: 0,
     activeCourses: 0,
     monthlyEarnings: 0,
+    rewardsTotal: 0,
     upcomingLessons: [],
     recentActivity: [],
   });
@@ -413,6 +415,7 @@ const Dashboard = () => {
             activeStudents: 0,
             activeCourses: 0,
             monthlyEarnings: 0,
+            rewardsTotal: 0,
             upcomingLessons: [],
             recentActivity: [],
           });
@@ -469,12 +472,33 @@ const Dashboard = () => {
 
         console.log("Adapted lessons:", adaptedLessons);
         
+        // Fetch sales leads for rewards calculation
+        const { data: salesLeads } = await supabase
+          .from('sales_leads')
+          .select('potential_value, commission_percentage');
+
+        // Calculate total rewards from sales leads
+        const calculateRewardsTotal = (leads: any[]) => {
+          const totalPotentialValue = leads.reduce((sum, lead) => {
+            return sum + (lead.potential_value || 0);
+          }, 0);
+
+          // Calculate different reward types based on potential values
+          // const teaching_incentives = Math.floor(totalPotentialValue * 0.4); // 40% for teaching incentives
+          // const closing_bonuses = Math.floor(totalPotentialValue * 0.3); // 30% for closing bonuses  
+          // const team_rewards = Math.floor(totalPotentialValue * 0.1); // 10% for team rewards
+          return totalPotentialValue;
+        };
+
+        const rewardsTotal = calculateRewardsTotal(salesLeads || []);
+
         setLessons(adaptedLessons);
         setStats({
           totalLessons: adaptedLessons.length,
           activeStudents: enrollments?.length || 0,
           activeCourses: courses?.length || 0,
           monthlyEarnings: adaptedLessons.length * 150, // חישוב פשוט לפי מספר שיעורים
+          rewardsTotal: rewardsTotal,
           upcomingLessons: adaptedLessons.slice(0, 3),
           recentActivity: adaptedLessons.slice(-3),
         });
@@ -763,9 +787,9 @@ return (
             <Award className="h-6 w-6 sm:h-8 sm:w-8 md:h-12 md:w-12 text-white mr-2 sm:mr-3 md:mr-4 animate-pulse" />
             <div className="text-right">
               <span className="text-xl sm:text-2xl md:text-4xl font-bold text-white block">
-                ₪{stats.monthlyEarnings.toLocaleString()}
+                ₪{stats.rewardsTotal.toLocaleString()}
               </span>
-              <span className="text-xs sm:text-sm text-white/80">זמינים לתגמול</span>
+              <span className="text-xs sm:text-sm text-white/80">סה״כ תגמולים צפויים</span>
             </div>
           </div>
           <p className="text-white font-bold text-base sm:text-lg md:text-xl mb-2">
