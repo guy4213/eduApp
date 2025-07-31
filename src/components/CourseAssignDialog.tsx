@@ -23,10 +23,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Trash2 } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, Edit } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 
 interface Institution {
   id: string;
@@ -38,10 +41,39 @@ interface Instructor {
   full_name: string;
 }
 
+interface CurriculumLesson {
+  id: string;
+  title: string;
+  description?: string;
+  order_index: number;
+  course_id: string;
+}
+
+interface CurriculumTask {
+  id: string;
+  title: string;
+  description?: string;
+  estimated_duration?: number;
+  is_mandatory?: boolean;
+  order_index: number;
+  curriculum_lesson_id: string;
+}
+
 interface Lesson {
   id: string;
   title: string;
+  description?: string;
+  order_index?: number;
+}
 
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  estimated_duration?: number;
+  is_mandatory?: boolean;
+  order_index: number;
+  lesson_id: string;
 }
 
 interface DaySchedule {
@@ -122,9 +154,13 @@ const CourseAssignDialog = ({
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [curriculumLessons, setCurriculumLessons] = useState<CurriculumLesson[]>([]);
   const [lessonSchedules, setLessonSchedules] = useState<LessonSchedule[]>([]);
+  const [lessonTasks, setLessonTasks] = useState<{[key: string]: Task[]}>({});
+  const [curriculumTasks, setCurriculumTasks] = useState<{[key: string]: CurriculumTask[]}>({});
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [editingLessons, setEditingLessons] = useState(false);
   const [formData, setFormData] = useState({
     institution_id: "",
     instructor_id: "",
@@ -176,6 +212,10 @@ const CourseAssignDialog = ({
         // Reset to step 1 for editing
         setStep(1);
         setLessonSchedules([]);
+        // Fetch lessons for editing
+        if (courseId) {
+          fetchCourseLessons();
+        }
       }
     }
   }, [open, courseId, mode]);
@@ -274,18 +314,45 @@ const CourseAssignDialog = ({
     if (!courseId) return;
     
     try {
-      const { data, error } = await supabase
+      // Try to fetch curriculum lessons first (new structure)
+      let curriculumData: CurriculumLesson[] = [];
+      try {
+        const { data, error } = await supabase
+          .from("curriculum_lessons")
+          .select("*")
+          .eq("course_id", courseId)
+          .order("order_index");
+
+        if (!error && data) {
+          curriculumData = data;
+          setCurriculumLessons(curriculumData);
+          await fetchCurriculumTasks(curriculumData);
+        }
+      } catch (err) {
+        console.warn("Curriculum lessons table not available, using fallback");
+      }
+
+      // If no curriculum lessons, use empty array for now
+      if (curriculumData.length === 0) {
+        setCurriculumLessons([]);
+        setCurriculumTasks({});
+      }
+      
+      // For lesson scheduling, also fetch scheduled lessons
+      const { data: scheduledData, error: scheduledError } = await supabase
         .from("lessons")
         .select("id, title")
         .eq("course_id", courseId)
-    
+        .order("created_at");
 
-      if (error) throw error;
+      if (scheduledError) {
+        console.warn("No scheduled lessons found:", scheduledError);
+      }
       
-      setLessons(data || []);
+      setLessons(scheduledData || []);
       const courseStartDate = formData.start_date || "";
 
-      const initialSchedules = (data || []).map((lesson) => ({
+      const initialSchedules = (scheduledData || []).map((lesson) => ({
         lesson_id: lesson.id,
         lesson_title: lesson.title,
         scheduled_date: courseStartDate,
@@ -305,6 +372,142 @@ const CourseAssignDialog = ({
         description: "לא ניתן לטעון את רשימת השיעורים",
         variant: "destructive",
       });
+    }
+  };
+
+  const fetchCurriculumTasks = async (curriculumLessons: CurriculumLesson[]) => {
+    try {
+      const tasks: {[key: string]: CurriculumTask[]} = {};
+      
+      for (const lesson of curriculumLessons) {
+        try {
+          const { data, error } = await supabase
+            .from("curriculum_tasks")
+            .select("*")
+            .eq("curriculum_lesson_id", lesson.id)
+            .order("order_index");
+
+          if (!error && data) {
+            tasks[lesson.id] = data;
+          } else {
+            tasks[lesson.id] = [];
+          }
+        } catch (err) {
+          console.warn("Curriculum tasks table not available");
+          tasks[lesson.id] = [];
+        }
+      }
+      
+      setCurriculumTasks(tasks);
+    } catch (error) {
+      console.error("Error fetching curriculum tasks:", error);
+      setCurriculumTasks({});
+    }
+  };
+
+  // CRUD operations for curriculum lessons
+  const createCurriculumLesson = async (lesson: Omit<CurriculumLesson, 'id'>) => {
+    try {
+      const { data, error } = await supabase
+        .from("curriculum_lessons")
+        .insert([lesson])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error creating curriculum lesson:", error);
+        throw new Error("אירעה שגיאה ביצירת השיעור. יתכן שהטבלאות עדיין לא נוצרו במסד הנתונים.");
+      }
+      return data;
+    } catch (error) {
+      console.error("Error creating curriculum lesson:", error);
+      throw error;
+    }
+  };
+
+  const updateCurriculumLesson = async (lessonId: string, updates: Partial<CurriculumLesson>) => {
+    try {
+      const { data, error } = await supabase
+        .from("curriculum_lessons")
+        .update(updates)
+        .eq("id", lessonId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error updating curriculum lesson:", error);
+      throw error;
+    }
+  };
+
+  const deleteCurriculumLesson = async (lessonId: string) => {
+    try {
+      // First delete all tasks for this lesson
+      await supabase
+        .from("curriculum_tasks")
+        .delete()
+        .eq("curriculum_lesson_id", lessonId);
+
+      // Then delete the lesson
+      const { error } = await supabase
+        .from("curriculum_lessons")
+        .delete()
+        .eq("id", lessonId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error deleting curriculum lesson:", error);
+      throw error;
+    }
+  };
+
+  // CRUD operations for curriculum tasks
+  const createCurriculumTask = async (task: Omit<CurriculumTask, 'id'>) => {
+    try {
+      const { data, error } = await supabase
+        .from("curriculum_tasks")
+        .insert([task])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error creating curriculum task:", error);
+      throw error;
+    }
+  };
+
+  const updateCurriculumTask = async (taskId: string, updates: Partial<CurriculumTask>) => {
+    try {
+      const { data, error } = await supabase
+        .from("curriculum_tasks")
+        .update(updates)
+        .eq("id", taskId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error updating curriculum task:", error);
+      throw error;
+    }
+  };
+
+  const deleteCurriculumTask = async (taskId: string) => {
+    try {
+      const { error } = await supabase
+        .from("curriculum_tasks")
+        .delete()
+        .eq("id", taskId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error deleting curriculum task:", error);
+      throw error;
     }
   };
 
@@ -679,8 +882,12 @@ const CourseAssignDialog = ({
         console.log('Form submission - Edit Data:', editData);
         
         if (mode === 'edit') {
-          // In edit mode, save immediately without going to step 2
-          handleFinalSave();
+          // In edit mode, save immediately without going to step 2 unless editing lessons
+          if (editingLessons) {
+            setStep(3); // Go to lesson editing step
+          } else {
+            handleFinalSave();
+          }
         } else {
           // In create mode, proceed to lesson scheduling
           setStep(2);
@@ -807,15 +1014,496 @@ const CourseAssignDialog = ({
         >
           ביטול
         </Button>
-        <Button type="submit" disabled={loading}>
-          {loading 
-            ? (mode === 'edit' ? "מעדכן..." : "משייך...") 
-            : (mode === 'edit' ? "עדכן" : "המשך לתזמון שיעורים")
-          }
-        </Button>
+        <div className="flex gap-2">
+          {mode === 'edit' && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditingLessons(true)}
+              disabled={loading}
+            >
+              ערוך שיעורים ומשימות
+            </Button>
+          )}
+          <Button type="submit" disabled={loading}>
+            {loading 
+              ? (mode === 'edit' ? "מעדכן..." : "משייך...") 
+              : (mode === 'edit' ? (editingLessons ? "המשך לעריכת שיעורים" : "עדכן") : "המשך לתזמון שיעורים")
+            }
+          </Button>
+        </div>
       </DialogFooter>
     </form>
   );
+
+  const renderLessonEditingStep = () => {
+    const [editingLesson, setEditingLesson] = useState<CurriculumLesson | null>(null);
+    const [editingTask, setEditingTask] = useState<CurriculumTask | null>(null);
+    const [newLessonData, setNewLessonData] = useState({ title: '', description: '' });
+    const [newTaskData, setNewTaskData] = useState({ 
+      title: '', 
+      description: '', 
+      estimated_duration: 30, 
+      is_mandatory: false 
+    });
+
+    const handleAddLesson = async () => {
+      if (!newLessonData.title.trim() || !courseId) return;
+      
+      try {
+        setLoading(true);
+        const newLesson = await createCurriculumLesson({
+          title: newLessonData.title,
+          description: newLessonData.description,
+          order_index: curriculumLessons.length,
+          course_id: courseId,
+        });
+
+        setCurriculumLessons([...curriculumLessons, newLesson]);
+        setCurriculumTasks({...curriculumTasks, [newLesson.id]: []});
+        setNewLessonData({ title: '', description: '' });
+        
+        toast({
+          title: "הצלחה",
+          description: "השיעור נוסף בהצלחה",
+        });
+      } catch (error) {
+        toast({
+          title: "שגיאה",
+          description: "אירעה שגיאה בהוספת השיעור",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleUpdateLesson = async () => {
+      if (!editingLesson || !editingLesson.title.trim()) return;
+      
+      try {
+        setLoading(true);
+        const updatedLesson = await updateCurriculumLesson(editingLesson.id, {
+          title: editingLesson.title,
+          description: editingLesson.description,
+        });
+
+        setCurriculumLessons(curriculumLessons.map(l => l.id === editingLesson.id ? updatedLesson : l));
+        setEditingLesson(null);
+        
+        toast({
+          title: "הצלחה",
+          description: "השיעור עודכן בהצלחה",
+        });
+      } catch (error) {
+        toast({
+          title: "שגיאה",
+          description: "אירעה שגיאה בעדכון השיעור",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleDeleteLesson = async (lessonId: string) => {
+      try {
+        setLoading(true);
+        await deleteCurriculumLesson(lessonId);
+        
+        setCurriculumLessons(curriculumLessons.filter(l => l.id !== lessonId));
+        const newTasks = { ...curriculumTasks };
+        delete newTasks[lessonId];
+        setCurriculumTasks(newTasks);
+        
+        toast({
+          title: "הצלחה",
+          description: "השיעור נמחק בהצלחה",
+        });
+      } catch (error) {
+        toast({
+          title: "שגיאה",
+          description: "אירעה שגיאה במחיקת השיעור",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleAddTask = async (lessonId: string) => {
+      if (!newTaskData.title.trim()) return;
+      
+      try {
+        setLoading(true);
+        const currentTasks = curriculumTasks[lessonId] || [];
+        const newTask = await createCurriculumTask({
+          title: newTaskData.title,
+          description: newTaskData.description,
+          estimated_duration: newTaskData.estimated_duration,
+          is_mandatory: newTaskData.is_mandatory,
+          order_index: currentTasks.length,
+          curriculum_lesson_id: lessonId,
+        });
+
+        setCurriculumTasks({
+          ...curriculumTasks,
+          [lessonId]: [...currentTasks, newTask]
+        });
+        setNewTaskData({ title: '', description: '', estimated_duration: 30, is_mandatory: false });
+        
+        toast({
+          title: "הצלחה",
+          description: "המשימה נוספה בהצלחה",
+        });
+      } catch (error) {
+        toast({
+          title: "שגיאה",
+          description: "אירעה שגיאה בהוספת המשימה",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleUpdateTask = async () => {
+      if (!editingTask || !editingTask.title.trim()) return;
+      
+      try {
+        setLoading(true);
+        const updatedTask = await updateCurriculumTask(editingTask.id, {
+          title: editingTask.title,
+          description: editingTask.description,
+          estimated_duration: editingTask.estimated_duration,
+          is_mandatory: editingTask.is_mandatory,
+        });
+
+        const lessonId = editingTask.curriculum_lesson_id;
+        const currentTasks = curriculumTasks[lessonId] || [];
+        setCurriculumTasks({
+          ...curriculumTasks,
+          [lessonId]: currentTasks.map(t => t.id === editingTask.id ? updatedTask : t)
+        });
+        setEditingTask(null);
+        
+        toast({
+          title: "הצלחה",
+          description: "המשימה עודכנה בהצלחה",
+        });
+      } catch (error) {
+        toast({
+          title: "שגיאה",
+          description: "אירעה שגיאה בעדכון המשימה",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleDeleteTask = async (taskId: string, lessonId: string) => {
+      try {
+        setLoading(true);
+        await deleteCurriculumTask(taskId);
+        
+        const currentTasks = curriculumTasks[lessonId] || [];
+        setCurriculumTasks({
+          ...curriculumTasks,
+          [lessonId]: currentTasks.filter(t => t.id !== taskId)
+        });
+        
+        toast({
+          title: "הצלחה",
+          description: "המשימה נמחקה בהצלחה",
+        });
+      } catch (error) {
+        toast({
+          title: "שגיאה",
+          description: "אירעה שגיאה במחיקת המשימה",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="text-sm text-gray-600 mb-4">
+          עריכת שיעורים ומשימות עבור התוכנית "{courseName}"
+        </div>
+
+        {/* Add new lesson */}
+        <Card>
+          <CardHeader>
+            <CardTitle>הוסף שיעור חדש</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="lesson-title">כותרת השיעור</Label>
+              <Input
+                id="lesson-title"
+                value={newLessonData.title}
+                onChange={(e) => setNewLessonData({...newLessonData, title: e.target.value})}
+                placeholder="הכנס כותרת השיעור"
+              />
+            </div>
+            <div>
+              <Label htmlFor="lesson-description">תיאור השיעור</Label>
+              <Textarea
+                id="lesson-description"
+                value={newLessonData.description}
+                onChange={(e) => setNewLessonData({...newLessonData, description: e.target.value})}
+                placeholder="הכנס תיאור השיעור"
+              />
+            </div>
+            <Button onClick={handleAddLesson} disabled={loading}>
+              <Plus className="w-4 h-4 mr-2" />
+              הוסף שיעור
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Existing lessons */}
+        <div className="space-y-4">
+          {curriculumLessons.map((lesson) => (
+            <Card key={lesson.id}>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-lg">{lesson.title}</CardTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingLesson(lesson)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteLesson(lesson.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                {lesson.description && (
+                  <p className="text-sm text-gray-600">{lesson.description}</p>
+                )}
+              </CardHeader>
+              <CardContent>
+                {/* Tasks for this lesson */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium">משימות</h4>
+                  </div>
+                  
+                  {/* Add new task */}
+                  <div className="border rounded p-4 bg-gray-50 space-y-3">
+                    <h5 className="font-medium text-sm">הוסף משימה חדשה</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor={`task-title-${lesson.id}`}>כותרת המשימה</Label>
+                        <Input
+                          id={`task-title-${lesson.id}`}
+                          value={newTaskData.title}
+                          onChange={(e) => setNewTaskData({...newTaskData, title: e.target.value})}
+                          placeholder="הכנס כותרת המשימה"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`task-duration-${lesson.id}`}>זמן משוער (דקות)</Label>
+                        <Input
+                          id={`task-duration-${lesson.id}`}
+                          type="number"
+                          value={newTaskData.estimated_duration}
+                          onChange={(e) => setNewTaskData({...newTaskData, estimated_duration: parseInt(e.target.value) || 30})}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor={`task-description-${lesson.id}`}>תיאור המשימה</Label>
+                      <Textarea
+                        id={`task-description-${lesson.id}`}
+                        value={newTaskData.description}
+                        onChange={(e) => setNewTaskData({...newTaskData, description: e.target.value})}
+                        placeholder="הכנס תיאור המשימה"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`task-mandatory-${lesson.id}`}
+                        checked={newTaskData.is_mandatory}
+                        onCheckedChange={(checked) => setNewTaskData({...newTaskData, is_mandatory: checked as boolean})}
+                      />
+                      <Label htmlFor={`task-mandatory-${lesson.id}`}>משימה חובה</Label>
+                    </div>
+                    <Button
+                      onClick={() => handleAddTask(lesson.id)}
+                      disabled={loading}
+                      size="sm"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      הוסף משימה
+                    </Button>
+                  </div>
+
+                  {/* Existing tasks */}
+                  {(curriculumTasks[lesson.id] || []).map((task) => (
+                    <div key={task.id} className="border rounded p-3 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h6 className="font-medium">{task.title}</h6>
+                          {task.description && (
+                            <p className="text-sm text-gray-600">{task.description}</p>
+                          )}
+                          <div className="flex gap-4 text-xs text-gray-500 mt-1">
+                            <span>{task.estimated_duration} דקות</span>
+                            {task.is_mandatory && <Badge variant="secondary">חובה</Badge>}
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEditingTask(task)}
+                          >
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteTask(task.id, lesson.id)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Edit lesson dialog */}
+        {editingLesson && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold mb-4">ערוך שיעור</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="edit-lesson-title">כותרת השיעור</Label>
+                  <Input
+                    id="edit-lesson-title"
+                    value={editingLesson.title}
+                    onChange={(e) => setEditingLesson({...editingLesson, title: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-lesson-description">תיאור השיעור</Label>
+                  <Textarea
+                    id="edit-lesson-description"
+                    value={editingLesson.description || ''}
+                    onChange={(e) => setEditingLesson({...editingLesson, description: e.target.value})}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setEditingLesson(null)}>
+                    ביטול
+                  </Button>
+                  <Button onClick={handleUpdateLesson} disabled={loading}>
+                    עדכן
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit task dialog */}
+        {editingTask && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold mb-4">ערוך משימה</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="edit-task-title">כותרת המשימה</Label>
+                  <Input
+                    id="edit-task-title"
+                    value={editingTask.title}
+                    onChange={(e) => setEditingTask({...editingTask, title: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-task-description">תיאור המשימה</Label>
+                  <Textarea
+                    id="edit-task-description"
+                    value={editingTask.description || ''}
+                    onChange={(e) => setEditingTask({...editingTask, description: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-task-duration">זמן משוער (דקות)</Label>
+                  <Input
+                    id="edit-task-duration"
+                    type="number"
+                    value={editingTask.estimated_duration || 30}
+                    onChange={(e) => setEditingTask({...editingTask, estimated_duration: parseInt(e.target.value) || 30})}
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="edit-task-mandatory"
+                    checked={editingTask.is_mandatory || false}
+                    onCheckedChange={(checked) => setEditingTask({...editingTask, is_mandatory: checked as boolean})}
+                  />
+                  <Label htmlFor="edit-task-mandatory">משימה חובה</Label>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setEditingTask(null)}>
+                    ביטול
+                  </Button>
+                  <Button onClick={handleUpdateTask} disabled={loading}>
+                    עדכן
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="flex justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setStep(1);
+              setEditingLessons(false);
+            }}
+          >
+            חזור
+          </Button>
+          <Button
+            onClick={() => {
+              toast({
+                title: "הצלחה",
+                description: "השיעורים והמשימות נשמרו בהצלחה",
+              });
+              onAssignmentComplete();
+              onOpenChange(false);
+            }}
+            disabled={loading}
+          >
+            סיים ושמור
+          </Button>
+        </DialogFooter>
+      </div>
+    );
+  };
 
   const renderLessonSchedulingStep = () => (
     <div className="space-y-4">
@@ -1100,7 +1788,9 @@ const CourseAssignDialog = ({
           <DialogTitle>
             {step === 1 
               ? (mode === 'edit' ? "עריכת הקצאת תוכנית" : "שיוך תוכנית לימוד") 
-              : "תזמון שיעורים"
+              : step === 2 
+                ? "תזמון שיעורים"
+                : "עריכת שיעורים ומשימות"
             }
           </DialogTitle>
           <DialogDescription>
@@ -1109,13 +1799,17 @@ const CourseAssignDialog = ({
                   ? `עריכת הקצאת התוכנית "${editData?.name || courseName}"` 
                   : `שיוך התוכנית "${courseName}" למדריך, כיתה ומוסד לימודים`
                 )
-              : `תזמון השיעורים עבור התוכנית "${courseName}"`}
+              : step === 2
+                ? `תזמון השיעורים עבור התוכנית "${courseName}"`
+                : `עריכת השיעורים והמשימות עבור התוכנית "${courseName}"`}
           </DialogDescription>
         </DialogHeader>
 
         {step === 1
           ? renderCourseAssignmentStep()
-          : renderLessonSchedulingStep()}
+          : step === 2
+            ? renderLessonSchedulingStep()
+            : renderLessonEditingStep()}
       </DialogContent>
     </Dialog>
   );
