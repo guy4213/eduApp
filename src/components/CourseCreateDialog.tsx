@@ -13,6 +13,7 @@ import CourseDetailsForm from './course/CourseDetailsForm';
 import CourseLessonsSection, { Lesson } from './course/CourseLessonsSection';
 import { useCourseData } from './course/useCourseData';
 import { useCourseSubmit } from './course/useCourseSubmit';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CourseCreateDialogProps {
   open: boolean;
@@ -61,8 +62,52 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
 
   const loadExistingLessons = async (courseId: string) => {
     try {
-      // This would load from Supabase - placeholder for now
-      // Convert tasks to lessons format
+      // Get the course_id from the instance_id
+      const { data: instanceData, error: instanceError } = await supabase
+        .from('course_instances')
+        .select('course_id')
+        .eq('id', courseId)
+        .single();
+
+      if (instanceError) throw instanceError;
+
+      // Load lessons and tasks from the database
+      const { data: lessonsData, error: lessonsError } = await supabase
+        .from('lessons')
+        .select(`
+          id,
+          title,
+          lesson_tasks (
+            id,
+            title,
+            description,
+            estimated_duration,
+            is_mandatory,
+            order_index
+          )
+        `)
+        .eq('course_id', instanceData.course_id)
+        .order('id');
+
+      if (lessonsError) throw lessonsError;
+
+      const formattedLessons = lessonsData.map(lesson => ({
+        id: lesson.id,
+        title: lesson.title,
+        tasks: lesson.lesson_tasks.map(task => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          estimated_duration: task.estimated_duration,
+          is_mandatory: task.is_mandatory,
+          order_index: task.order_index
+        })).sort((a, b) => a.order_index - b.order_index)
+      }));
+
+      setLessons(formattedLessons);
+    } catch (error) {
+      console.error('Error loading existing lessons:', error);
+      // Fallback to using editCourse.tasks if database loading fails
       if (editCourse?.tasks) {
         const lessonsMap = new Map();
 
@@ -93,8 +138,6 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         
         setLessons(formattedLessons);
       }
-    } catch (error) {
-      console.error('Error loading existing lessons:', error);
     }
   };
 
