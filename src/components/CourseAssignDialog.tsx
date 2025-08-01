@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -41,7 +42,7 @@ interface Instructor {
 interface Lesson {
   id: string;
   title: string;
-
+  tasks?: any[];
 }
 
 interface DaySchedule {
@@ -277,7 +278,7 @@ const CourseAssignDialog = ({
     try {
       const { data, error } = await supabase
         .from("lessons")
-        .select("id, title")
+        .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
         .eq("course_id", courseId)
     
 
@@ -322,10 +323,10 @@ const CourseAssignDialog = ({
 
       if (instanceError) throw instanceError;
 
-      // Fetch lessons for this course
+      // Fetch lessons for this course with their tasks
       const { data: lessonsData, error: lessonsError } = await supabase
         .from("lessons")
-        .select("id, title")
+        .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
         .eq("course_id", instanceData.course_id);
 
       if (lessonsError) throw lessonsError;
@@ -581,26 +582,232 @@ const CourseAssignDialog = ({
   const saveLessonSchedules = async (instanceId: string, allInstances: any[]) => {
     try {
       if (mode === 'edit') {
-        // For edit mode, delete existing schedules and insert new ones
-        const { error: deleteError } = await supabase
+        // For edit mode, we need to be more careful about updating schedules
+        // First, get existing schedules to understand what we're working with
+        const { data: existingSchedules, error: fetchError } = await supabase
           .from("lesson_schedules")
-          .delete()
+          .select("*")
           .eq("course_instance_id", instanceId);
 
-        if (deleteError) throw deleteError;
-      }
+        if (fetchError) throw fetchError;
 
-      // Insert new/updated schedules
-      if (allInstances.length > 0) {
-        const { error } = await supabase
-          .from("lesson_schedules")
-          .insert(allInstances);
+        // Create a map of existing schedules by lesson_id for easy lookup
+        const existingSchedulesMap = new Map();
+        existingSchedules?.forEach(schedule => {
+          if (!existingSchedulesMap.has(schedule.lesson_id)) {
+            existingSchedulesMap.set(schedule.lesson_id, []);
+          }
+          existingSchedulesMap.get(schedule.lesson_id).push(schedule);
+        });
 
-        if (error) throw error;
+        // Process each new instance
+        for (const newInstance of allInstances) {
+          const existingSchedulesForLesson = existingSchedulesMap.get(newInstance.lesson_id) || [];
+          
+          if (existingSchedulesForLesson.length > 0) {
+            // Update existing schedules for this lesson
+            // Find the best matching existing schedule to update
+            const scheduleToUpdate = existingSchedulesForLesson.find(existing => 
+              existing.scheduled_start === newInstance.scheduled_start ||
+              existing.scheduled_end === newInstance.scheduled_end
+            ) || existingSchedulesForLesson[0];
+
+            if (scheduleToUpdate) {
+              // Update the existing schedule
+              const { error: updateError } = await supabase
+                .from("lesson_schedules")
+                .update({
+                  scheduled_start: newInstance.scheduled_start,
+                  scheduled_end: newInstance.scheduled_end,
+                })
+                .eq("id", scheduleToUpdate.id);
+
+              if (updateError) throw updateError;
+
+              // Remove this schedule from the map so we don't process it again
+              const index = existingSchedulesForLesson.indexOf(scheduleToUpdate);
+              if (index > -1) {
+                existingSchedulesForLesson.splice(index, 1);
+              }
+            }
+          } else {
+            // No existing schedule for this lesson, insert new one
+            const { error: insertError } = await supabase
+              .from("lesson_schedules")
+              .insert(newInstance);
+
+            if (insertError) throw insertError;
+          }
+        }
+
+        // Delete any remaining old schedules that weren't updated
+        const schedulesToDelete = [];
+        for (const [lessonId, schedules] of existingSchedulesMap.entries()) {
+          schedulesToDelete.push(...schedules.map(s => s.id));
+        }
+
+        if (schedulesToDelete.length > 0) {
+          const { error: deleteError } = await supabase
+            .from("lesson_schedules")
+            .delete()
+            .in("id", schedulesToDelete);
+
+          if (deleteError) throw deleteError;
+        }
+      } else {
+        // Create mode - just insert new schedules
+        if (allInstances.length > 0) {
+          const { error } = await supabase
+            .from("lesson_schedules")
+            .insert(allInstances);
+
+          if (error) throw error;
+        }
       }
     } catch (error) {
       console.error("Error saving lesson schedules:", error);
       throw error;
+    }
+  };
+
+  const updateLessonContent = async (courseId: string, lessons: Lesson[]) => {
+    try {
+      // Get existing lessons for this course
+      const { data: existingLessons } = await supabase
+        .from('lessons')
+        .select(`id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)`)  
+        .eq('course_id', courseId);
+
+      // Create a map of existing lessons by ID for matching
+      const existingLessonsMap = new Map(existingLessons.map(lesson => [lesson.id, lesson]));
+      const processedLessonIds = new Set<string>();
+
+      for (const lesson of lessons) {
+        // Check if this lesson has a real database ID (not a temporary one)
+        const isExistingLesson = lesson.id && !lesson.id.startsWith('lesson-') && existingLessonsMap.has(lesson.id);
+        const existingLesson = isExistingLesson ? existingLessonsMap.get(lesson.id) : null;
+        
+        if (existingLesson) {
+          // Update existing lesson
+          processedLessonIds.add(existingLesson.id);
+          await supabase.from('lessons').update({ title: lesson.title }).eq('id', existingLesson.id);
+          await updateTasksForLesson(existingLesson.id, lesson.tasks || [], existingLesson.lesson_tasks);
+        } else {
+          // Create new lesson
+          const { data: savedLesson, error: lessonError } = await supabase
+            .from('lessons')
+            .insert({
+              course_id: courseId,
+              title: lesson.title,
+              scheduled_start: new Date().toISOString(),
+              scheduled_end: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+              status: 'scheduled',
+            })
+            .select('id')
+            .single();
+
+          if (lessonError) throw lessonError;
+
+          if (lesson.tasks && lesson.tasks.length > 0) {
+            const tasksToInsert = lesson.tasks.map(task => ({
+              lesson_id: savedLesson.id,
+              title: task.title,
+              description: task.description,
+              estimated_duration: task.estimated_duration,
+              is_mandatory: task.is_mandatory,
+              order_index: task.order_index,
+            }));
+            
+            const { error: tasksError } = await supabase.from('lesson_tasks').insert(tasksToInsert);
+            
+            if (tasksError) {
+              console.error('Error inserting tasks for new lesson:', tasksError);
+              throw tasksError;
+            }
+          }
+        }
+      }
+
+      // Check which lessons have schedules before deleting
+      const lessonsToDelete = existingLessons
+        .filter(lesson => !processedLessonIds.has(lesson.id))
+        .map(lesson => lesson.id);
+
+      if (lessonsToDelete.length > 0) {
+        // Check if any of these lessons have associated schedules
+        const { data: scheduledLessons, error: scheduleCheckError } = await supabase
+          .from('lesson_schedules')
+          .select('lesson_id')
+          .in('lesson_id', lessonsToDelete);
+
+        if (scheduleCheckError) {
+          console.error('Error checking lesson schedules:', scheduleCheckError);
+          throw scheduleCheckError;
+        }
+
+        const scheduledLessonIds = new Set(scheduledLessons?.map(s => s.lesson_id) || []);
+        
+        // Only delete lessons that don't have schedules
+        const lessonsToActuallyDelete = lessonsToDelete.filter(id => !scheduledLessonIds.has(id));
+        
+        if (lessonsToActuallyDelete.length > 0) {
+          await supabase.from('lesson_tasks').delete().in('lesson_id', lessonsToActuallyDelete);
+          await supabase.from('lessons').delete().in('id', lessonsToActuallyDelete);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating lesson content:', error);
+      throw error;
+    }
+  };
+
+  const updateTasksForLesson = async (lessonId: string, newTasks: any[], existingTasks: any[]) => {
+    const existingTasksMap = new Map(existingTasks.map(task => [task.id, task]));
+    const processedTaskIds = new Set<string>();
+
+    for (const newTask of newTasks) {
+      // Check if this task has a real database ID (not a temporary one)
+      const isExistingTask = newTask.id && !newTask.id.startsWith('task-') && existingTasksMap.has(newTask.id);
+      const existingTask = isExistingTask ? existingTasksMap.get(newTask.id) : null;
+      
+      if (existingTask) {
+        // Update existing task
+        processedTaskIds.add(existingTask.id);
+        await supabase
+          .from('lesson_tasks')
+          .update({
+            title: newTask.title,
+            description: newTask.description,
+            estimated_duration: newTask.estimated_duration,
+            is_mandatory: newTask.is_mandatory,
+            order_index: newTask.order_index,
+          })
+          .eq('id', existingTask.id);
+      } else {
+        // Create new task
+        const { error: insertError } = await supabase.from('lesson_tasks').insert({
+          lesson_id: lessonId,
+          title: newTask.title,
+          description: newTask.description,
+          estimated_duration: newTask.estimated_duration,
+          is_mandatory: newTask.is_mandatory,
+          order_index: newTask.order_index,
+        });
+        
+        if (insertError) {
+          console.error('Error inserting new task:', insertError);
+          throw insertError;
+        }
+      }
+    }
+
+    // Delete tasks that are no longer in the updated list
+    const tasksToDelete = existingTasks
+      .filter(task => !processedTaskIds.has(task.id))
+      .map(task => task.id);
+
+    if (tasksToDelete.length > 0) {
+      await supabase.from('lesson_tasks').delete().in('id', tasksToDelete);
     }
   };
 
@@ -611,6 +818,11 @@ const CourseAssignDialog = ({
         // For edit mode, update the course instance and lesson schedules
         const result = await handleCourseAssignment();
         if (result) {
+          // Always update lesson content in edit mode
+          if (courseId && lessons.length > 0) {
+            await updateLessonContent(courseId, lessons);
+          }
+
           // Process lesson schedules for edit mode
           const allInstances = [];
           
@@ -849,11 +1061,11 @@ const CourseAssignDialog = ({
         console.log('Form submission - Edit Data:', editData);
         
         if (mode === 'edit') {
-          // In edit mode, save immediately without going to step 2
-          handleFinalSave();
-        } else {
-          // In create mode, proceed to lesson scheduling
+          // In edit mode, go to lesson content step
           setStep(2);
+        } else {
+          // In create mode, go directly to scheduling
+          setStep(3);
         }
       }}
       className="space-y-4"
@@ -985,6 +1197,162 @@ const CourseAssignDialog = ({
         </Button>
       </DialogFooter>
     </form>
+  );
+
+  const renderLessonContentStep = () => (
+    <div className="space-y-4">
+      <div className="text-sm text-gray-600 mb-4">
+        ערוך את תוכן השיעורים עבור התוכנית "{courseName}"
+      </div>
+
+      <div className="space-y-4 max-h-96 overflow-y-auto">
+        {lessons.map((lesson, lessonIndex) => (
+          <div
+            key={lesson.id}
+            className="border rounded-lg p-4 space-y-3"
+          >
+            <div className="space-y-2">
+              <Label>כותרת השיעור</Label>
+              <Input
+                value={lesson.title}
+                onChange={(e) => {
+                  const updatedLessons = [...lessons];
+                  updatedLessons[lessonIndex] = { ...lesson, title: e.target.value };
+                  setLessons(updatedLessons);
+                }}
+                placeholder="כותרת השיעור"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label>משימות השיעור</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const updatedLessons = [...lessons];
+                    const newTask = {
+                      id: `task-${Date.now()}-${Math.random()}`,
+                      title: '',
+                      description: '',
+                      estimated_duration: 30,
+                      is_mandatory: false,
+                      order_index: (lesson.tasks?.length || 0) + 1,
+                    };
+                    updatedLessons[lessonIndex] = {
+                      ...lesson,
+                      tasks: [...(lesson.tasks || []), newTask]
+                    };
+                    setLessons(updatedLessons);
+                  }}
+                >
+                  הוסף משימה
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {(lesson.tasks || []).map((task, taskIndex) => (
+                  <div key={task.id} className="border rounded p-3 space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <Input
+                        value={task.title}
+                        onChange={(e) => {
+                          const updatedLessons = [...lessons];
+                          const updatedTasks = [...(lesson.tasks || [])];
+                          updatedTasks[taskIndex] = { ...task, title: e.target.value };
+                          updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
+                          setLessons(updatedLessons);
+                        }}
+                        placeholder="כותרת המשימה"
+                      />
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          type="number"
+                          value={task.estimated_duration}
+                          onChange={(e) => {
+                            const updatedLessons = [...lessons];
+                            const updatedTasks = [...(lesson.tasks || [])];
+                            updatedTasks[taskIndex] = { ...task, estimated_duration: parseInt(e.target.value) || 0 };
+                            updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
+                            setLessons(updatedLessons);
+                          }}
+                          placeholder="דקות"
+                          className="w-20"
+                        />
+                        <Checkbox
+                          checked={task.is_mandatory}
+                          onCheckedChange={(checked) => {
+                            const updatedLessons = [...lessons];
+                            const updatedTasks = [...(lesson.tasks || [])];
+                            updatedTasks[taskIndex] = { ...task, is_mandatory: checked as boolean };
+                            updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
+                            setLessons(updatedLessons);
+                          }}
+                        />
+                        <Label className="text-sm">חובה</Label>
+                      </div>
+                    </div>
+                    <Textarea
+                      value={task.description}
+                      onChange={(e) => {
+                        const updatedLessons = [...lessons];
+                        const updatedTasks = [...(lesson.tasks || [])];
+                        updatedTasks[taskIndex] = { ...task, description: e.target.value };
+                        updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
+                        setLessons(updatedLessons);
+                      }}
+                      placeholder="תיאור המשימה"
+                      rows={2}
+                    />
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center space-x-2">
+                        <Label className="text-sm">סדר:</Label>
+                        <Input
+                          type="number"
+                          value={task.order_index}
+                          onChange={(e) => {
+                            const updatedLessons = [...lessons];
+                            const updatedTasks = [...(lesson.tasks || [])];
+                            updatedTasks[taskIndex] = { ...task, order_index: parseInt(e.target.value) || 0 };
+                            updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
+                            setLessons(updatedLessons);
+                          }}
+                          className="w-16"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const updatedLessons = [...lessons];
+                          const updatedTasks = (lesson.tasks || []).filter((_, index) => index !== taskIndex);
+                          updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
+                          setLessons(updatedLessons);
+                        }}
+                      >
+                        מחק
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <DialogFooter className="flex justify-between">
+        <Button type="button" variant="outline" onClick={() => setStep(1)}>
+          חזור
+        </Button>
+        <Button type="button" onClick={() => setStep(3)}>
+          המשך לתזמון
+        </Button>
+      </DialogFooter>
+    </div>
   );
 
   const renderLessonSchedulingStep = () => (
@@ -1253,7 +1621,7 @@ const CourseAssignDialog = ({
       </div>
 
       <DialogFooter className="flex justify-between">
-        <Button type="button" variant="outline" onClick={() => setStep(1)}>
+        <Button type="button" variant="outline" onClick={() => setStep(mode === 'edit' ? 2 : 1)}>
           חזור
         </Button>
         <Button onClick={handleFinalSave} disabled={loading}>
@@ -1270,6 +1638,8 @@ const CourseAssignDialog = ({
           <DialogTitle>
             {step === 1 
               ? (mode === 'edit' ? "עריכת הקצאת תוכנית" : "שיוך תוכנית לימוד") 
+              : step === 2
+              ? "עריכת תוכן שיעורים"
               : "תזמון שיעורים"
             }
           </DialogTitle>
@@ -1279,12 +1649,16 @@ const CourseAssignDialog = ({
                   ? `עריכת הקצאת התוכנית "${editData?.name || courseName}"` 
                   : `שיוך התוכנית "${courseName}" למדריך, כיתה ומוסד לימודים`
                 )
+              : step === 2
+              ? `עריכת תוכן השיעורים עבור התוכנית "${courseName}"`
               : `תזמון השיעורים עבור התוכנית "${courseName}"`}
           </DialogDescription>
         </DialogHeader>
 
         {step === 1
           ? renderCourseAssignmentStep()
+          : step === 2
+          ? renderLessonContentStep()
           : renderLessonSchedulingStep()}
       </DialogContent>
     </Dialog>
