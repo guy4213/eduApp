@@ -68,12 +68,17 @@ const Courses = () => {
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [showEditCourseDialog, setShowEditCourseDialog] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<{
     id: string;
     instanceId: string;
     name: string;
   } | null>(null);
   const [editCourse, setEditCourse] = useState<any | null>(null);
+  const [courseToEdit, setCourseToEdit] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   console.log("ROLE  " + user.user_metadata.role);
 
@@ -235,6 +240,12 @@ const Courses = () => {
     fetchCourses();
   };
 
+  const handleEditCourseComplete = () => {
+    setShowEditCourseDialog(false);
+    setCourseToEdit(null);
+    fetchCourses();
+  };
+
   const handleEditCourse = (course: Course) => {
     setEditCourse({
       id: course.id,
@@ -248,6 +259,14 @@ const Courses = () => {
       approx_end_date: course?.approx_end_date,
     });
     setShowCreateDialog(true);
+  };
+
+  const handleEditCourseContent = (course: Course) => {
+    setCourseToEdit({
+      id: course.id,
+      name: course.name,
+    });
+    setShowEditCourseDialog(true);
   };
 
   const handleDialogClose = (open: boolean) => {
@@ -613,14 +632,24 @@ const Courses = () => {
                   {/* Action Buttons */}
                   <div className="pt-6 space-y-3">
                     {user.user_metadata.role !== "instructor" && (
-                      <Button
-                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                        size="sm"
-                        onClick={() => handleEditCourse(course)}
-                      >
-                        <Edit className="h-4 w-4 mr-2" />
-                        לעריכה
-                      </Button>
+                      <>
+                        <Button
+                          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                          size="sm"
+                          onClick={() => handleEditCourse(course)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          לעריכה
+                        </Button>
+                        <Button
+                          className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
+                          size="sm"
+                          onClick={() => handleEditCourseContent(course)}
+                        >
+                          <BookOpen className="h-4 w-4 mr-2" />
+                          עריכת שיעורים ומשימות
+                        </Button>
+                      </>
                     )}
                     {!course.is_assigned &&
                       user.user_metadata.role !== "instructor" && (
@@ -661,6 +690,17 @@ const Courses = () => {
             courseId={selectedCourse.id}
             courseName={selectedCourse.name}
             onAssignmentComplete={handleAssignmentComplete}
+          />
+        )}
+
+        {courseToEdit && (
+          <CourseAssignDialog
+            open={showEditCourseDialog}
+            onOpenChange={setShowEditCourseDialog}
+            mode="edit_course"
+            courseId={courseToEdit.id}
+            courseName={courseToEdit.name}
+            onAssignmentComplete={handleEditCourseComplete}
           />
         )}
       </main>

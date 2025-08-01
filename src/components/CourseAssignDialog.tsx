@@ -23,10 +23,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Trash2 } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, Edit2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 interface Institution {
   id: string;
@@ -38,10 +43,21 @@ interface Instructor {
   full_name: string;
 }
 
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  estimated_duration: number;
+  is_mandatory: boolean;
+  order_index: number;
+}
+
 interface Lesson {
   id: string;
   title: string;
-
+  description?: string;
+  order_index?: number;
+  tasks: Task[];
 }
 
 interface DaySchedule {
@@ -100,7 +116,7 @@ const formatDate = (date: Date, formatString: string) => {
 interface CourseAssignDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  mode?: 'create' | 'edit';
+  mode?: 'create' | 'edit' | 'edit_course';
   courseId?: string;
   courseName?: string;
   instanceId?: string;
@@ -119,12 +135,24 @@ const CourseAssignDialog = ({
   onAssignmentComplete,
 }: CourseAssignDialogProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [lessonSchedules, setLessonSchedules] = useState<LessonSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  
+  // Course editing state
+  const [editingLessons, setEditingLessons] = useState<Lesson[]>([]);
+  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const [newLesson, setNewLesson] = useState({ title: '', description: '' });
+  const [newTask, setNewTask] = useState({
+    title: '',
+    description: '',
+    estimated_duration: 30,
+    is_mandatory: false
+  });
   const [formData, setFormData] = useState({
     institution_id: "",
     instructor_id: "",
@@ -164,6 +192,20 @@ const CourseAssignDialog = ({
 
   useEffect(() => {
     if (open) {
+      // Check permissions for course editing
+      if (mode === 'edit_course') {
+        const userRole = user?.user_metadata?.role;
+        if (userRole !== 'admin' && userRole !== 'pedagogical_manager') {
+          toast({
+            title: "אין הרשאה",
+            description: "רק מנהלים ומנהלים פדגוגיים יכולים לערוך קורסים",
+            variant: "destructive",
+          });
+          onOpenChange(false);
+          return;
+        }
+      }
+
       fetchInstitutions();
       fetchInstructors();
       
@@ -176,9 +218,15 @@ const CourseAssignDialog = ({
         // Reset to step 1 for editing
         setStep(1);
         setLessonSchedules([]);
+      } else if (mode === 'edit_course') {
+        // For course editing mode, fetch lessons and tasks
+        setStep(1);
+        if (courseId) {
+          fetchCourseLessonsForEditing();
+        }
       }
     }
-  }, [open, courseId, mode]);
+  }, [open, courseId, mode, user]);
 
   // Debug function to check if we can access the record
   const debugCourseInstance = async () => {
@@ -278,7 +326,7 @@ const CourseAssignDialog = ({
         .from("lessons")
         .select("id, title")
         .eq("course_id", courseId)
-    
+        .order("title");
 
       if (error) throw error;
       
@@ -303,6 +351,55 @@ const CourseAssignDialog = ({
       toast({
         title: "שגיאה",
         description: "לא ניתן לטעון את רשימת השיעורים",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchCourseLessonsForEditing = async () => {
+    if (!courseId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from("lessons")
+        .select(`
+          id, 
+          title,
+          lesson_tasks (
+            id,
+            title,
+            description,
+            estimated_duration,
+            is_mandatory,
+            order_index
+          )
+        `)
+        .eq("course_id", courseId)
+        .order("title");
+
+      if (error) throw error;
+      
+      const formattedLessons = (data || []).map((lesson, index) => ({
+        id: lesson.id,
+        title: lesson.title,
+        description: '',
+        order_index: index,
+        tasks: (lesson.lesson_tasks || []).map((task: any) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description || '',
+          estimated_duration: task.estimated_duration || 30,
+          is_mandatory: task.is_mandatory || false,
+          order_index: task.order_index || 0
+        }))
+      }));
+      
+      setEditingLessons(formattedLessons);
+    } catch (error) {
+      console.error("Error fetching lessons for editing:", error);
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן לטעון את רשימת השיעורים לעריכה",
         variant: "destructive",
       });
     }
@@ -472,6 +569,125 @@ const CourseAssignDialog = ({
     }
   };
 
+  const saveLessonsAndTasks = async () => {
+    if (!courseId) return;
+
+    try {
+      // Get existing lessons to compare
+      const { data: existingLessons } = await supabase
+        .from('lessons')
+        .select(`id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)`)  
+        .eq('course_id', courseId);
+
+      const existingLessonsMap = new Map(existingLessons?.map(lesson => [lesson.title, lesson]) || []);
+      const processedLessonTitles = new Set<string>();
+
+      // Process each lesson
+      for (const lesson of editingLessons) {
+        const existingLesson = existingLessonsMap.get(lesson.title);
+        processedLessonTitles.add(lesson.title);
+
+        if (existingLesson && !lesson.id.startsWith('lesson-')) {
+          // Update existing lesson
+          await supabase.from('lessons').update({ title: lesson.title }).eq('id', existingLesson.id);
+          await updateTasksForLesson(existingLesson.id, lesson.tasks, existingLesson.lesson_tasks);
+        } else {
+          // Create new lesson
+          const { data: savedLesson, error: lessonError } = await supabase
+            .from('lessons')
+            .insert({
+              course_id: courseId,
+              title: lesson.title,
+              scheduled_start: new Date().toISOString(),
+              scheduled_end: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+              status: 'scheduled',
+            })
+            .select('id')
+            .single();
+
+          if (lessonError) throw lessonError;
+
+          if (lesson.tasks.length > 0) {
+            const tasksToInsert = lesson.tasks.map(task => ({
+              lesson_id: savedLesson.id,
+              title: task.title,
+              description: task.description,
+              estimated_duration: task.estimated_duration,
+              is_mandatory: task.is_mandatory,
+              order_index: task.order_index,
+            }));
+            
+            const { error: tasksError } = await supabase.from('lesson_tasks').insert(tasksToInsert);
+            if (tasksError) throw tasksError;
+          }
+        }
+      }
+
+      // Delete lessons that were removed
+      const lessonsToDelete = existingLessons
+        ?.filter(lesson => !processedLessonTitles.has(lesson.title))
+        .map(lesson => lesson.id) || [];
+
+      if (lessonsToDelete.length > 0) {
+        await supabase.from('lesson_tasks').delete().in('lesson_id', lessonsToDelete);
+        await supabase.from('lessons').delete().in('id', lessonsToDelete);
+      }
+
+      toast({
+        title: "הצלחה",
+        description: "השיעורים והמשימות עודכנו בהצלחה!",
+      });
+    } catch (error) {
+      console.error("Error saving lessons and tasks:", error);
+      throw error;
+    }
+  };
+
+  const updateTasksForLesson = async (lessonId: string, newTasks: Task[], existingTasks: any[]) => {
+    const existingTasksMap = new Map(existingTasks.map(task => [task.title, task]));
+    const processedTaskTitles = new Set<string>();
+
+    for (const newTask of newTasks) {
+      const existingTask = existingTasksMap.get(newTask.title);
+      processedTaskTitles.add(newTask.title);
+
+      if (existingTask && !newTask.id.startsWith('task-')) {
+        // Update existing task
+        await supabase
+          .from('lesson_tasks')
+          .update({
+            title: newTask.title,
+            description: newTask.description,
+            estimated_duration: newTask.estimated_duration,
+            is_mandatory: newTask.is_mandatory,
+            order_index: newTask.order_index,
+          })
+          .eq('id', existingTask.id);
+      } else {
+        // Insert new task
+        const { error: insertError } = await supabase.from('lesson_tasks').insert({
+          lesson_id: lessonId,
+          title: newTask.title,
+          description: newTask.description,
+          estimated_duration: newTask.estimated_duration,
+          is_mandatory: newTask.is_mandatory,
+          order_index: newTask.order_index,
+        });
+        
+        if (insertError) throw insertError;
+      }
+    }
+
+    // Delete tasks that were removed
+    const tasksToDelete = existingTasks
+      .filter(task => !processedTaskTitles.has(task.title))
+      .map(task => task.id);
+
+    if (tasksToDelete.length > 0) {
+      await supabase.from('lesson_tasks').delete().in('id', tasksToDelete);
+    }
+  };
+
   const handleFinalSave = async () => {
     setLoading(true);
     try {
@@ -486,6 +702,12 @@ const CourseAssignDialog = ({
           onAssignmentComplete();
           onOpenChange(false);
         }
+        return;
+      } else if (mode === 'edit_course') {
+        // For course editing mode, save lessons and tasks
+        await saveLessonsAndTasks();
+        onAssignmentComplete();
+        onOpenChange(false);
         return;
       }
 
@@ -645,6 +867,89 @@ const CourseAssignDialog = ({
     );
   };
 
+  // Course editing functions
+  const addLesson = () => {
+    if (!newLesson.title.trim()) return;
+
+    const lesson: Lesson = {
+      id: `lesson-${Date.now()}`,
+      title: newLesson.title,
+      description: newLesson.description,
+      order_index: editingLessons.length,
+      tasks: []
+    };
+
+    setEditingLessons([...editingLessons, lesson]);
+    setNewLesson({ title: '', description: '' });
+    setSelectedLessonId(lesson.id);
+  };
+
+  const removeLesson = (lessonId: string) => {
+    setEditingLessons(editingLessons.filter(lesson => lesson.id !== lessonId));
+    if (selectedLessonId === lessonId) {
+      setSelectedLessonId(null);
+    }
+  };
+
+  const updateLesson = (lessonId: string, field: string, value: string) => {
+    setEditingLessons(prev => 
+      prev.map(lesson => 
+        lesson.id === lessonId 
+          ? { ...lesson, [field]: value }
+          : lesson
+      )
+    );
+  };
+
+  const addTaskToLesson = (lessonId: string) => {
+    if (!newTask.title.trim()) return;
+
+    const updatedLessons = editingLessons.map(lesson => {
+      if (lesson.id === lessonId) {
+        const task: Task = {
+          id: `task-${Date.now()}`,
+          title: newTask.title,
+          description: newTask.description,
+          estimated_duration: newTask.estimated_duration,
+          is_mandatory: newTask.is_mandatory,
+          order_index: lesson.tasks.length
+        };
+        return { ...lesson, tasks: [...lesson.tasks, task] };
+      }
+      return lesson;
+    });
+
+    setEditingLessons(updatedLessons);
+    setNewTask({ title: '', description: '', estimated_duration: 30, is_mandatory: false });
+  };
+
+  const removeTaskFromLesson = (lessonId: string, taskId: string) => {
+    const updatedLessons = editingLessons.map(lesson => {
+      if (lesson.id === lessonId) {
+        return { ...lesson, tasks: lesson.tasks.filter(task => task.id !== taskId) };
+      }
+      return lesson;
+    });
+    setEditingLessons(updatedLessons);
+  };
+
+  const updateTask = (lessonId: string, taskId: string, field: string, value: any) => {
+    setEditingLessons(prev => 
+      prev.map(lesson => 
+        lesson.id === lessonId 
+          ? {
+              ...lesson, 
+              tasks: lesson.tasks.map(task => 
+                task.id === taskId 
+                  ? { ...task, [field]: value }
+                  : task
+              )
+            }
+          : lesson
+      )
+    );
+  };
+
   const renderCourseAssignmentStep = () => (
     <form
       onSubmit={(e) => {
@@ -681,6 +986,9 @@ const CourseAssignDialog = ({
         if (mode === 'edit') {
           // In edit mode, save immediately without going to step 2
           handleFinalSave();
+        } else if (mode === 'edit_course') {
+          // In course edit mode, proceed to step 2 for lessons and tasks
+          setStep(2);
         } else {
           // In create mode, proceed to lesson scheduling
           setStep(2);
@@ -809,13 +1117,248 @@ const CourseAssignDialog = ({
         </Button>
         <Button type="submit" disabled={loading}>
           {loading 
-            ? (mode === 'edit' ? "מעדכן..." : "משייך...") 
-            : (mode === 'edit' ? "עדכן" : "המשך לתזמון שיעורים")
+            ? (mode === 'edit' ? "מעדכן..." : mode === 'edit_course' ? "שומר..." : "משייך...") 
+            : (mode === 'edit' ? "עדכן" : mode === 'edit_course' ? "המשך לעריכת שיעורים" : "המשך לתזמון שיעורים")
           }
         </Button>
       </DialogFooter>
     </form>
   );
+
+  const renderCourseEditingStep = () => {
+    const selectedLesson = editingLessons.find(lesson => lesson.id === selectedLessonId);
+    
+    return (
+      <div className="space-y-6">
+        <div className="text-sm text-gray-600 mb-4">
+          עריכת שיעורים ומשימות עבור הקורס "{courseName}"
+        </div>
+
+        <Tabs defaultValue="lessons" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="lessons">שיעורים</TabsTrigger>
+            <TabsTrigger value="tasks">משימות</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="lessons" className="space-y-4">
+            {/* Add New Lesson */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">הוסף שיעור חדש</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="lesson-title">כותרת השיעור</Label>
+                  <Input
+                    id="lesson-title"
+                    value={newLesson.title}
+                    onChange={(e) => setNewLesson(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="הכנס כותרת שיעור..."
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="lesson-description">תיאור השיעור</Label>
+                  <Textarea
+                    id="lesson-description"
+                    value={newLesson.description}
+                    onChange={(e) => setNewLesson(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="תיאור השיעור (רשות)..."
+                    rows={2}
+                  />
+                </div>
+                <Button onClick={addLesson} disabled={!newLesson.title.trim()}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  הוסף שיעור
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Lessons List */}
+            <div className="space-y-3">
+              {editingLessons.map((lesson, index) => (
+                <Card 
+                  key={lesson.id} 
+                  className={`cursor-pointer transition-colors ${
+                    selectedLessonId === lesson.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => setSelectedLessonId(lesson.id)}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <Input
+                          value={lesson.title}
+                          onChange={(e) => updateLesson(lesson.id, 'title', e.target.value)}
+                          className="font-medium border-none p-0 h-auto"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <Badge variant="secondary" className="text-xs mt-2">
+                          {lesson.tasks.length} משימות
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeLesson(lesson.id);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="tasks" className="space-y-4">
+            {selectedLesson ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">
+                    משימות עבור: {selectedLesson.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Add New Task */}
+                  <div className="border rounded-lg p-4 bg-gray-50">
+                    <h4 className="font-medium mb-3">הוסף משימה חדשה</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="task-title">שם המשימה</Label>
+                        <Input
+                          id="task-title"
+                          value={newTask.title}
+                          onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
+                          placeholder="הכנס שם משימה..."
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="task-duration">זמן מוערך (דקות)</Label>
+                        <Input
+                          id="task-duration"
+                          type="number"
+                          value={newTask.estimated_duration}
+                          onChange={(e) => setNewTask(prev => ({ ...prev, estimated_duration: parseInt(e.target.value) || 30 }))}
+                          min="1"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Label htmlFor="task-description">תיאור המשימה</Label>
+                      <Textarea
+                        id="task-description"
+                        value={newTask.description}
+                        onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="תיאור המשימה (רשות)..."
+                        rows={2}
+                      />
+                    </div>
+                    <div className="flex items-center mt-4">
+                      <Checkbox
+                        id="task-mandatory"
+                        checked={newTask.is_mandatory}
+                        onCheckedChange={(checked) => setNewTask(prev => ({ ...prev, is_mandatory: !!checked }))}
+                        className="ml-2"
+                      />
+                      <Label htmlFor="task-mandatory">משימה חובה</Label>
+                    </div>
+                    <Button 
+                      onClick={() => addTaskToLesson(selectedLesson.id)} 
+                      disabled={!newTask.title.trim()}
+                      className="mt-4"
+                      size="sm"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      הוסף משימה
+                    </Button>
+                  </div>
+
+                  {/* Tasks List */}
+                  <div className="space-y-3">
+                    {selectedLesson.tasks.map((task) => (
+                      <Card key={task.id} className="p-4">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1 space-y-2">
+                              <Input
+                                value={task.title}
+                                onChange={(e) => updateTask(selectedLesson.id, task.id, 'title', e.target.value)}
+                                className="font-medium"
+                                placeholder="שם המשימה"
+                              />
+                              <Textarea
+                                value={task.description}
+                                onChange={(e) => updateTask(selectedLesson.id, task.id, 'description', e.target.value)}
+                                placeholder="תיאור המשימה..."
+                                rows={2}
+                              />
+                              <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                  <Label htmlFor={`duration-${task.id}`} className="text-sm">זמן (דק'):</Label>
+                                  <Input
+                                    id={`duration-${task.id}`}
+                                    type="number"
+                                    value={task.estimated_duration}
+                                    onChange={(e) => updateTask(selectedLesson.id, task.id, 'estimated_duration', parseInt(e.target.value) || 30)}
+                                    className="w-20"
+                                    min="1"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`mandatory-${task.id}`}
+                                    checked={task.is_mandatory}
+                                    onCheckedChange={(checked) => updateTask(selectedLesson.id, task.id, 'is_mandatory', !!checked)}
+                                  />
+                                  <Label htmlFor={`mandatory-${task.id}`} className="text-sm">חובה</Label>
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeTaskFromLesson(selectedLesson.id, task.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {selectedLesson.tasks.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                      <Plus className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p>אין משימות עבור השיעור הזה</p>
+                      <p className="text-sm">הוסף משימות באמצעות הטופס למעלה</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                <Edit2 className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p>בחר שיעור מהרשימה כדי לעדוך את המשימות שלו</p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter className="flex justify-between">
+          <Button type="button" variant="outline" onClick={() => setStep(1)}>
+            חזור
+          </Button>
+          <Button onClick={handleFinalSave} disabled={loading}>
+            {loading ? "שומר..." : "שמור שינויים"}
+          </Button>
+        </DialogFooter>
+      </div>
+    );
+  };
 
   const renderLessonSchedulingStep = () => (
     <div className="space-y-4">
@@ -1099,23 +1642,29 @@ const CourseAssignDialog = ({
         <DialogHeader>
           <DialogTitle>
             {step === 1 
-              ? (mode === 'edit' ? "עריכת הקצאת תוכנית" : "שיוך תוכנית לימוד") 
-              : "תזמון שיעורים"
+              ? (mode === 'edit' ? "עריכת הקצאת תוכנית" : 
+                 mode === 'edit_course' ? "עריכת קורס" : "שיוך תוכנית לימוד") 
+              : (mode === 'edit_course' ? "עריכת שיעורים ומשימות" : "תזמון שיעורים")
             }
           </DialogTitle>
           <DialogDescription>
             {step === 1
               ? (mode === 'edit' 
                   ? `עריכת הקצאת התוכנית "${editData?.name || courseName}"` 
-                  : `שיוך התוכנית "${courseName}" למדריך, כיתה ומוסד לימודים`
+                  : mode === 'edit_course'
+                    ? `עריכת הקורס "${courseName}"`
+                    : `שיוך התוכנית "${courseName}" למדריך, כיתה ומוסד לימודים`
                 )
-              : `תזמון השיעורים עבור התוכנית "${courseName}"`}
+              : (mode === 'edit_course' 
+                  ? `עריכת השיעורים והמשימות עבור הקורס "${courseName}"`
+                  : `תזמון השיעורים עבור התוכנית "${courseName}"`
+                )}
           </DialogDescription>
         </DialogHeader>
 
         {step === 1
           ? renderCourseAssignmentStep()
-          : renderLessonSchedulingStep()}
+          : (mode === 'edit_course' ? renderCourseEditingStep() : renderLessonSchedulingStep())}
       </DialogContent>
     </Dialog>
   );
