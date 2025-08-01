@@ -13,6 +13,7 @@ import CourseDetailsForm from './course/CourseDetailsForm';
 import CourseLessonsSection, { Lesson } from './course/CourseLessonsSection';
 import { useCourseData } from './course/useCourseData';
 import { useCourseSubmit } from './course/useCourseSubmit';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CourseCreateDialogProps {
   open: boolean;
@@ -61,13 +62,89 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
 
   const loadExistingLessons = async (courseId: string) => {
     try {
-      // This would load from Supabase - placeholder for now
-      // Convert tasks to lessons format
+      // Try to load lessons directly using the courseId first (it might be a course_id already)
+      let actualCourseId = courseId;
+      
+      // If that fails, try getting the course_id from course_instances
+      let { data: lessonsData, error: lessonsError } = await supabase
+        .from('lessons')
+        .select(`
+          id,
+          title,
+          lesson_tasks (
+            id,
+            title,
+            description,
+            estimated_duration,
+            is_mandatory,
+            order_index
+          )
+        `)
+        .eq('course_id', actualCourseId)
+        .order('id');
+
+      // If no lessons found, try to get course_id from instance_id
+      if (!lessonsData || lessonsData.length === 0) {
+        const { data: instanceData, error: instanceError } = await supabase
+          .from('course_instances')
+          .select('course_id')
+          .eq('id', courseId)
+          .single();
+
+        if (!instanceError && instanceData) {
+          actualCourseId = instanceData.course_id;
+          
+          const { data: retryLessonsData, error: retryLessonsError } = await supabase
+            .from('lessons')
+            .select(`
+              id,
+              title,
+              lesson_tasks (
+                id,
+                title,
+                description,
+                estimated_duration,
+                is_mandatory,
+                order_index
+              )
+            `)
+            .eq('course_id', actualCourseId)
+            .order('id');
+            
+          lessonsData = retryLessonsData;
+          lessonsError = retryLessonsError;
+        }
+      }
+
+      if (lessonsError) throw lessonsError;
+
+      const formattedLessons = lessonsData.map(lesson => ({
+        id: lesson.id, // Preserve real database IDs
+        title: lesson.title,
+        tasks: lesson.lesson_tasks.map(task => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          estimated_duration: task.estimated_duration,
+          is_mandatory: task.is_mandatory,
+          order_index: task.order_index
+        })).sort((a, b) => a.order_index - b.order_index)
+      }));
+
+      console.log('Successfully loaded lessons with real IDs:', formattedLessons);
+      setLessons(formattedLessons);
+    } catch (error) {
+      console.error('Error loading existing lessons:', error);
+      // Only use fallback if we have no other choice AND tasks have real lesson_ids
       if (editCourse?.tasks) {
+        console.warn('Using fallback lesson loading - this may cause duplication issues');
         const lessonsMap = new Map();
 
         editCourse.tasks.forEach(task => {
-          const lessonId = task.lesson_id || `lesson-${task.lesson_number}`;
+          // Only use task.lesson_id if it exists and is a real database ID (not temporary)
+          const lessonId = (task.lesson_id && !task.lesson_id.startsWith('lesson-')) 
+            ? task.lesson_id 
+            : `fallback-lesson-${task.lesson_number}`;
 
           if (!lessonsMap.has(lessonId)) {
             lessonsMap.set(lessonId, {
@@ -87,14 +164,13 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
           });
         });
 
-        const formattedLessons = Array.from(lessonsMap.values()).sort((a, b) => 
-          parseInt(a.id.split('-')[1]) - parseInt(b.id.split('-')[1])
-        );
-        
+        const formattedLessons = Array.from(lessonsMap.values());
         setLessons(formattedLessons);
+      } else {
+        // If all else fails, set empty lessons array
+        console.warn('No lessons could be loaded for course:', courseId);
+        setLessons([]);
       }
-    } catch (error) {
-      console.error('Error loading existing lessons:', error);
     }
   };
 
@@ -107,7 +183,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await handleSubmit(formData, lessons, editCourse?.instance_id);
+    await handleSubmit(formData, lessons, editCourse?.id);
   };
 
   return (

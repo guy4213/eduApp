@@ -9,31 +9,23 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
   const handleSubmit = async (formData: any, lessons: Lesson[], editCourseId?: string) => {
     setLoading(true);
     try {
-      let courseId = editCourseId;
+      let courseId: string;
 
       if (editCourseId) {
-        // Get the course instance to find the course_id
-        const { data: instanceData, error: instanceError } = await supabase
-          .from('course_instances')
-          .select('course_id')
-          .eq('id', editCourseId)
-          .single();
-
-        if (instanceError) throw instanceError;
-
-        // Update only the course name
+        // Update the course name directly using the course_id
         const { error: courseError } = await supabase
           .from('courses')
           .update({
             name: formData.name,
           })
-          .eq('id', instanceData.course_id);
+          .eq('id', editCourseId);
 
         if (courseError) throw courseError;
         
-        courseId = instanceData.course_id;
+        courseId = editCourseId;
         await updateExistingLessonsAndTasks(courseId, lessons);
       } else {
+        // Create new course
         const { data: savedCourse, error: courseError } = await supabase
           .from('courses')
           .insert({
@@ -64,17 +56,25 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
       .select(`id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)`)  
       .eq('course_id', courseId);
 
-    const existingLessonsMap = new Map(existingLessons.map(lesson => [lesson.title, lesson]));
-    const processedLessonTitles = new Set<string>();
+    // Create a map of existing lessons by ID for matching
+    const existingLessonsMap = new Map(existingLessons.map(lesson => [lesson.id, lesson]));
+    const processedLessonIds = new Set<string>();
 
     for (const lesson of lessons) {
-      const existingLesson = existingLessonsMap.get(lesson.title);
-      processedLessonTitles.add(lesson.title);
-
+      // Check if this lesson has a real database ID (not a temporary one)
+      const isExistingLesson = lesson.id && 
+        !lesson.id.startsWith('lesson-') && 
+        !lesson.id.startsWith('fallback-lesson-') && 
+        existingLessonsMap.has(lesson.id);
+      const existingLesson = isExistingLesson ? existingLessonsMap.get(lesson.id) : null;
+      
       if (existingLesson) {
+        // Update existing lesson
+        processedLessonIds.add(existingLesson.id);
         await supabase.from('lessons').update({ title: lesson.title }).eq('id', existingLesson.id);
         await updateTasksForLesson(existingLesson.id, lesson.tasks, existingLesson.lesson_tasks);
       } else {
+        // Create new lesson
         const { data: savedLesson, error: lessonError } = await supabase
           .from('lessons')
           .insert({
@@ -111,25 +111,54 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
       }
     }
 
+    // Check which lessons have schedules before deleting
     const lessonsToDelete = existingLessons
-      .filter(lesson => !processedLessonTitles.has(lesson.title))
+      .filter(lesson => !processedLessonIds.has(lesson.id))
       .map(lesson => lesson.id);
 
     if (lessonsToDelete.length > 0) {
-      await supabase.from('lesson_tasks').delete().in('lesson_id', lessonsToDelete);
-      await supabase.from('lessons').delete().in('id', lessonsToDelete);
+      // Check if any of these lessons have associated schedules
+      const { data: scheduledLessons, error: scheduleCheckError } = await supabase
+        .from('lesson_schedules')
+        .select('lesson_id')
+        .in('lesson_id', lessonsToDelete);
+
+      if (scheduleCheckError) {
+        console.error('Error checking lesson schedules:', scheduleCheckError);
+        throw scheduleCheckError;
+      }
+
+      const scheduledLessonIds = new Set(scheduledLessons?.map(s => s.lesson_id) || []);
+      
+      // Only delete lessons that don't have schedules
+      const lessonsToActuallyDelete = lessonsToDelete.filter(id => !scheduledLessonIds.has(id));
+      
+      if (lessonsToActuallyDelete.length > 0) {
+        await supabase.from('lesson_tasks').delete().in('lesson_id', lessonsToActuallyDelete);
+        await supabase.from('lessons').delete().in('id', lessonsToActuallyDelete);
+      }
+
+      // For lessons with schedules that were removed from the course, just keep them 
+      // The schedules will remain intact but the lesson content will be outdated
+      // This preserves the scheduled times while allowing course content updates
+      if (scheduledLessonIds.size > 0) {
+        console.log(`Preserved ${scheduledLessonIds.size} lessons with existing schedules`);
+      }
     }
   };
 
   const updateTasksForLesson = async (lessonId: string, newTasks: any[], existingTasks: any[]) => {
-    const existingTasksMap = new Map(existingTasks.map(task => [task.title, task]));
-    const processedTaskTitles = new Set<string>();
+    const existingTasksMap = new Map(existingTasks.map(task => [task.id, task]));
+    const processedTaskIds = new Set<string>();
 
     for (const newTask of newTasks) {
-      const existingTask = existingTasksMap.get(newTask.title);
-      processedTaskTitles.add(newTask.title);
-
+      // Check if this task has a real database ID (not a temporary one)
+      const isExistingTask = newTask.id && !newTask.id.startsWith('task-') && existingTasksMap.has(newTask.id);
+      const existingTask = isExistingTask ? existingTasksMap.get(newTask.id) : null;
+      
       if (existingTask) {
+        // Update existing task
+        processedTaskIds.add(existingTask.id);
         await supabase
           .from('lesson_tasks')
           .update({
@@ -141,6 +170,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           })
           .eq('id', existingTask.id);
       } else {
+        // Create new task
         console.log('Inserting new task for lesson:', lessonId, newTask);
         const { data: insertedTask, error: insertError } = await supabase.from('lesson_tasks').insert({
           lesson_id: lessonId,
@@ -159,8 +189,9 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
       }
     }
 
+    // Delete tasks that are no longer in the updated list
     const tasksToDelete = existingTasks
-      .filter(task => !processedTaskTitles.has(task.title))
+      .filter(task => !processedTaskIds.has(task.id))
       .map(task => task.id);
 
     if (tasksToDelete.length > 0) {
