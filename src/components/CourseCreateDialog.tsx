@@ -61,38 +61,45 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
 
   const loadExistingLessons = async (courseId: string) => {
     try {
-      // This would load from Supabase - placeholder for now
-      // Convert tasks to lessons format
-      if (editCourse?.tasks) {
-        const lessonsMap = new Map();
+      // Import supabase client
+      const { supabase } = await import('@/integrations/supabase/client');
+      
+      // Fetch lessons and tasks from Supabase
+      const { data, error } = await supabase
+        .from("lessons")
+        .select(`
+          id, 
+          title,
+          lesson_tasks (
+            id,
+            title,
+            description,
+            estimated_duration,
+            is_mandatory,
+            order_index
+          )
+        `)
+        .eq("course_id", courseId)
+        .order("title");
 
-        editCourse.tasks.forEach(task => {
-          const lessonId = task.lesson_id || `lesson-${task.lesson_number}`;
-
-          if (!lessonsMap.has(lessonId)) {
-            lessonsMap.set(lessonId, {
-              id: lessonId,
-              title: task.lesson_title || `שיעור ${task.lesson_number}`,
-              tasks: []
-            });
-          }
-
-          lessonsMap.get(lessonId).tasks.push({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            estimated_duration: task.estimated_duration,
-            is_mandatory: task.is_mandatory,
-            order_index: task.order_index
-          });
-        });
-
-        const formattedLessons = Array.from(lessonsMap.values()).sort((a, b) => 
-          parseInt(a.id.split('-')[1]) - parseInt(b.id.split('-')[1])
-        );
-        
-        setLessons(formattedLessons);
-      }
+      if (error) throw error;
+      
+      const formattedLessons = (data || []).map((lesson, index) => ({
+        id: lesson.id,
+        title: lesson.title,
+        description: '',
+        order_index: index,
+        tasks: (lesson.lesson_tasks || []).map((task: any) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description || '',
+          estimated_duration: task.estimated_duration || 30,
+          is_mandatory: task.is_mandatory || false,
+          order_index: task.order_index || 0
+        }))
+      }));
+      
+      setLessons(formattedLessons);
     } catch (error) {
       console.error('Error loading existing lessons:', error);
     }
