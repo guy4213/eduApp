@@ -13,6 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import LessonEditDialog from './LessonEditDialog';
+import TaskEditDialog from './TaskEditDialog';
 
 export interface Task {
   id: string;
@@ -50,6 +52,12 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
     estimated_duration: 30,
     is_mandatory: false
   });
+
+  // Edit dialog states
+  const [editLessonDialog, setEditLessonDialog] = useState(false);
+  const [editTaskDialog, setEditTaskDialog] = useState(false);
+  const [currentEditLesson, setCurrentEditLesson] = useState<Lesson | null>(null);
+  const [currentEditTask, setCurrentEditTask] = useState<Task | null>(null);
 
   const isDateInRange = (date: string) => {
     if (!courseStartDate || !courseEndDate) return true;
@@ -124,6 +132,34 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
     onLessonsChange(updatedLessons);
   };
 
+  // Edit functions
+  const handleEditLesson = (lesson: Lesson) => {
+    setCurrentEditLesson(lesson);
+    setEditLessonDialog(true);
+  };
+
+  const handleEditTask = (task: Task) => {
+    setCurrentEditTask(task);
+    setEditTaskDialog(true);
+  };
+
+  const handleSaveLesson = (updatedLesson: Lesson) => {
+    const updatedLessons = lessons.map(lesson => 
+      lesson.id === updatedLesson.id ? updatedLesson : lesson
+    );
+    onLessonsChange(updatedLessons);
+  };
+
+  const handleSaveTask = (updatedTask: Task) => {
+    const updatedLessons = lessons.map(lesson => ({
+      ...lesson,
+      tasks: lesson.tasks.map(task => 
+        task.id === updatedTask.id ? updatedTask : task
+      )
+    }));
+    onLessonsChange(updatedLessons);
+  };
+
   const selectedLesson = lessons.find(lesson => lesson.id === selectedLessonId);
 
   return (
@@ -186,16 +222,30 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
                         <p className="text-xs text-blue-600 mt-1">📅 {format(new Date(lesson.lesson_date), "dd/MM/yyyy")}</p>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeLesson(lesson.id);
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditLesson(lesson);
+                        }}
+                        title="ערוך שיעור"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeLesson(lesson.id);
+                        }}
+                        title="מחק שיעור"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -316,13 +366,24 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeTaskFromLesson(selectedLesson.id, task.id)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditTask(task)}
+                                title="ערוך משימה"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeTaskFromLesson(selectedLesson.id, task.id)}
+                                title="מחק משימה"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -348,6 +409,21 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
           </div>
         )}
       </div>
+
+      {/* Edit Dialogs */}
+      <LessonEditDialog
+        open={editLessonDialog}
+        onOpenChange={setEditLessonDialog}
+        lesson={currentEditLesson}
+        onSave={handleSaveLesson}
+      />
+      
+      <TaskEditDialog
+        open={editTaskDialog}
+        onOpenChange={setEditTaskDialog}
+        task={currentEditTask}
+        onSave={handleSaveTask}
+      />
     </div>
   );
 };
