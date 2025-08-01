@@ -62,7 +62,10 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
 
     for (const lesson of lessons) {
       // Check if this lesson has a real database ID (not a temporary one)
-      const isExistingLesson = lesson.id && !lesson.id.startsWith('lesson-') && existingLessonsMap.has(lesson.id);
+      const isExistingLesson = lesson.id && 
+        !lesson.id.startsWith('lesson-') && 
+        !lesson.id.startsWith('fallback-lesson-') && 
+        existingLessonsMap.has(lesson.id);
       const existingLesson = isExistingLesson ? existingLessonsMap.get(lesson.id) : null;
       
       if (existingLesson) {
