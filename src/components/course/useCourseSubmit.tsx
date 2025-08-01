@@ -106,14 +106,39 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
       }
     }
 
-    // Delete lessons that are no longer in the updated list
+    // Check which lessons have schedules before deleting
     const lessonsToDelete = existingLessons
       .filter(lesson => !processedLessonTitles.has(lesson.title))
       .map(lesson => lesson.id);
 
     if (lessonsToDelete.length > 0) {
-      await supabase.from('lesson_tasks').delete().in('lesson_id', lessonsToDelete);
-      await supabase.from('lessons').delete().in('id', lessonsToDelete);
+      // Check if any of these lessons have associated schedules
+      const { data: scheduledLessons, error: scheduleCheckError } = await supabase
+        .from('lesson_schedules')
+        .select('lesson_id')
+        .in('lesson_id', lessonsToDelete);
+
+      if (scheduleCheckError) {
+        console.error('Error checking lesson schedules:', scheduleCheckError);
+        throw scheduleCheckError;
+      }
+
+      const scheduledLessonIds = new Set(scheduledLessons?.map(s => s.lesson_id) || []);
+      
+      // Only delete lessons that don't have schedules
+      const lessonsToActuallyDelete = lessonsToDelete.filter(id => !scheduledLessonIds.has(id));
+      
+      if (lessonsToActuallyDelete.length > 0) {
+        await supabase.from('lesson_tasks').delete().in('lesson_id', lessonsToActuallyDelete);
+        await supabase.from('lessons').delete().in('id', lessonsToActuallyDelete);
+      }
+
+      // For lessons with schedules that were removed from the course, just keep them 
+      // The schedules will remain intact but the lesson content will be outdated
+      // This preserves the scheduled times while allowing course content updates
+      if (scheduledLessonIds.size > 0) {
+        console.log(`Preserved ${scheduledLessonIds.size} lessons with existing schedules`);
+      }
     }
   };
 

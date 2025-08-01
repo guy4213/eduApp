@@ -175,10 +175,11 @@ const CourseAssignDialog = ({
       } else if (mode === 'edit') {
         // Reset to step 1 for editing
         setStep(1);
-        setLessonSchedules([]);
+        // Load existing lesson schedules instead of clearing them
+        fetchExistingLessonSchedules();
       }
     }
-  }, [open, courseId, mode]);
+  }, [open, courseId, mode, editData]);
 
   // Debug function to check if we can access the record
   const debugCourseInstance = async () => {
@@ -303,6 +304,124 @@ const CourseAssignDialog = ({
       toast({
         title: "שגיאה",
         description: "לא ניתן לטעון את רשימת השיעורים",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchExistingLessonSchedules = async () => {
+    if (!editData?.instance_id) return;
+    
+    try {
+      // First, get the course_id from the instance
+      const { data: instanceData, error: instanceError } = await supabase
+        .from("course_instances")
+        .select("course_id")
+        .eq("id", editData.instance_id)
+        .single();
+
+      if (instanceError) throw instanceError;
+
+      // Fetch lessons for this course
+      const { data: lessonsData, error: lessonsError } = await supabase
+        .from("lessons")
+        .select("id, title")
+        .eq("course_id", instanceData.course_id);
+
+      if (lessonsError) throw lessonsError;
+
+      setLessons(lessonsData || []);
+
+      // Fetch existing lesson schedules for this instance
+      const { data: schedulesData, error: schedulesError } = await supabase
+        .from("lesson_schedules")
+        .select("*")
+        .eq("course_instance_id", editData.instance_id);
+
+      if (schedulesError) throw schedulesError;
+
+      // Group schedules by lesson_id to handle multiple instances
+      const schedulesByLesson = new Map();
+      
+      schedulesData?.forEach((schedule) => {
+        const lessonId = schedule.lesson_id;
+        if (!schedulesByLesson.has(lessonId)) {
+          schedulesByLesson.set(lessonId, []);
+        }
+        schedulesByLesson.get(lessonId).push(schedule);
+      });
+
+      // Create lesson schedules with existing data
+      const formattedSchedules = (lessonsData || []).map((lesson) => {
+        const existingSchedules = schedulesByLesson.get(lesson.id) || [];
+        
+        if (existingSchedules.length > 0) {
+          // If multiple schedules exist, it means this lesson has instances
+          if (existingSchedules.length > 1) {
+            // Extract days of week and timing from existing schedules
+            const daysOfWeek = [...new Set(existingSchedules.map(s => new Date(s.scheduled_start).getDay()))];
+            const daySchedules = daysOfWeek.map(day => {
+              const scheduleForDay = existingSchedules.find(s => new Date(s.scheduled_start).getDay() === day);
+              return {
+                day,
+                start_time: scheduleForDay ? new Date(scheduleForDay.scheduled_start).toTimeString().slice(0, 5) : "",
+                end_time: scheduleForDay ? new Date(scheduleForDay.scheduled_end).toTimeString().slice(0, 5) : "",
+              };
+            });
+
+            return {
+              lesson_id: lesson.id,
+              lesson_title: lesson.title,
+              scheduled_date: new Date(existingSchedules[0].scheduled_start).toISOString().split('T')[0],
+              start_time: "",
+              end_time: "",
+              create_instances: true,
+              days_of_week: daysOfWeek,
+              day_schedules: daySchedules,
+              total_instances: existingSchedules.length,
+              instance_start_date: new Date(existingSchedules[0].scheduled_start).toISOString().split('T')[0],
+            };
+          } else {
+            // Single lesson schedule
+            const schedule = existingSchedules[0];
+            const scheduledDate = new Date(schedule.scheduled_start);
+            
+            return {
+              lesson_id: lesson.id,
+              lesson_title: lesson.title,
+              scheduled_date: scheduledDate.toISOString().split('T')[0],
+              start_time: scheduledDate.toTimeString().slice(0, 5),
+              end_time: new Date(schedule.scheduled_end).toTimeString().slice(0, 5),
+              create_instances: false,
+              days_of_week: [],
+              day_schedules: [],
+              total_instances: 1,
+              instance_start_date: scheduledDate.toISOString().split('T')[0],
+            };
+          }
+        } else {
+          // No existing schedule for this lesson
+          return {
+            lesson_id: lesson.id,
+            lesson_title: lesson.title,
+            scheduled_date: editData.start_date || "",
+            start_time: "",
+            end_time: "",
+            create_instances: false,
+            days_of_week: [],
+            day_schedules: [],
+            total_instances: 1,
+            instance_start_date: editData.start_date || "",
+          };
+        }
+      });
+
+      setLessonSchedules(formattedSchedules);
+    } catch (error) {
+      console.error("Error fetching existing lesson schedules:", error);
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן לטעון את לוח הזמנים הקיים",
         variant: "destructive",
       });
     }
@@ -461,11 +580,24 @@ const CourseAssignDialog = ({
 
   const saveLessonSchedules = async (instanceId: string, allInstances: any[]) => {
     try {
-      const { error } = await supabase
-        .from("lesson_schedules")
-        .insert(allInstances);
+      if (mode === 'edit') {
+        // For edit mode, delete existing schedules and insert new ones
+        const { error: deleteError } = await supabase
+          .from("lesson_schedules")
+          .delete()
+          .eq("course_instance_id", instanceId);
 
-      if (error) throw error;
+        if (deleteError) throw deleteError;
+      }
+
+      // Insert new/updated schedules
+      if (allInstances.length > 0) {
+        const { error } = await supabase
+          .from("lesson_schedules")
+          .insert(allInstances);
+
+        if (error) throw error;
+      }
     } catch (error) {
       console.error("Error saving lesson schedules:", error);
       throw error;
@@ -476,12 +608,50 @@ const CourseAssignDialog = ({
     setLoading(true);
     try {
       if (mode === 'edit') {
-        // For edit mode, just update the course instance
+        // For edit mode, update the course instance and lesson schedules
         const result = await handleCourseAssignment();
         if (result) {
+          // Process lesson schedules for edit mode
+          const allInstances = [];
+          
+          for (const schedule of lessonSchedules) {
+            if (schedule.create_instances) {
+              const instanceResult = generateLessonInstances(schedule);
+
+              if (!instanceResult.success) {
+                toast({
+                  title: "שגיאה",
+                  variant: "destructive",
+                  description: instanceResult.error,
+                });
+                setLoading(false);
+                return;
+              }
+
+              instanceResult.instances.forEach((instance) => {
+                instance.course_instance_id = result;
+              });
+
+              allInstances.push(...instanceResult.instances);
+            } else {
+              // Single lesson schedule
+              if (schedule.scheduled_date && schedule.start_time && schedule.end_time) {
+                allInstances.push({
+                  course_instance_id: result,
+                  lesson_id: schedule.lesson_id,
+                  scheduled_start: `${schedule.scheduled_date}T${schedule.start_time}:00`,
+                  scheduled_end: `${schedule.scheduled_date}T${schedule.end_time}:00`,
+                });
+              }
+            }
+          }
+
+          // Save updated lesson schedules
+          await saveLessonSchedules(result, allInstances);
+          
           toast({
             title: "הצלחה",
-            description: "התוכנית עודכנה בהצלחה!",
+            description: "התוכנית ולוח הזמנים עודכנו בהצלחה!",
           });
           onAssignmentComplete();
           onOpenChange(false);
