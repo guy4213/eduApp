@@ -150,7 +150,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await handleSubmit(formData, lessons, editCourse?.instance_id);
+    await handleSubmit(formData, lessons, editCourse?.id);
   };
 
   return (

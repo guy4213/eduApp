@@ -12,26 +12,17 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
       let courseId: string;
 
       if (editCourseId) {
-        // Get the course instance to find the course_id
-        const { data: instanceData, error: instanceError } = await supabase
-          .from('course_instances')
-          .select('course_id')
-          .eq('id', editCourseId)
-          .single();
-
-        if (instanceError) throw instanceError;
-
-        // Update the course name
+        // Update the course name directly using the course_id
         const { error: courseError } = await supabase
           .from('courses')
           .update({
             name: formData.name,
           })
-          .eq('id', instanceData.course_id);
+          .eq('id', editCourseId);
 
         if (courseError) throw courseError;
         
-        courseId = instanceData.course_id;
+        courseId = editCourseId;
         await updateExistingLessonsAndTasks(courseId, lessons);
       } else {
         // Create new course
