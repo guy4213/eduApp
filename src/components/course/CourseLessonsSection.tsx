@@ -227,6 +227,7 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
                         variant="ghost"
                         size="sm"
                         onClick={(e) => {
+                           e.preventDefault();
                           e.stopPropagation();
                           handleEditLesson(lesson);
                         }}
@@ -238,6 +239,7 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
                         variant="ghost"
                         size="sm"
                         onClick={(e) => {
+                            e.preventDefault();
                           e.stopPropagation();
                           removeLesson(lesson.id);
                         }}
@@ -370,7 +372,7 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleEditTask(task)}
+                                onClick={(e) =>{ e.preventDefault(); handleEditTask(task)}}
                                 title="ערוך משימה"
                               >
                                 <Edit className="h-3 w-3" />
