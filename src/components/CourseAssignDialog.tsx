@@ -126,7 +126,6 @@ const CourseAssignDialog = ({
   const [lessonSchedules, setLessonSchedules] = useState<LessonSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
-  const [courseNameVal,setCourseNameVal]=useState(courseName);
   const [formData, setFormData] = useState({
     institution_id: "",
     instructor_id: "",
@@ -218,10 +217,17 @@ const CourseAssignDialog = ({
   // Populate form data when institutions/instructors are loaded and editData is available
   useEffect(() => {
     if (mode === 'edit' && editData && institutions.length > 0 && instructors.length > 0) {
+      console.log('Populating form data for edit mode:', editData);
+      console.log('Available institutions:', institutions);
+      console.log('Available instructors:', instructors);
+      
       const institutionId = findIdByName(institutions, editData.institution_name);
       const instructorId = findIdByName(instructors, editData.instructor_name);
       
-      setFormData({
+      console.log('Found institution ID:', institutionId, 'for name:', editData.institution_name);
+      console.log('Found instructor ID:', instructorId, 'for name:', editData.instructor_name);
+      
+      const newFormData = {
         institution_id: institutionId,
         instructor_id: instructorId,
         grade_level: editData.grade_level,
@@ -230,7 +236,10 @@ const CourseAssignDialog = ({
         max_participants: editData.max_participants.toString(),
         start_date: editData.start_date || "",
         end_date: editData.approx_end_date || "",
-      });
+      };
+      
+      console.log('Setting form data:', newFormData);
+      setFormData(newFormData);
     }
   }, [mode, editData, institutions, instructors]);
 
@@ -281,11 +290,17 @@ const CourseAssignDialog = ({
         .from("lessons")
         .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
         .eq("course_id", courseId)
-    
+        .order("created_at")
 
       if (error) throw error;
       
-      setLessons(data || []);
+      // Ensure lessons have tasks property properly set
+      const lessonsWithTasks = (data || []).map(lesson => ({
+        ...lesson,
+        tasks: lesson.lesson_tasks || []
+      }));
+      
+      setLessons(lessonsWithTasks);
       const courseStartDate = formData.start_date || "";
 
       const initialSchedules = (data || []).map((lesson) => ({
@@ -328,11 +343,18 @@ const CourseAssignDialog = ({
       const { data: lessonsData, error: lessonsError } = await supabase
         .from("lessons")
         .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
-        .eq("course_id", instanceData.course_id);
+        .eq("course_id", instanceData.course_id)
+        .order("created_at");
 
       if (lessonsError) throw lessonsError;
 
-      setLessons(lessonsData || []);
+      // Ensure lessons have tasks property properly set
+      const lessonsWithTasks = (lessonsData || []).map(lesson => ({
+        ...lesson,
+        tasks: lesson.lesson_tasks || []
+      }));
+      
+      setLessons(lessonsWithTasks);
 
       // Fetch existing lesson schedules for this instance
       const { data: schedulesData, error: schedulesError } = await supabase
@@ -430,6 +452,19 @@ const CourseAssignDialog = ({
   };
 
   const handleCourseAssignment = async (): Promise<string | null> => {
+    console.log('handleCourseAssignment called - mode:', mode, 'editData:', editData);
+    
+    // Validate that we have the necessary data for edit mode
+    if (mode === 'edit' && !editData?.instance_id) {
+      console.error('Edit mode called without valid editData:', editData);
+      toast({
+        title: "שגיאה",
+        description: "חסרים נתוני עריכה. אנא נסה לסגור ולפתוח מחדש את החלון.",
+        variant: "destructive",
+      });
+      return null;
+    }
+    
     try {
       if (mode === 'create') {
         // Create new course instance
@@ -455,21 +490,35 @@ const CourseAssignDialog = ({
         return data.id;
       } else {
         // Edit mode - update existing instance
-        const { error } = await supabase
+        console.log('Edit mode - updating instance:', editData?.instance_id);
+        console.log('Edit mode - formData:', formData);
+        
+        const updateData = {
+          institution_id: formData.institution_id,
+          instructor_id: formData.instructor_id,
+          grade_level: formData.grade_level,
+          max_participants: parseInt(formData.max_participants),
+          price_for_customer: parseFloat(formData.price_for_customer),
+          price_for_instructor: parseFloat(formData.price_for_instructor),
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+        };
+        
+        console.log('Edit mode - updateData:', updateData);
+        
+        const { data, error } = await supabase
           .from("course_instances")
-          .update({
-            institution_id: formData.institution_id,
-            instructor_id: formData.instructor_id,
-            grade_level: formData.grade_level,
-            max_participants: parseInt(formData.max_participants),
-            price_for_customer: parseFloat(formData.price_for_customer),
-            price_for_instructor: parseFloat(formData.price_for_instructor),
-            start_date: formData.start_date,
-            end_date: formData.end_date,
-          })
-          .eq("id", editData?.instance_id);
+          .update(updateData)
+          .eq("id", editData?.instance_id)
+          .select()
+          .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Edit mode - update error:', error);
+          throw error;
+        }
+        
+        console.log('Edit mode - update successful:', data);
         return editData?.instance_id || null;
       }
     } catch (error) {
@@ -584,7 +633,7 @@ const CourseAssignDialog = ({
     try {
       if (mode === 'edit') {
         // For edit mode, we need to be more careful about updating schedules
-        // First, get existing schedules to understand what we're working with
+        // First, get ALL existing schedules for this course instance
         const { data: existingSchedules, error: fetchError } = await supabase
           .from("lesson_schedules")
           .select("*")
@@ -592,66 +641,68 @@ const CourseAssignDialog = ({
 
         if (fetchError) throw fetchError;
 
-        // Create a map of existing schedules by lesson_id for easy lookup
+        // Group existing schedules by lesson_id and course_instance_id for easy lookup
         const existingSchedulesMap = new Map();
         existingSchedules?.forEach(schedule => {
-          if (!existingSchedulesMap.has(schedule.lesson_id)) {
-            existingSchedulesMap.set(schedule.lesson_id, []);
+          const key = `${schedule.course_instance_id}-${schedule.lesson_id}`;
+          if (!existingSchedulesMap.has(key)) {
+            existingSchedulesMap.set(key, []);
           }
-          existingSchedulesMap.get(schedule.lesson_id).push(schedule);
+          existingSchedulesMap.get(key).push(schedule);
         });
 
-        // Process each new instance
-        for (const newInstance of allInstances) {
-          const existingSchedulesForLesson = existingSchedulesMap.get(newInstance.lesson_id) || [];
-          
+        // Group new instances by lesson_id for processing
+        const newInstancesByLesson = new Map();
+        allInstances.forEach(instance => {
+          if (!newInstancesByLesson.has(instance.lesson_id)) {
+            newInstancesByLesson.set(instance.lesson_id, []);
+          }
+          newInstancesByLesson.get(instance.lesson_id).push(instance);
+        });
+
+        // Process each lesson's schedules
+        for (const [lessonId, newInstances] of newInstancesByLesson.entries()) {
+          const key = `${instanceId}-${lessonId}`;
+          const existingSchedulesForLesson = existingSchedulesMap.get(key) || [];
+
+          // Delete all existing schedules for this lesson and course instance
           if (existingSchedulesForLesson.length > 0) {
-            // Update existing schedules for this lesson
-            // Find the best matching existing schedule to update
-            const scheduleToUpdate = existingSchedulesForLesson.find(existing => 
-              existing.scheduled_start === newInstance.scheduled_start ||
-              existing.scheduled_end === newInstance.scheduled_end
-            ) || existingSchedulesForLesson[0];
+            const scheduleIdsToDelete = existingSchedulesForLesson.map(s => s.id);
+            const { error: deleteError } = await supabase
+              .from("lesson_schedules")
+              .delete()
+              .in("id", scheduleIdsToDelete);
 
-            if (scheduleToUpdate) {
-              // Update the existing schedule
-              const { error: updateError } = await supabase
-                .from("lesson_schedules")
-                .update({
-                  scheduled_start: newInstance.scheduled_start,
-                  scheduled_end: newInstance.scheduled_end,
-                })
-                .eq("id", scheduleToUpdate.id);
+            if (deleteError) throw deleteError;
+          }
 
-              if (updateError) throw updateError;
-
-              // Remove this schedule from the map so we don't process it again
-              const index = existingSchedulesForLesson.indexOf(scheduleToUpdate);
-              if (index > -1) {
-                existingSchedulesForLesson.splice(index, 1);
-              }
-            }
-          } else {
-            // No existing schedule for this lesson, insert new one
+          // Insert all new schedules for this lesson
+          if (newInstances.length > 0) {
             const { error: insertError } = await supabase
               .from("lesson_schedules")
-              .insert(newInstance);
+              .insert(newInstances);
 
             if (insertError) throw insertError;
           }
+
+          // Remove processed schedules from the map
+          existingSchedulesMap.delete(key);
         }
 
-        // Delete any remaining old schedules that weren't updated
-        const schedulesToDelete = [];
-        for (const [lessonId, schedules] of existingSchedulesMap.entries()) {
-          schedulesToDelete.push(...schedules.map(s => s.id));
+        // Handle lessons that were removed (no new instances)
+        // Delete any remaining schedules for lessons that are no longer in the new data
+        const remainingSchedulesToDelete = [];
+        for (const [key, schedules] of existingSchedulesMap.entries()) {
+          if (key.startsWith(`${instanceId}-`)) {
+            remainingSchedulesToDelete.push(...schedules.map(s => s.id));
+          }
         }
 
-        if (schedulesToDelete.length > 0) {
+        if (remainingSchedulesToDelete.length > 0) {
           const { error: deleteError } = await supabase
             .from("lesson_schedules")
             .delete()
-            .in("id", schedulesToDelete);
+            .in("id", remainingSchedulesToDelete);
 
           if (deleteError) throw deleteError;
         }
@@ -818,14 +869,32 @@ const CourseAssignDialog = ({
   const handleFinalSave = async () => {
     setLoading(true);
     try {
-      if (mode === 'edit') {
-        // For edit mode, update the course instance and lesson schedules
-        const result = await handleCourseAssignment();
-        if (result) {
-          // Always update lesson content in edit mode
-          if (courseId && lessons.length > 0) {
-            await updateLessonContent(courseId, lessons);
-          }
+              if (mode === 'edit') {
+          // For edit mode, update the course instance and lesson schedules
+          const result = await handleCourseAssignment();
+          if (result) {
+            // Get courseId from the instance data for edit mode
+            let currentCourseId = courseId;
+            if (!currentCourseId && editData?.instance_id) {
+              const { data: instanceData, error: instanceError } = await supabase
+                .from("course_instances")
+                .select("course_id")
+                .eq("id", editData.instance_id)
+                .single();
+              
+              if (!instanceError && instanceData) {
+                currentCourseId = instanceData.course_id;
+              }
+            }
+            
+            // Always update lesson content in edit mode
+            console.log('About to update lesson content - courseId:', currentCourseId, 'lessons count:', lessons.length);
+            if (currentCourseId && lessons.length > 0) {
+              await updateLessonContent(currentCourseId, lessons);
+              console.log('Lesson content updated successfully');
+            } else {
+              console.warn('Skipping lesson content update - courseId:', currentCourseId, 'lessons:', lessons.length);
+            }
 
           // Process lesson schedules for edit mode
           const allInstances = [];
@@ -1037,14 +1106,18 @@ const CourseAssignDialog = ({
         e.preventDefault();
         
         // Validation
-        if (
-          !formData.institution_id ||
-          !formData.instructor_id ||
-          !formData.grade_level.trim()
-        ) {
+        console.log('Validating form data:', formData);
+        
+        const missingFields = [];
+        if (!formData.institution_id) missingFields.push("מוסד");
+        if (!formData.instructor_id) missingFields.push("מדריך");
+        if (!formData.grade_level.trim()) missingFields.push("כיתה");
+        
+        if (missingFields.length > 0) {
+          console.error('Form validation failed - missing fields:', missingFields);
           toast({
             title: "שגיאה בטופס",
-            description: "אנא בחר מוסד, מדריך והזן כיתה לפני המשך.",
+            description: `חסרים שדות חובה: ${missingFields.join(", ")}`,
             variant: "destructive",
           });
           return;
@@ -1052,6 +1125,7 @@ const CourseAssignDialog = ({
 
         // Additional validation for edit mode
         if (mode === 'edit' && !editData?.instance_id) {
+          console.error('Edit mode validation failed - editData:', editData);
           toast({
             title: "שגיאה בטופס",
             description: "חסר מזהה ההקצאה לעדכון.",
@@ -1063,6 +1137,8 @@ const CourseAssignDialog = ({
         console.log('Form submission - Mode:', mode);
         console.log('Form submission - Form Data:', formData);
         console.log('Form submission - Edit Data:', editData);
+        console.log('Form submission - CourseId:', courseId);
+        console.log('Form submission - InstanceId:', instanceId);
         
         if (mode === 'edit') {
           // In edit mode, go to lesson content step
@@ -1206,7 +1282,7 @@ const CourseAssignDialog = ({
   const renderLessonContentStep = () => (
     <div className="space-y-4">
       <div className="text-sm text-gray-600 mb-4">
-        ערוך את תוכן השיעורים עבור התוכנית "{courseNameVal}"
+        ערוך את תוכן השיעורים עבור התוכנית "{courseName}"
       </div>
 
       <div className="space-y-4 max-h-96 overflow-y-auto">

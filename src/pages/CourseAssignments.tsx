@@ -266,7 +266,12 @@ const CourseAssignments = () => {
   const handleEditAssignment = (assignment: CourseAssignment) => {
     setEditData(assignment);
     setDialogMode('edit');
-    setSelectedCourse(null);
+    // Set selectedCourse with the course ID for edit mode
+    setSelectedCourse({
+      id: assignment.id,
+      instanceId: assignment.instance_id,
+      name: assignment.name,
+    });
     console.log("Editing assignment:", assignment);
     setShowDialog(true);
   };
