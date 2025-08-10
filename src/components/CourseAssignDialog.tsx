@@ -536,6 +536,11 @@ const CourseAssignDialog = ({
 
   // Function to generate multiple instances with per-day timing
   const generateLessonInstances = (schedule: LessonSchedule) => {
+    console.log(`Generating instances for lesson: ${schedule.lesson_title}`);
+    console.log(`Days of week: ${schedule.days_of_week}, Total instances: ${schedule.total_instances}`);
+    console.log(`Instance start date: ${schedule.instance_start_date}`);
+    console.log(`Day schedules:`, schedule.day_schedules);
+    
     const courseStart = new Date(formData.start_date);
     const courseEnd = new Date(formData.end_date);
 
@@ -555,6 +560,8 @@ const CourseAssignDialog = ({
           (ds) => ds.day === dayOfWeek
         );
 
+        console.log(`Found matching day ${dayOfWeek} on ${dateStr}, daySchedule:`, daySchedule);
+
         if (daySchedule?.start_time && daySchedule?.end_time) {
           // Check range
           if (currentDate < courseStart || currentDate > courseEnd) {
@@ -568,13 +575,16 @@ const CourseAssignDialog = ({
             };
           }
 
-          instances.push({
+          const newInstance = {
             course_instance_id: "",
             lesson_id: schedule.lesson_id,
             scheduled_start: `${dateStr}T${daySchedule.start_time}:00`,
             scheduled_end: `${dateStr}T${daySchedule.end_time}:00`,
             instance_number: createdCount + 1,
-          });
+          };
+          
+          console.log(`Creating instance ${createdCount + 1}:`, newInstance);
+          instances.push(newInstance);
 
           lastInstanceDate = new Date(currentDate);
           createdCount++;
@@ -587,6 +597,8 @@ const CourseAssignDialog = ({
     const lastDateStr = lastInstanceDate
       ? lastInstanceDate.toISOString().split("T")[0]
       : null;
+
+    console.log(`Generated ${instances.length} instances for lesson ${schedule.lesson_title}`);
 
     return {
       success: true,
@@ -632,88 +644,56 @@ const CourseAssignDialog = ({
   const saveLessonSchedules = async (instanceId: string, allInstances: any[]) => {
     try {
       if (mode === 'edit') {
-        // For edit mode, we need to be more careful about updating schedules
-        // First, get ALL existing schedules for this course instance
-        const { data: existingSchedules, error: fetchError } = await supabase
+        console.log('Edit mode: Updating schedules for course instance:', instanceId);
+        console.log('Edit mode: New instances to create:', allInstances.length);
+        
+        // For edit mode, delete ALL existing schedules for this course instance first
+        // This ensures we don't have orphaned schedules and properly handle the lesson_id instances
+        const { error: deleteAllError } = await supabase
           .from("lesson_schedules")
-          .select("*")
+          .delete()
           .eq("course_instance_id", instanceId);
 
-        if (fetchError) throw fetchError;
-
-        // Group existing schedules by lesson_id and course_instance_id for easy lookup
-        const existingSchedulesMap = new Map();
-        existingSchedules?.forEach(schedule => {
-          const key = `${schedule.course_instance_id}-${schedule.lesson_id}`;
-          if (!existingSchedulesMap.has(key)) {
-            existingSchedulesMap.set(key, []);
-          }
-          existingSchedulesMap.get(key).push(schedule);
-        });
-
-        // Group new instances by lesson_id for processing
-        const newInstancesByLesson = new Map();
-        allInstances.forEach(instance => {
-          if (!newInstancesByLesson.has(instance.lesson_id)) {
-            newInstancesByLesson.set(instance.lesson_id, []);
-          }
-          newInstancesByLesson.get(instance.lesson_id).push(instance);
-        });
-
-        // Process each lesson's schedules
-        for (const [lessonId, newInstances] of newInstancesByLesson.entries()) {
-          const key = `${instanceId}-${lessonId}`;
-          const existingSchedulesForLesson = existingSchedulesMap.get(key) || [];
-
-          // Delete all existing schedules for this lesson and course instance
-          if (existingSchedulesForLesson.length > 0) {
-            const scheduleIdsToDelete = existingSchedulesForLesson.map(s => s.id);
-            const { error: deleteError } = await supabase
-              .from("lesson_schedules")
-              .delete()
-              .in("id", scheduleIdsToDelete);
-
-            if (deleteError) throw deleteError;
-          }
-
-          // Insert all new schedules for this lesson
-          if (newInstances.length > 0) {
-            const { error: insertError } = await supabase
-              .from("lesson_schedules")
-              .insert(newInstances);
-
-            if (insertError) throw insertError;
-          }
-
-          // Remove processed schedules from the map
-          existingSchedulesMap.delete(key);
+        if (deleteAllError) {
+          console.error('Error deleting existing schedules:', deleteAllError);
+          throw deleteAllError;
         }
 
-        // Handle lessons that were removed (no new instances)
-        // Delete any remaining schedules for lessons that are no longer in the new data
-        const remainingSchedulesToDelete = [];
-        for (const [key, schedules] of existingSchedulesMap.entries()) {
-          if (key.startsWith(`${instanceId}-`)) {
-            remainingSchedulesToDelete.push(...schedules.map(s => s.id));
-          }
-        }
+        console.log('Edit mode: Successfully deleted all existing schedules for course instance:', instanceId);
 
-        if (remainingSchedulesToDelete.length > 0) {
-          const { error: deleteError } = await supabase
+        // Now insert all new schedules
+        if (allInstances.length > 0) {
+          console.log('Edit mode: Inserting new schedules:', allInstances);
+          
+          const { error: insertError } = await supabase
             .from("lesson_schedules")
-            .delete()
-            .in("id", remainingSchedulesToDelete);
+            .insert(allInstances);
 
-          if (deleteError) throw deleteError;
+          if (insertError) {
+            console.error('Error inserting new schedules:', insertError);
+            throw insertError;
+          }
+
+          console.log('Edit mode: Successfully inserted', allInstances.length, 'new schedules');
+        } else {
+          console.log('Edit mode: No new schedules to insert');
         }
       } else {
         // Create mode - just insert new schedules
+        console.log('Create mode: Inserting schedules for new course instance:', instanceId);
+        console.log('Create mode: New instances to create:', allInstances.length);
+        
         if (allInstances.length > 0) {
           const { error } = await supabase
             .from("lesson_schedules")
             .insert(allInstances);
 
-          if (error) throw error;
+          if (error) {
+            console.error('Error inserting schedules in create mode:', error);
+            throw error;
+          }
+          
+          console.log('Create mode: Successfully inserted', allInstances.length, 'schedules');
         }
       }
     } catch (error) {
@@ -900,6 +880,9 @@ const CourseAssignDialog = ({
           const allInstances = [];
           
           for (const schedule of lessonSchedules) {
+            console.log(`Processing lesson: ${schedule.lesson_title} (ID: ${schedule.lesson_id})`);
+            console.log(`Create instances: ${schedule.create_instances}, Total instances: ${schedule.total_instances}`);
+            
             if (schedule.create_instances) {
               const instanceResult = generateLessonInstances(schedule);
 
@@ -913,6 +896,8 @@ const CourseAssignDialog = ({
                 return;
               }
 
+              console.log(`Generated ${instanceResult.instances.length} instances for lesson ${schedule.lesson_title}`);
+
               instanceResult.instances.forEach((instance) => {
                 instance.course_instance_id = result;
               });
@@ -921,6 +906,7 @@ const CourseAssignDialog = ({
             } else {
               // Single lesson schedule
               if (schedule.scheduled_date && schedule.start_time && schedule.end_time) {
+                console.log(`Creating single instance for lesson ${schedule.lesson_title}`);
                 allInstances.push({
                   course_instance_id: result,
                   lesson_id: schedule.lesson_id,
@@ -930,6 +916,9 @@ const CourseAssignDialog = ({
               }
             }
           }
+          
+          console.log(`Total instances to create: ${allInstances.length}`);
+          console.log('All instances details:', allInstances);
 
           // Save updated lesson schedules
           await saveLessonSchedules(result, allInstances);
@@ -963,6 +952,9 @@ const CourseAssignDialog = ({
       let totalCount = 0;
 
       for (const schedule of lessonSchedules) {
+        console.log(`Create mode: Processing lesson: ${schedule.lesson_title} (ID: ${schedule.lesson_id})`);
+        console.log(`Create mode: Create instances: ${schedule.create_instances}, Total instances: ${schedule.total_instances}`);
+        
         if (schedule.create_instances) {
           const result = generateLessonInstances(schedule);
 
@@ -975,6 +967,8 @@ const CourseAssignDialog = ({
             return;
           }
 
+          console.log(`Create mode: Generated ${result.instances.length} instances for lesson ${schedule.lesson_title}`);
+
           result.instances.forEach((instance) => {
             instance.course_instance_id = instanceId;
           });
@@ -986,6 +980,7 @@ const CourseAssignDialog = ({
         } else {
           // Single lesson schedule
           if (schedule.scheduled_date && schedule.start_time && schedule.end_time) {
+            console.log(`Create mode: Creating single instance for lesson ${schedule.lesson_title}`);
             allInstances.push({
               course_instance_id: instanceId,
               lesson_id: schedule.lesson_id,
@@ -996,6 +991,9 @@ const CourseAssignDialog = ({
           }
         }
       }
+      
+      console.log(`Create mode: Total instances to create: ${allInstances.length}`);
+      console.log('Create mode: All instances details:', allInstances);
 
       if (allInstances.length > 0) {
         await saveLessonSchedules(instanceId, allInstances);
