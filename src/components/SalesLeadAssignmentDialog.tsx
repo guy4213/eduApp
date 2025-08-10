@@ -40,6 +40,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "./auth/AuthProvider";
 
 const salesLeadSchema = z.object({
   institution_name: z.string().min(1, "שם מוסד הוא שדה חובה"),
@@ -57,8 +58,10 @@ const salesLeadSchema = z.object({
     .number()
     .min(0)
     .max(100, "אחוז עמלה חייב להיות בין 0 ל-100"),
-  target_date: z.date().optional(),
+ 
   notes: z.string().optional(),
+  target_date:z.string().min(1, " נא למלא תאריך בבקשה   ")
+
 });
 
 type SalesLeadFormData = z.infer<typeof salesLeadSchema>;
@@ -107,7 +110,7 @@ export default function SalesLeadAssignmentDialog({
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-
+      const {user}=useAuth();
   const form = useForm<SalesLeadFormData>({
     resolver: zodResolver(salesLeadSchema),
   defaultValues: {
@@ -233,10 +236,19 @@ export default function SalesLeadAssignmentDialog({
   };
 
   const onSubmit = async (data: SalesLeadFormData) => {
-    setIsSubmitting(true);
+ 
+
     try {
       // Check and create institution if it doesn't exist
-
+          if(!data.potential_value||data.potential_value==0){
+         toast({
+            title: 'שגיאה',
+            description: `תגמול פוטנציאלי חייב להיות גדול מ 0!     `,
+            variant: 'destructive',
+          });
+          return;
+    }
+   setIsSubmitting(true);
       const leadData = {
         institution_name: data.institution_name,
         instructor_id: data.instructor_id,
@@ -280,11 +292,20 @@ export default function SalesLeadAssignmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-right">
+         
+          
+         {user.user_metadata?.role === "instructor" ?(      <DialogTitle className="text-xl font-bold text-right">
+            הקצאת ליד 
+          </DialogTitle>
+        
+        )
+      :(
+ <DialogTitle className="text-xl font-bold text-right">
             הקצאת ליד למדריך
           </DialogTitle>
+      )}
           <DialogDescription className="text-right">
-            מלא את הפרטים להקצאת ליד מכירות למדריך
+            מלא את הפרטים לשם הקצאת המכירה  
           </DialogDescription>
         </DialogHeader>
 
@@ -297,8 +318,12 @@ export default function SalesLeadAssignmentDialog({
                 name="institution_name"
                 render={({ field }) => (
                   <FormItem className="md:col-span-2">
-                    <FormLabel>שם מוסד</FormLabel>
-                    <div className="flex gap-2">
+                   
+                    <div className="flex gap-2"> 
+                   <>
+                  {user.user_metadata?.role !== "instructor" && (
+                    <>
+                      <FormLabel>שם מוסד</FormLabel>
                       <FormControl className="flex-1">
                         <Input
                           placeholder="הכנס שם מוסד או בחר מהרשימה"
@@ -306,7 +331,11 @@ export default function SalesLeadAssignmentDialog({
                           className="text-right"
                         />
                       </FormControl>
+                    </>
+                  )}
+                </>
                       <Select onValueChange={onSelectInstitution}>
+                
                         <SelectTrigger className="w-[140px]">
                           <SelectValue placeholder="בחר מוסד" />
                         </SelectTrigger>

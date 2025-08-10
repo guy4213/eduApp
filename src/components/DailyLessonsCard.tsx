@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Plus } from "lucide-react";
+import { Calendar, Check, Plus } from "lucide-react";
 import { useAuth } from "./auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -66,6 +66,27 @@ export const DailyLessonsCard: React.FC<any> = ({
   lessons,
   onAddLesson,
 }) => {
+
+  const [reportedScheduleIds, setReportedScheduleIds] = useState<Set<string>>(new Set());
+
+useEffect(() => {
+  async function fetchReportedSchedules() {
+    const { data, error } = await supabase
+      .from('lesson_reports')
+      .select('lesson_schedule_id'); // Adjust column name to your schema
+
+    if (error) {
+      console.error('Failed to fetch reported schedules:', error);
+      return;
+    }
+
+    const ids = new Set(data.map((r: { lesson_schedule_id: string }) => r.lesson_schedule_id));
+    setReportedScheduleIds(ids);
+  }
+
+  fetchReportedSchedules();
+}, []);
+
   const filteredClasses = (lessons??[]).filter((c) => {
   console.log("DATE", c.scheduled_start);
   if (!c.scheduled_start) return true;
@@ -146,13 +167,14 @@ const instructorMap = useMemo(() => {
           const instructorName = lesson.instructor_id
           ? instructorMap.get(lesson.instructor_id) || "שם לא נמצא"
           : null;
-
-          return (
+   const isReported = reportedScheduleIds.has(lesson.id);
+            return (
             <div
               key={lesson.lesson_id}
               className={`bg-gradient-to-r ${color.bg} rounded-xl p-4 border-r-4 ${color.border} shadow-sm`}
             >
               <div className="flex justify-between items-center">
+                {/* lesson info left */}
                 <div className="flex items-center space-x-3 space-x-reverse">
                   <Button
                     size="sm"
@@ -164,26 +186,47 @@ const instructorMap = useMemo(() => {
                   </Button>
                   <div className="flex flex-col gap-2">
                     <p className="font-bold text-[1.2rem] text-gray-900">{lesson?.institution_name}</p>
-
                     <p className="font-semibold text-gray-900">{lesson?.title}</p>
-            
-                    {user.user_metadata.role!=="instructor" &&<b className="text-sm text-gray-600">
-                       {instructorName} 
-                    </b>}
-                    <p className="text-[1rem] text-gray-900">{formatTime(lesson.scheduled_start)}-{formatTime(lesson.scheduled_end)}</p>
+                    {user.user_metadata.role !== "instructor" && (
+                      <b className="text-sm text-gray-600">{instructorName}</b>
+                    )}
+                    <p className="text-[1rem] text-gray-900">
+                      {formatTime(lesson.scheduled_start)}-{formatTime(lesson.scheduled_end)}
+                    </p>
                   </div>
-              
                 </div>
+
+                {/* lesson action right */}
                 <div className="text-left">
-               { user.user_metadata?.role==="instructor" &&
-                <button
-              onClick={() => {
-            nav(`/lesson-report/${lesson.lesson_id}?scheduleId=${lesson.id}`);
-              }}
-              className="bg-green-300 rounded-full p-2 items-center font-bold"
-            >
-              דיווח שיעור
-            </button>}
+                 
+                  {isReported ? (
+                      <button
+                        disabled
+                        className="bg-green-400 rounded-full p-2 flex items-center font-bold cursor-default"
+                        title="השיעור דווח בהצלחה"
+                      >
+                        <Check className="w-5 h-5 ml-1" />
+                        השיעור דווח בהצלחה
+                      </button>
+                    ):
+                    new Date(lesson.scheduled_end).getTime() > Date.now() ? (
+  user.user_metadata.role==='instructor'&&
+  <button
+    disabled
+    className="bg-yellow-400 rounded-full p-2 flex items-center font-bold cursor-default"
+    title="רק לאחר סיום השיעור תוכל לדווח"
+  >
+    רק לאחר סיום השיעור תוכל לדווח
+  </button>
+)  : (
+                    user.user_metadata?.role === "instructor" &&   <button
+                        onClick={() => nav(`/lesson-report/${lesson.lesson_id}?scheduleId=${lesson.id}`)}
+                        className="bg-green-300 rounded-full p-2 items-center font-bold"
+                      >
+                        דיווח שיעור
+                      </button>
+                    )}
+                 
                 </div>
               </div>
             </div>

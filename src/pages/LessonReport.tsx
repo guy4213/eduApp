@@ -29,7 +29,7 @@ const LessonReport = () => {
   const { id } = useParams<{ id: string }>(); // lesson.lesson_id from URL path
 const location = useLocation();
 const queryParams = new URLSearchParams(location.search);
-const scheduleId = queryParams.get('scheduleId'); // lesson.id from query string
+const scheduleId = queryParams.get('scheduleId'); // scheduleId from query string
 
   const [lesson, setLesson] = useState<any>(null);
   const [lessonTasks, setLessonTasks] = useState<any[]>([]);
@@ -37,12 +37,52 @@ const scheduleId = queryParams.get('scheduleId'); // lesson.id from query string
   const [allReports, setAllReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
    const [isLessonOk, setIsLessonOk] = useState(false);
-  
+  const[maxPar,setMaxPar]=  useState<any>();
   const { user } = useAuth();
  const [selectedReport, setSelectedReport] = useState<any | null>(null);
 const [dialogOpen, setDialogOpen] = useState(false);
   const isInstructor = user?.user_metadata.role === 'instructor';
+  
+    
+  
+  async function getMaxParticipantsByScheduleId(scheduleId) {
+  const { data, error } = await supabase
+    .from('lesson_schedules')
+    .select(`
+      course_instances (
+        max_participants
+      )
+    `)
+    .eq('id', scheduleId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching max participants:', error);
+    throw error;
+  }
+
+  // data.course_instances will be an object with max_participants
+  return data.course_instances?.max_participants ?? null;
+}
+
+useEffect(() => {
+  async function fetchMaxParticipants() {
+    try {
+      const max = await getMaxParticipantsByScheduleId(scheduleId);
+      setMaxPar(max);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  if (scheduleId) {
+    fetchMaxParticipants();
+  }
+}, [scheduleId]);
+
+
   useEffect(() => {
+
     if (isInstructor && !id) return;
     
     if (isInstructor) {
@@ -167,6 +207,14 @@ const [dialogOpen, setDialogOpen] = useState(false);
   };
 
   const handleSubmit = async () => {
+    if(participants>maxPar||participants=='0'||!participants||isNaN(Number(participants))){
+      toast({
+        title: 'שגיאה',
+        description: `נדרש להזין מספר! ועד ${maxPar} משתתפים` ,
+        variant: 'destructive',
+      });
+       return;
+    }
     if (!lessonTitle.trim()) {
       toast({
         title: 'שגיאה',
@@ -271,7 +319,7 @@ const [dialogOpen, setDialogOpen] = useState(false);
 
               <div>
                 <Label htmlFor="participants">מספר משתתפים</Label>
-                <Input id="participants" type="number" value={participants} onChange={(e) => setParticipants(e.target.value)} />
+                <Input id="participants" type="number" value={participants} placeholder={ '  מקסימום משתתפים : '+maxPar} onChange={(e) => setParticipants(e.target.value)} />
               </div>
              
               <div>

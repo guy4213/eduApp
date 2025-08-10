@@ -126,6 +126,7 @@ const CourseAssignDialog = ({
   const [lessonSchedules, setLessonSchedules] = useState<LessonSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [courseNameVal,setCourseNameVal]=useState(courseName);
   const [formData, setFormData] = useState({
     institution_id: "",
     instructor_id: "",
@@ -1205,7 +1206,7 @@ const CourseAssignDialog = ({
   const renderLessonContentStep = () => (
     <div className="space-y-4">
       <div className="text-sm text-gray-600 mb-4">
-        ערוך את תוכן השיעורים עבור התוכנית "{courseName}"
+        ערוך את תוכן השיעורים עבור התוכנית "{courseNameVal}"
       </div>
 
       <div className="space-y-4 max-h-96 overflow-y-auto">

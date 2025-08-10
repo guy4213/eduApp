@@ -836,13 +836,12 @@ export default function Rewards() {
                       
                       <div>
                         <p className="text-sm font-medium text-gray-700 mb-1">ערך פוטנציאלי:</p>
-                        <p className="text-lg font-bold text-green-600 flex items-center">
-                          <DollarSign className="h-4 w-4 ml-1" />
-                          ₪{lead.potential_value?.toLocaleString() || '0'}
+                        <p className="text-lg font-bold text-green-600 flex items-center ">
+                          {lead.potential_value?.toLocaleString() || '0'}₪
                         </p>
                         {lead.commission_percentage && (
                           <p className="text-sm text-gray-500">עמלה: {lead.commission_percentage}%</p>
-                        )}
+                        )}ז
                       </div>
                       
                       <div>

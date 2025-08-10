@@ -19,6 +19,7 @@ interface Profile {
   hourly_rate: number | null;
   current_work_hours: number | null;
   benefits: string | null;
+  img: string | null;
 }
 
 const Profile = () => {
@@ -29,10 +30,40 @@ const Profile = () => {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
+    img: "",
     email: "",
     phone: "",
   });
   const [reports, setReports] = useState<any[]>([]);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `uploads/${fileName}`; // תיקייה ב־Storage
+
+    const { data, error } = await supabase.storage
+      .from("eduapp") // החלף בשם הבאקט שלך
+      .upload(filePath, file);
+
+    if (error) {
+      console.error("Upload failed:", error.message);
+      return;
+    }
+
+    // הפוך את הנתיב ל-URL פומבי
+    const { data: urlData } = supabase.storage
+      .from("eduapp")
+      .getPublicUrl(filePath);
+
+    console.log("URL", urlData.publicUrl);
+    setEditForm((prev) => ({
+      ...prev,
+      img: urlData.publicUrl,
+    }));
+  };
 
   useEffect(() => {
     fetchProfile();
@@ -56,9 +87,10 @@ const Profile = () => {
         });
         return;
       }
-
+      console.log("datatata ", data);
       setProfile(data);
       setEditForm({
+        img: data.img || "",
         email: data.email || "",
         phone: data.phone || "",
       });
@@ -74,6 +106,7 @@ const Profile = () => {
   const handleCancel = () => {
     setEditing(false);
     setEditForm({
+      img: profile.img || "",
       email: profile?.email || "",
       phone: profile?.phone || "",
     });
@@ -87,6 +120,7 @@ const Profile = () => {
       const { error } = await supabase
         .from("profiles")
         .update({
+          img: editForm.img || null,
           email: editForm.email || null,
           phone: editForm.phone || null,
         })
@@ -103,6 +137,7 @@ const Profile = () => {
 
       setProfile({
         ...profile,
+        img: editForm.img || null,
         email: editForm.email || null,
         phone: editForm.phone || null,
       });
@@ -186,7 +221,60 @@ const Profile = () => {
           </CardHeader>
           <CardContent className="space-y-8">
             <div className="grid grid-cols-1  gap-6">
-              <img src="" alt="picture" />
+              {/* {  editForm.img&&            <img
+              src={editForm.img}
+              alt="picture"
+              className="w-40 h-40 rounded-full object-cover"
+            />
+} */}
+                          {editForm.img && (
+                <div className="relative w-40 h-40 group">
+                  <img
+                    src={editForm.img}
+                    alt="picture"
+                    className="w-40 h-40 rounded-full object-cover"
+                  />
+              {editing && (
+                <>
+                  <button
+                    onClick={() => document.getElementById("fileInput")?.click()}
+                    className="absolute inset-0 bg-black bg-opacity-50 text-white text-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                  >
+                    החלף תמונה
+                  </button>
+                  <input
+                    id="fileInput"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                </>
+              )}
+            </div>
+          )}
+
+              <div>
+                {!editForm.img && (
+                  <Label className="pb-3 block">העלה תמונה</Label>
+                )}{" "}
+                {editing
+                  ? !editForm.img && (
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                      />
+                    )
+                  : !editForm.img && (
+                      <input
+                        disabled
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                      />
+                    )}
+              </div>
               <div>
                 <Label htmlFor="name">שם מלא</Label>
                 <Input
@@ -196,7 +284,6 @@ const Profile = () => {
                   className="bg-muted cursor-not-allowed"
                 />
               </div>
-
               <div>
                 <Label htmlFor="email">אימייל</Label>
                 {editing ? (

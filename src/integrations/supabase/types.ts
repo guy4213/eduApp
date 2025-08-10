@@ -258,6 +258,7 @@ export type Database = {
         Row: {
           course_instance_id: string | null
           id: string
+          instance_number: number | null
           lesson_id: string | null
           scheduled_end: string | null
           scheduled_start: string | null
@@ -265,6 +266,7 @@ export type Database = {
         Insert: {
           course_instance_id?: string | null
           id?: string
+          instance_number?: number | null
           lesson_id?: string | null
           scheduled_end?: string | null
           scheduled_start?: string | null
@@ -272,6 +274,7 @@ export type Database = {
         Update: {
           course_instance_id?: string | null
           id?: string
+          instance_number?: number | null
           lesson_id?: string | null
           scheduled_end?: string | null
           scheduled_start?: string | null
@@ -447,6 +450,7 @@ export type Database = {
           full_name: string
           hourly_rate: number | null
           id: string
+          img: string | null
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string | null
@@ -460,6 +464,7 @@ export type Database = {
           full_name: string
           hourly_rate?: number | null
           id: string
+          img?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string | null
@@ -473,6 +478,7 @@ export type Database = {
           full_name?: string
           hourly_rate?: number | null
           id?: string
+          img?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string | null

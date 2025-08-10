@@ -393,12 +393,50 @@ const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [lessons, setLessons] = useState<any>([]);
   const nav = useNavigate();
+  const [reports, setReports] = useState<any>([]);
+  const [monthlySchedules, setMonthlySchedules] = useState<any>([]);
+    const [weeklyReports, setWeeklyReports] = useState<any>([]);
 
+
+    function filterReportsCurrentWeek(reports) {
+  const now = new Date();
+
+  // Get Sunday of current week (start)
+  const dayOfWeek = now.getDay();
+  const sundayStart = new Date(now);
+  sundayStart.setHours(0, 0, 0, 0);
+  sundayStart.setDate(now.getDate() - dayOfWeek);
+
+  // Get next Sunday (start of next week)
+  const nextSunday = new Date(sundayStart);
+  nextSunday.setDate(sundayStart.getDate() + 7);
+
+  return reports.filter(report => {
+    const createdAt = new Date(report.created_at);
+    return createdAt >= sundayStart && createdAt < nextSunday;
+  });
+}
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!user) return;
       
       try {
+    
+          const now = new Date();
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+            const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+
+            const { data: reportsData } = await supabase
+              .from("lesson_reports")
+              .select("*")
+              .gte("created_at", firstDay)
+              .lt("created_at", firstDayNextMonth);
+
+              setReports(reportsData)
+            
+
+              const reportsThisWeek = filterReportsCurrentWeek(reportsData);
+              setWeeklyReports(reportsThisWeek)
         // קודם מושכים את כל ה-course_instances של המדריך
         const { data: courses } = await supabase
           .from("course_instances")
@@ -453,11 +491,34 @@ const Dashboard = () => {
 
         console.log("schedules", schedules);
 
-        // מושכים נתוני תלמידים
         const { data: enrollments } = await supabase
           .from("course_instances")
-          .select("id")
+          .select("*")
          
+
+
+  // Filter only schedules in the current month
+
+        // מושכים נתוני תלמידים
+
+
+
+
+          const totalActive = enrollments.reduce(
+  (acc, curr) => acc + (curr.max_participants || 0),
+  0
+);
+
+console.log("Total active students:", totalActive);
+
+  const schedulesThisMonth = schedules.filter(s => {
+    const start = s.scheduled_start;
+    return start >= firstDay && start < firstDayNextMonth;
+  });
+
+  console.log("All schedules:", schedules.length);
+  console.log("Schedules this month:", schedulesThisMonth.length);
+  setMonthlySchedules(schedulesThisMonth.length);
 
         const adaptedLessons = (schedules || []).map((s) => ({
           id: s.id,
@@ -495,8 +556,8 @@ const Dashboard = () => {
         setLessons(adaptedLessons);
         setStats({
           totalLessons: adaptedLessons.length,
-          activeStudents: enrollments?.length || 0,
-          activeCourses: courses?.length || 0,
+          activeStudents:   totalActive,
+          activeCourses: enrollments?.length || 0,
           monthlyEarnings: adaptedLessons.length * 150, // חישוב פשוט לפי מספר שיעורים
           rewardsTotal: rewardsTotal,
           upcomingLessons: adaptedLessons.slice(0, 3),
@@ -809,7 +870,7 @@ return (
       </Card>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
         <StatsCard
           title="תלמידים פעילים"
           value={stats.activeStudents}
@@ -828,12 +889,12 @@ return (
           icon={BookOpen}
           color="bg-gradient-to-r from-blue-500 to-cyan-500"
         />
-        <StatsCard
+        {/* <StatsCard
           title="רווחים חודשיים"
           value={`₪${stats.monthlyEarnings.toLocaleString()}`}
           icon={BarChart3}
           color="bg-gradient-to-r from-purple-500 to-indigo-500"
-        />
+        /> */}
       </div>
 
       {/* Main Dashboard Grid */}
@@ -860,7 +921,7 @@ return (
               <div className="space-y-2 md:space-y-3 text-xs md:text-sm">
                 <div className="flex justify-between">
                   <span>שיעורים שהתקיימו</span>
-                  <span className="font-bold">{stats.totalLessons}</span>
+                  <span className="font-bold">{weeklyReports.length}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>נוכחות ממוצעת</span>
@@ -888,7 +949,7 @@ return (
                 <div>
                   <div className="flex justify-between mb-2">
                     <span>שיעורים</span>
-                    <span>15/20</span>
+                    <span>{reports.length}/{monthlySchedules}</span>
                   </div>
                   <Progress value={75} className="h-1.5 md:h-2 bg-white/20" />
                 </div>

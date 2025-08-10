@@ -48,7 +48,7 @@ const uncompletedTasks = allTasks.filter(task => !completedTaskIds.includes(task
           <DialogTitle className="text-right">
             משוב לשיעור: {report.lesson_title}
           </DialogTitle>
-          <DialogDescription className="whitespace-pre-wrap text-right">
+          <DialogDescription className="whitespace-pre-wrap text-right text-black font-semibold text-[1.05rem]">
             {report.feedback || report.notes || 'אין משוב זמין'}
           </DialogDescription>
         </DialogHeader>
