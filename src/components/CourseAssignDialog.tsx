@@ -646,7 +646,7 @@ const CourseAssignDialog = ({
       if (mode === 'edit') {
         console.log('Edit mode: Updating schedules for course instance:', instanceId);
         console.log('Edit mode: New instances to create:', allInstances.length);
-        
+        console.log('INSTANCE  '+instanceId)
         // For edit mode, delete ALL existing schedules for this course instance first
         // This ensures we don't have orphaned schedules and properly handle the lesson_id instances
         const { error: deleteAllError } = await supabase
