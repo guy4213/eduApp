@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, FileText, CheckCircle, X, Eye, Calendar, User, Users } from 'lucide-react';
+import { Camera, FileText, CheckCircle, X, Eye, Calendar, User, Users, CalendarDays, Filter } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,12 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import { useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
 import FeedbackDialog from '@/components/FeedbackDialog';
+import { format } from 'date-fns';
+import { he } from 'date-fns/locale';
 
 const LessonReport = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +46,12 @@ const scheduleId = queryParams.get('scheduleId'); // scheduleId from query strin
  const [selectedReport, setSelectedReport] = useState<any | null>(null);
 const [dialogOpen, setDialogOpen] = useState(false);
   const isInstructor = user?.user_metadata.role === 'instructor';
+  const isAdmin = user?.user_metadata.role === 'admin';
+  
+  // Date filtering state (admin only)
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [filteredReports, setFilteredReports] = useState<any[]>([]);
   
     
   
@@ -147,6 +157,7 @@ useEffect(() => {
           });
         } else {
           setAllReports(data || []);
+          setFilteredReports(data || []);
         }
         setLoading(false);
       };
@@ -154,6 +165,34 @@ useEffect(() => {
       fetchAllReports();
     }
   }, [id, isInstructor, toast]);
+
+  // Date filtering effect (admin only)
+  useEffect(() => {
+    if (!isAdmin || !allReports.length) return;
+    
+    let filtered = [...allReports];
+    
+    if (dateFrom) {
+      filtered = filtered.filter(report => 
+        new Date(report.created_at) >= dateFrom
+      );
+    }
+    
+    if (dateTo) {
+      const endOfDay = new Date(dateTo);
+      endOfDay.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(report => 
+        new Date(report.created_at) <= endOfDay
+      );
+    }
+    
+    setFilteredReports(filtered);
+  }, [dateFrom, dateTo, allReports, isAdmin]);
+
+  const clearDateFilters = () => {
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
 
   const handleToggleTask = (taskId: string) => {
     setCheckedTasks((prev) =>
@@ -346,6 +385,11 @@ useEffect(() => {
                     <label className="text-sm pr-1">האם השיעור התנהל כשורה </label>
                   </div>
               <div>
+                <Label htmlFor="notes">הערות נוספות</Label>
+                <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+              </div>
+
+              <div>
                 <Label htmlFor="feedback">משוב כללי</Label>
                 <Textarea id="feedback" value={feedback} required={!isLessonOk} onChange={(e) => setFeedback(e.target.value)} rows={3} />
               </div>
@@ -412,6 +456,87 @@ useEffect(() => {
         </div>
         :
         <div className="space-y-6 ">
+          {/* Date Filter for Admins */}
+          {isAdmin && (
+            <Card className="border-primary/20 shadow-md">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-primary">
+                  <Filter className="h-5 w-5 ml-2" />
+                  סינון לפי תאריך יצירה
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-4 items-end">
+                  <div className="flex-1">
+                    <Label htmlFor="date-from">מתאריך</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarDays className="ml-2 h-4 w-4" />
+                          {dateFrom ? format(dateFrom, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך התחלה'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={setDateFrom}
+                          initialFocus
+                          locale={he}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  <div className="flex-1">
+                    <Label htmlFor="date-to">עד תאריך</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarDays className="ml-2 h-4 w-4" />
+                          {dateTo ? format(dateTo, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך סיום'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={setDateTo}
+                          initialFocus
+                          locale={he}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={clearDateFilters}
+                    className="px-6"
+                  >
+                    נקה סינון
+                  </Button>
+                </div>
+                
+                {(dateFrom || dateTo) && (
+                  <div className="mt-4 p-3 bg-primary/5 rounded-lg">
+                    <p className="text-sm text-primary font-medium">
+                      מציג {filteredReports.length} דיווחים מתוך {allReports.length}
+                      {dateFrom && ` מתאריך ${format(dateFrom, 'dd/MM/yyyy', { locale: he })}`}
+                      {dateTo && ` עד תאריך ${format(dateTo, 'dd/MM/yyyy', { locale: he })}`}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -429,7 +554,7 @@ useEffect(() => {
               <CardHeader className="border-b border-border/50 bg-muted/10">
                 <CardTitle className="flex items-center text-primary">
                   <FileText className="h-5 w-5 ml-2" />
-                  כל הדיווחים ({allReports.length})
+                  כל הדיווחים ({isAdmin ? filteredReports.length : allReports.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -449,7 +574,7 @@ useEffect(() => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {allReports.map((report, index) => (
+                      {(isAdmin ? filteredReports : allReports).map((report, index) => (
                         <TableRow 
                           key={report.id} 
                           className={`
