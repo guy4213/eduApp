@@ -612,6 +612,10 @@ export type Database = {
       }
     }
     Functions: {
+      delete_by_course_instance_id: {
+        Args: { p_uuid: string }
+        Returns: undefined
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]

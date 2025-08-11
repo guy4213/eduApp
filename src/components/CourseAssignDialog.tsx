@@ -641,6 +641,92 @@ const CourseAssignDialog = ({
     return { valid: true };
   };
 
+
+  // Enhanced TypeScript function with debugging
+async function deleteLessonSchedulesByCourseInstance(instanceId: string) {
+  try {
+    console.log('Attempting to delete with instanceId:', instanceId);
+    
+    // Verify the instanceId is a valid UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(instanceId)) {
+      console.error('Invalid UUID format:', instanceId);
+      return { success: false, error: 'Invalid UUID format' };
+    }
+
+    // Call the RPC function
+    const { data, error } = await supabase.rpc('delete_by_course_instance_id', {
+      p_uuid: instanceId
+    });
+
+    if (error) {
+      console.error('RPC error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      return { success: false, error };
+    }
+
+    console.log('RPC success - deleted rows:', data);
+    return { success: true, deletedCount: data };
+
+  } catch (err) {
+    console.error('Unexpected error:', err);
+    return { success: false, error: err };
+  }
+}
+
+// Alternative approach: Direct delete with RLS (if RPC doesn't work)
+async function deleteLessonSchedulesDirectly(instanceId: string) {
+  try {
+    const { data, error, count } = await supabase
+      .from('lesson_schedules')
+      .delete({ count: 'exact' })
+      .eq('course_instance_id', instanceId);
+
+    if (error) {
+      console.error('Direct delete error:', error);
+      return { success: false, error };
+    }
+
+    console.log('Direct delete success - deleted rows:', count);
+    return { success: true, deletedCount: count };
+
+  } catch (err) {
+    console.error('Direct delete unexpected error:', err);
+    return { success: false, error: err };
+  }
+}
+
+// Usage example with both approaches
+async function handleDelete(instanceId: string) {
+  // Try RPC first
+  let result = await deleteLessonSchedulesByCourseInstance(instanceId);
+  
+  if (!result.success) {
+    console.log('RPC failed, trying direct delete...');
+    // Fallback to direct delete
+    result = await deleteLessonSchedulesDirectly(instanceId);
+  }
+  
+  return result;
+}
+
+// Debug function to check what exists before deletion
+async function debugLessonSchedules(instanceId: string) {
+  const { data, error } = await supabase
+    .from('lesson_schedules')
+    .select('*')
+    .eq('course_instance_id', instanceId);
+    
+  console.log('Existing lesson_schedules for instanceId:', instanceId);
+  console.log('Data:', data);
+  console.log('Error:', error);
+  
+  return { data, error };
+}
   const saveLessonSchedules = async (instanceId: string, allInstances: any[]) => {
     try {
       if (mode === 'edit') {
@@ -649,17 +735,21 @@ const CourseAssignDialog = ({
         console.log('INSTANCE  '+instanceId)
         // For edit mode, delete ALL existing schedules for this course instance first
         // This ensures we don't have orphaned schedules and properly handle the lesson_id instances
-        const { error: deleteAllError } = await supabase
-          .from("lesson_schedules")
-          .delete()
-          .eq("course_instance_id", instanceId);
+const { error: deleteError, count } = await supabase
+          .from('lesson_schedules')
+          .delete({ count: 'exact' })
+          .eq('course_instance_id', instanceId);
 
-        if (deleteAllError) {
-          console.error('Error deleting existing schedules:', deleteAllError);
-          throw deleteAllError;
+        if (deleteError) {
+          console.error('Delete failed:', deleteError);
+          throw new Error(`Failed to delete existing schedules: ${deleteError.message}`);
         }
 
-        console.log('Edit mode: Successfully deleted all existing schedules for course instance:', instanceId);
+
+
+        
+
+        console.log(`Edit mode: Successfully deleted all existing schedules - ${count} for course instance:`, instanceId );
 
         // Now insert all new schedules
         if (allInstances.length > 0) {
