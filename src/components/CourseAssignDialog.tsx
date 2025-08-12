@@ -54,6 +54,7 @@ interface CourseInstanceSchedule {
 interface Lesson {
   id: string;
   title: string;
+  order_index?: number;
   tasks?: any[];
 }
 
@@ -250,9 +251,9 @@ const CourseAssignDialog = ({
     try {
       const { data, error } = await supabase
         .from("lessons")
-        .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
+        .select("id, title, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
         .eq("course_id", courseId)
-        .order("created_at");
+        .order("order_index");
 
       if (error) throw error;
       
@@ -296,9 +297,9 @@ const CourseAssignDialog = ({
       if (instanceData?.course_id) {
         const { data: lessonsData, error: lessonsError } = await supabase
           .from("lessons")
-          .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
+          .select("id, title, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
           .eq("course_id", instanceData.course_id)
-          .order("created_at");
+          .order("order_index");
 
         if (!lessonsError && lessonsData) {
           const lessonsWithTasks = lessonsData.map(lesson => ({

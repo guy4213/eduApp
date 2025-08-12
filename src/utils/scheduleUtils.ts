@@ -147,9 +147,9 @@ export const fetchAndGenerateSchedules = async (
       // Fetch lessons for this course
       const { data: lessons, error: lessonsError } = await supabase
         .from('lessons')
-        .select('id, title, course_id')
+        .select('id, title, course_id, order_index')
         .eq('course_id', schedule.course_instances.course_id)
-        .order('created_at');
+        .order('order_index');
 
       if (lessonsError) {
         console.error('Error fetching lessons:', lessonsError);

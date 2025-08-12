@@ -156,7 +156,7 @@ const CourseAssignments = () => {
           .from("lessons")
           .select("*")
           .in("course_id", courseIds)
-          .order("created_at");
+          .order("order_index");
 
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
@@ -193,7 +193,6 @@ const CourseAssignments = () => {
             schedulesData = allSchedules.filter(schedule => 
               courseInstanceIds.includes(schedule.course_instance_id)
             );
-            console.log(`[DEBUG] Found ${schedulesData.length} schedules for course instances:`, courseInstanceIds, schedulesData);
 
           } catch (error) {
             console.error("Error fetching combined schedules:", error);

@@ -117,7 +117,7 @@ const Courses = () => {
           .from("lessons")
           .select("*")
           .in("course_id", allCourseIds)
-          .order("created_at");
+          .order("order_index");
 
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
