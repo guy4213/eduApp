@@ -229,7 +229,17 @@ const instructorMap = useMemo(() => {
                  
 
                    :( user.user_metadata?.role === "instructor" &&   <button
-                        onClick={() => nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}`)}
+                        onClick={() => {
+                          // Extract lesson number from generated ID if available
+                          let lessonNumber = 1;
+                          if (lesson.id && lesson.id.startsWith('generated-')) {
+                            const parts = lesson.id.split('-');
+                            if (parts.length >= 3) {
+                              lessonNumber = parseInt(parts[2]) || 1;
+                            }
+                          }
+                          nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}&lessonNumber=${lessonNumber}`);
+                        }}
                         className="bg-green-300 rounded-full p-2 items-center font-bold"
                       >
                         דיווח שיעור

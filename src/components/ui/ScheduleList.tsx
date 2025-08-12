@@ -128,9 +128,17 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
             )  : (
               user.user_metadata.role === "instructor" && (
                 <button
-                  onClick={() =>
-                    nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
-                  }
+                  onClick={() => {
+                    // Extract lesson number from generated ID if available
+                    let lessonNumber = 1;
+                    if (item.id && item.id.startsWith('generated-')) {
+                      const parts = item.id.split('-');
+                      if (parts.length >= 3) {
+                        lessonNumber = parseInt(parts[2]) || 1;
+                      }
+                    }
+                    nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}&lessonNumber=${lessonNumber}`);
+                  }}
                   className="schedule-list-button bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full font-semibold shadow-sm transition-colors"
                 >
                   דיווח שיעור
