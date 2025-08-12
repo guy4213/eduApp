@@ -29,6 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
+import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
 
 interface Task {
   id: string;
@@ -162,18 +163,20 @@ const CourseAssignments = () => {
           }
         }
 
-        // Fetch lesson schedules for assigned courses
+        // Fetch combined lesson schedules for assigned courses (both legacy and generated)
         const courseInstanceIds = coursesData?.map((instance) => instance.id) || [];
         if (courseInstanceIds.length > 0) {
-          const { data: schedules, error: schedulesError } = await supabase
-            .from("lesson_schedules")
-            .select("*")
-            .in("course_instance_id", courseInstanceIds);
-
-          if (schedulesError) {
-            console.error("Error fetching lesson schedules:", schedulesError);
-          } else {
-            schedulesData = schedules || [];
+          // Fetch combined schedules for all course instances
+          const allSchedulesPromises = courseInstanceIds.map(instanceId => 
+            fetchCombinedSchedules(instanceId)
+          );
+          
+          try {
+            const allSchedulesResults = await Promise.all(allSchedulesPromises);
+            schedulesData = allSchedulesResults.flat();
+          } catch (error) {
+            console.error("Error fetching combined lesson schedules:", error);
+            schedulesData = [];
           }
         }
       }
@@ -192,8 +195,8 @@ const CourseAssignments = () => {
 
           const lessonSchedule = schedulesData.find(
             (schedule) =>
-              schedule.lesson_id === lesson.id &&
-              schedule.course_instance_id === instanceData.id
+              (schedule.lesson_id === lesson.id || schedule.lesson?.id === lesson.id) &&
+              (schedule.course_instance_id === instanceData.id || schedule.course_instances?.id === instanceData.id)
           );
 
           return lessonTasks.map((task) => ({
@@ -475,11 +478,24 @@ const CourseAssignments = () => {
                       </h3>
 
                       <div className="space-y-6">
-                        {Object.entries(groupTasksByLesson(assignment.tasks)).map(([lessonNumber, tasks]) => (
+                                              {Object.entries(groupTasksByLesson(assignment.tasks)).map(([lessonNumber, tasks]) => {
+                        // Find the earliest scheduled start time for this lesson
+                        const lessonScheduledStart = tasks.find(task => task.scheduled_start)?.scheduled_start;
+                        const lessonScheduledEnd = tasks.find(task => task.scheduled_end)?.scheduled_end;
+                        
+                        return (
                           <div key={lessonNumber} className="bg-gray-50 rounded-lg p-4">
-                            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-                              <Calendar className="h-4 w-4 ml-2" />
-                              שיעור {lessonNumber}: {tasks[0]?.lesson_title || "ללא כותרת"}
+                            <h4 className="font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                              <div className="flex items-center">
+                                <Calendar className="h-4 w-4 ml-2" />
+                                שיעור {lessonNumber}: {tasks[0]?.lesson_title || "ללא כותרת"}
+                              </div>
+                              {lessonScheduledStart && (
+                                <div className="text-sm text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                                  📅 {formatDateTime(lessonScheduledStart)}
+                                  {lessonScheduledEnd && ` - ${formatDateTime(lessonScheduledEnd).split(' ')[1]}`}
+                                </div>
+                              )}
                             </h4>
 
                             <Table>
@@ -539,8 +555,9 @@ const CourseAssignments = () => {
                               </TableBody>
                             </Table>
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
+                    </div>
                     </div>
                   )}
                 </CardContent>

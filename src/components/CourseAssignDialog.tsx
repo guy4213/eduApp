@@ -467,12 +467,22 @@ const CourseAssignDialog = ({
         if (error) throw error;
       }
 
-      // If in edit mode, clean up old lesson_schedules
-      if (mode === 'edit') {
-        await supabase
-          .from('lesson_schedules')
-          .delete()
-          .eq('course_instance_id', instanceId);
+      // Only clean up old lesson_schedules if we're updating schedule pattern in edit mode
+      if (mode === 'edit' && (courseSchedule.days_of_week.length > 0 || courseSchedule.time_slots.length > 0)) {
+        // Check if there are any existing course_instance_schedules
+        const { data: existingCourseSchedule } = await supabase
+          .from("course_instance_schedules")
+          .select("id")
+          .eq("course_instance_id", instanceId)
+          .single();
+          
+        // Only delete legacy schedules if we're migrating to new schedule format
+        if (existingCourseSchedule) {
+          await supabase
+            .from('lesson_schedules')
+            .delete()
+            .eq('course_instance_id', instanceId);
+        }
       }
     } catch (error) {
       console.error("Error saving course instance schedule:", error);
@@ -704,18 +714,48 @@ const CourseAssignDialog = ({
         הגדר את לוח הזמנים הכללי עבור התוכנית "{courseName}"
       </div>
 
-      {/* Course Lessons Overview */}
+      {/* Course Lessons Overview with Tasks */}
       {lessons.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 max-h-96 overflow-y-auto">
           <h3 className="font-semibold text-blue-900 mb-3">שיעורים בתוכנית ({lessons.length})</h3>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
+          <div className="space-y-4">
             {lessons.map((lesson, index) => (
-              <div key={lesson.id} className="text-sm text-blue-800">
-                <span className="font-medium">{index + 1}.</span> {lesson.title}
+              <div key={lesson.id} className="bg-white rounded-lg p-3 border border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm text-blue-800">
+                    <span className="font-medium">{index + 1}.</span> {lesson.title}
+                  </div>
+                  {lesson.tasks && lesson.tasks.length > 0 && (
+                    <span className="text-blue-600 text-xs bg-blue-100 px-2 py-1 rounded">
+                      {lesson.tasks.length} משימות
+                    </span>
+                  )}
+                </div>
+                
+                {/* Show tasks for this lesson */}
                 {lesson.tasks && lesson.tasks.length > 0 && (
-                  <span className="text-blue-600 text-xs mr-2">
-                    ({lesson.tasks.length} משימות)
-                  </span>
+                  <div className="mt-3 space-y-2">
+                    {lesson.tasks
+                      .sort((a: any, b: any) => a.order_index - b.order_index)
+                      .map((task: any) => (
+                        <div key={task.id} className="bg-gray-50 p-2 rounded text-xs">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-gray-700">{task.title}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">{task.estimated_duration} דק'</span>
+                              {task.is_mandatory ? (
+                                <span className="bg-red-100 text-red-600 px-1 py-0.5 rounded text-xs">חובה</span>
+                              ) : (
+                                <span className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-xs">רשות</span>
+                              )}
+                            </div>
+                          </div>
+                          {task.description && (
+                            <p className="text-gray-600 text-xs">{task.description}</p>
+                          )}
+                        </div>
+                      ))}
+                  </div>
                 )}
               </div>
             ))}
