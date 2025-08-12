@@ -29,6 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
+import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
 
 interface Task {
   id: string;
@@ -132,17 +133,11 @@ const CourseAssignments = () => {
 
       if (courseIds.length > 0) {
         // Fetch lessons
-        let lessonsQuery = supabase
+        const { data: lessons, error: lessonsError } = await supabase
           .from("lessons")
           .select("*")
-          .in("course_id", courseIds);
-
-        // If user is instructor, filter lessons by their instructor_id
-        if (isInstructor && user?.id) {
-          lessonsQuery = lessonsQuery.eq('instructor_id', user.id);
-        }
-
-        const { data: lessons, error: lessonsError } = await lessonsQuery.order("created_at");
+          .in("course_id", courseIds)
+          .order("created_at");
 
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
@@ -168,18 +163,19 @@ const CourseAssignments = () => {
           }
         }
 
-        // Fetch lesson schedules for assigned courses
+        // Fetch combined lesson schedules (legacy + new architecture)
         const courseInstanceIds = coursesData?.map((instance) => instance.id) || [];
         if (courseInstanceIds.length > 0) {
-          const { data: schedules, error: schedulesError } = await supabase
-            .from("lesson_schedules")
-            .select("*")
-            .in("course_instance_id", courseInstanceIds);
+          try {
+            const allSchedules = await fetchCombinedSchedules();
+            // Filter schedules for the relevant course instances
+            schedulesData = allSchedules.filter(schedule => 
+              courseInstanceIds.includes(schedule.course_instance_id)
+            );
 
-          if (schedulesError) {
-            console.error("Error fetching lesson schedules:", schedulesError);
-          } else {
-            schedulesData = schedules || [];
+          } catch (error) {
+            console.error("Error fetching combined schedules:", error);
+            schedulesData = [];
           }
         }
       }
@@ -201,6 +197,8 @@ const CourseAssignments = () => {
               schedule.lesson_id === lesson.id &&
               schedule.course_instance_id === instanceData.id
           );
+
+
 
           return lessonTasks.map((task) => ({
             ...task,
