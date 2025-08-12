@@ -27,6 +27,10 @@ export type Database = {
           price_for_customer: number | null
           price_for_instructor: number | null
           start_date: string | null
+          schedule_start_date: string | null
+          schedule_end_date: string | null
+          days_of_week: number[] | null
+          schedule_pattern: Json | null
         }
         Insert: {
           course_id?: string | null
@@ -40,6 +44,10 @@ export type Database = {
           price_for_customer?: number | null
           price_for_instructor?: number | null
           start_date?: string | null
+          schedule_start_date?: string | null
+          schedule_end_date?: string | null
+          days_of_week?: number[] | null
+          schedule_pattern?: Json | null
         }
         Update: {
           course_id?: string | null
@@ -53,6 +61,10 @@ export type Database = {
           price_for_customer?: number | null
           price_for_instructor?: number | null
           start_date?: string | null
+          schedule_start_date?: string | null
+          schedule_end_date?: string | null
+          days_of_week?: number[] | null
+          schedule_pattern?: Json | null
         }
         Relationships: [
           {
@@ -81,6 +93,53 @@ export type Database = {
             columns: ["instructor_id"]
             isOneToOne: false
             referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_instance_schedules: {
+        Row: {
+          id: string
+          course_instance_id: string | null
+          days_of_week: number[]
+          time_slots: Json
+          start_date: string
+          end_date: string | null
+          total_lessons: number | null
+          lesson_duration_minutes: number | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          course_instance_id?: string | null
+          days_of_week: number[]
+          time_slots: Json
+          start_date: string
+          end_date?: string | null
+          total_lessons?: number | null
+          lesson_duration_minutes?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          course_instance_id?: string | null
+          days_of_week?: number[]
+          time_slots?: Json
+          start_date?: string
+          end_date?: string | null
+          total_lessons?: number | null
+          lesson_duration_minutes?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_instance_schedules_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
             referencedColumns: ["id"]
           },
         ]
