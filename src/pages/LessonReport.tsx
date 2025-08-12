@@ -40,7 +40,6 @@ const LessonReport = () => {
     const queryParams = new URLSearchParams(location.search);
     const scheduleId = queryParams.get('scheduleId');
     const courseInstanceIdFromUrl = queryParams.get('courseInstanceId');
-    const lessonNumberFromUrl = queryParams.get('lessonNumber');
 
     const [lesson, setLesson] = useState(null);
     const [lessonTasks, setLessonTasks] = useState([]);
@@ -266,87 +265,7 @@ const LessonReport = () => {
         setAttendanceList(prev => prev.filter(student => student.id !== studentId));
     };
 
-    // Calculate lesson number for new architecture
-    async function calculateLessonNumber(courseInstanceId, lessonId) {
-        console.log('Calculating lesson number for course instance:', courseInstanceId, 'lesson:', lessonId);
-        
-        // Get the course instance schedule
-        const { data: courseSchedule, error: scheduleError } = await supabase
-            .from('course_instance_schedules')
-            .select('*')
-            .eq('course_instance_id', courseInstanceId)
-            .single();
 
-        if (scheduleError || !courseSchedule) {
-            console.error('Error fetching course schedule:', scheduleError);
-            throw new Error('שגיאה בטעינת לוח הזמנים');
-        }
-
-        // Get the course instance details
-        const { data: courseInstance, error: instanceError } = await supabase
-            .from('course_instances')
-            .select('start_date, end_date')
-            .eq('id', courseInstanceId)
-            .single();
-
-        if (instanceError || !courseInstance) {
-            console.error('Error fetching course instance:', instanceError);
-            throw new Error('שגיאה בטעינת פרטי הקורס');
-        }
-
-        // Get all lessons for this course
-        const { data: lessons, error: lessonsError } = await supabase
-            .from('lessons')
-            .select('id, order_index')
-            .eq('course_id', courseSchedule.course_id)
-            .order('order_index');
-
-        if (lessonsError || !lessons) {
-            console.error('Error fetching lessons:', lessonsError);
-            throw new Error('שגיאה בטעינת שיעורי הקורס');
-        }
-
-        // Find the index of the current lesson
-        const currentLessonIndex = lessons.findIndex(lesson => lesson.id === lessonId);
-        if (currentLessonIndex === -1) {
-            console.error('Lesson not found in course');
-            throw new Error('השיעור לא נמצא בקורס');
-        }
-
-        // Calculate how many lessons have occurred by today
-        const today = new Date();
-        const startDate = new Date(courseInstance.start_date);
-        
-        // Count lessons that should have occurred by today
-        let lessonCount = 0;
-        let currentDate = new Date(startDate);
-        let lessonIndex = 0;
-
-        while (currentDate <= today) {
-            const dayOfWeek = currentDate.getDay();
-            
-            if (courseSchedule.days_of_week.includes(dayOfWeek)) {
-                lessonCount++;
-                
-                // If we've reached the current lesson, break
-                if (lessonIndex === currentLessonIndex) {
-                    break;
-                }
-                
-                lessonIndex = (lessonIndex + 1) % lessons.length;
-            }
-            
-            currentDate.setDate(currentDate.getDate() + 1);
-            
-            // Safety check
-            if (currentDate.getTime() - startDate.getTime() > 365 * 24 * 60 * 60 * 1000) {
-                break;
-            }
-        }
-
-        console.log('Calculated lesson number:', lessonCount);
-        return lessonCount;
-    }
 
     // Save new students to database and get their IDs
     async function saveNewStudents() {
@@ -779,20 +698,24 @@ const LessonReport = () => {
             if (courseInstanceIdForReport) {
                 reportedInstanceData.course_instance_id = courseInstanceIdForReport;
                 
-                // Use lesson number from URL if available, otherwise calculate it
-                if (lessonNumberFromUrl) {
-                    reportedInstanceData.lesson_number = parseInt(lessonNumberFromUrl);
-                    console.log('Using lesson number from URL:', lessonNumberFromUrl);
-                } else {
-                    // Calculate the actual lesson number for new architecture
-                    try {
-                        const lessonNumber = await calculateLessonNumber(courseInstanceIdForReport, id);
-                        reportedInstanceData.lesson_number = lessonNumber;
-                        console.log('Calculated lesson number:', lessonNumber);
-                    } catch (error) {
-                        console.error('Error calculating lesson number:', error);
+                // Get the lesson's order_index from the database
+                try {
+                    const { data: lessonData, error: lessonError } = await supabase
+                        .from('lessons')
+                        .select('order_index')
+                        .eq('id', id)
+                        .single();
+
+                    if (lessonError) {
+                        console.error('Error fetching lesson order_index:', lessonError);
                         reportedInstanceData.lesson_number = 1; // Fallback
+                    } else {
+                        reportedInstanceData.lesson_number = lessonData.order_index;
+                        console.log('Using lesson order_index:', lessonData.order_index);
                     }
+                } catch (error) {
+                    console.error('Error getting lesson order_index:', error);
+                    reportedInstanceData.lesson_number = 1; // Fallback
                 }
             } else if (lessonScheduleId) {
                 reportedInstanceData.lesson_schedule_id = lessonScheduleId;
