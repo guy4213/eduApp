@@ -150,6 +150,7 @@ const CourseAssignments = () => {
           .in("course_id", courseIds);
         
         console.log(`[DEBUG] All lessons found for courses (before any filtering):`, allLessonsForCourse);
+        console.log(`[DEBUG] Current user role:`, userRole, `Current user ID:`, user?.id);
         
         const { data: lessons, error: lessonsError } = await supabase
           .from("lessons")
