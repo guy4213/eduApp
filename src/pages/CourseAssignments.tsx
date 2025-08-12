@@ -125,6 +125,8 @@ const CourseAssignments = () => {
 
       if (instancesError) throw instancesError;
 
+      console.log(`[DEBUG] Found ${coursesData?.length || 0} course instances for ${isInstructor ? 'instructor' : 'admin'}:`, coursesData);
+
       // Fetch lessons and tasks for assigned courses
       const courseIds = coursesData?.map((instance: any) => instance.course?.id).filter(Boolean) || [];
       let lessonsData: any[] = [];
@@ -143,6 +145,7 @@ const CourseAssignments = () => {
           console.error("Error fetching lessons:", lessonsError);
         } else {
           lessonsData = lessons || [];
+          console.log(`[DEBUG] Found ${lessonsData.length} lessons for course IDs:`, courseIds, lessonsData);
         }
 
         // Fetch tasks for all lessons
@@ -160,6 +163,7 @@ const CourseAssignments = () => {
             console.error("Error fetching tasks:", tasksError);
           } else {
             tasksData = tasks || [];
+            console.log(`[DEBUG] Found ${tasksData.length} tasks for ${lessonIds.length} lessons:`, tasksData);
           }
         }
 
@@ -172,6 +176,7 @@ const CourseAssignments = () => {
             schedulesData = allSchedules.filter(schedule => 
               courseInstanceIds.includes(schedule.course_instance_id)
             );
+            console.log(`[DEBUG] Found ${schedulesData.length} schedules for course instances:`, courseInstanceIds, schedulesData);
 
           } catch (error) {
             console.error("Error fetching combined schedules:", error);
@@ -238,6 +243,11 @@ const CourseAssignments = () => {
       };
 
       const formattedAssignments = coursesData?.map(formatAssignmentData) || [];
+      console.log(`[DEBUG] Final formatted assignments:`, formattedAssignments.map(a => ({ 
+        name: a.name, 
+        tasks_count: a.tasks.length,
+        lesson_count: a.lesson_count 
+      })));
       setAssignments(formattedAssignments);
     } catch (error) {
       console.error("Error fetching assignments:", error);
