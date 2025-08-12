@@ -23,11 +23,10 @@ The course scheduling system has been refactored from saving individual lesson s
 ### Updated `course_instances` table
 ```sql
 ALTER TABLE course_instances ADD COLUMN:
-- schedule_start_date DATE
-- schedule_end_date DATE  
 - days_of_week INTEGER[]
 - schedule_pattern JSONB
 ```
+*Note: Uses existing start_date and end_date fields for schedule period*
 
 ### New `course_instance_schedules` table
 ```sql
@@ -36,12 +35,11 @@ CREATE TABLE course_instance_schedules (
   course_instance_id UUID REFERENCES course_instances(id),
   days_of_week INTEGER[] NOT NULL,
   time_slots JSONB NOT NULL,
-  start_date DATE NOT NULL,
-  end_date DATE,
   total_lessons INTEGER,
   lesson_duration_minutes INTEGER
 );
 ```
+*Note: Uses course_instances.start_date/end_date for schedule period*
 
 ## Key Features
 
@@ -67,6 +65,8 @@ CREATE TABLE course_instance_schedules (
 - Simplified from 3 steps to 2 steps
 - Removed individual lesson scheduling
 - Added course-wide schedule pattern definition
+- Shows all course lessons to admin for reference
+- Uses course instance dates (no duplicate date fields)
 - Saves schedule pattern instead of individual instances
 
 ### Schedule Utilities (`/utils/scheduleUtils.ts`)
@@ -91,10 +91,15 @@ const courseSchedule = {
     { day: 2, start_time: "14:00", end_time: "15:30" }, // Tuesday  
     { day: 4, start_time: "16:00", end_time: "17:30" }  // Thursday
   ],
-  start_date: "2025-01-20",
-  end_date: "2025-03-20",
   total_lessons: 24,
   lesson_duration_minutes: 90
+};
+
+// Course instance already has start_date and end_date
+const courseInstance = {
+  start_date: "2025-01-20",
+  end_date: "2025-03-20",
+  // ... other fields
 };
 ```
 

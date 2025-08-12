@@ -11,8 +11,6 @@ interface CourseInstanceSchedule {
   course_instance_id: string;
   days_of_week: number[];
   time_slots: TimeSlot[];
-  start_date: string;
-  end_date?: string;
   total_lessons?: number;
   lesson_duration_minutes?: number;
 }
@@ -33,17 +31,19 @@ interface GeneratedLessonSchedule {
  */
 export const generateLessonSchedulesFromPattern = (
   courseInstanceSchedule: CourseInstanceSchedule,
-  lessons: any[]
+  lessons: any[],
+  courseStartDate: string,
+  courseEndDate?: string
 ): GeneratedLessonSchedule[] => {
   const generatedSchedules: GeneratedLessonSchedule[] = [];
-  const { days_of_week, time_slots, start_date, end_date, total_lessons } = courseInstanceSchedule;
+  const { days_of_week, time_slots, total_lessons } = courseInstanceSchedule;
   
-  if (!days_of_week.length || !time_slots.length || !lessons.length) {
+  if (!days_of_week.length || !time_slots.length || !lessons.length || !courseStartDate) {
     return generatedSchedules;
   }
 
-  const startDateTime = new Date(start_date);
-  const endDateTime = end_date ? new Date(end_date) : null;
+  const startDateTime = new Date(courseStartDate);
+  const endDateTime = courseEndDate ? new Date(courseEndDate) : null;
   const maxLessons = total_lessons || lessons.length;
   
   let currentDate = new Date(startDateTime);
@@ -110,6 +110,8 @@ export const fetchAndGenerateSchedules = async (
         course_instances:course_instance_id (
           id,
           course_id,
+          start_date,
+          end_date,
           institution:institution_id (
             id,
             name
@@ -165,12 +167,12 @@ export const fetchAndGenerateSchedules = async (
           course_instance_id: schedule.course_instance_id,
           days_of_week: schedule.days_of_week,
           time_slots: schedule.time_slots as TimeSlot[],
-          start_date: schedule.start_date,
-          end_date: schedule.end_date,
           total_lessons: schedule.total_lessons,
           lesson_duration_minutes: schedule.lesson_duration_minutes,
         },
-        lessons
+        lessons,
+        schedule.course_instances.start_date,
+        schedule.course_instances.end_date
       );
 
       // Add course instance data to each generated schedule

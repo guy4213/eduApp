@@ -2,10 +2,8 @@
 -- Add schedule-related fields to course_instances table
 -- Create course_instance_schedules table for storing course-wide schedule patterns
 
--- Add schedule fields to course_instances table
+-- Add schedule fields to course_instances table (using existing start_date/end_date)
 ALTER TABLE public.course_instances 
-ADD COLUMN IF NOT EXISTS schedule_start_date DATE,
-ADD COLUMN IF NOT EXISTS schedule_end_date DATE,
 ADD COLUMN IF NOT EXISTS days_of_week INTEGER[], -- Array of day indices (0=Sunday, 1=Monday, etc.)
 ADD COLUMN IF NOT EXISTS schedule_pattern JSONB; -- Store flexible schedule patterns
 
@@ -15,8 +13,6 @@ CREATE TABLE IF NOT EXISTS public.course_instance_schedules (
     course_instance_id UUID REFERENCES public.course_instances(id) ON DELETE CASCADE,
     days_of_week INTEGER[] NOT NULL, -- Array of day indices (0=Sunday, 1=Monday, etc.)
     time_slots JSONB NOT NULL, -- Array of time slots per day: [{"day": 0, "start_time": "09:00", "end_time": "10:30"}, ...]
-    start_date DATE NOT NULL,
-    end_date DATE,
     total_lessons INTEGER,
     lesson_duration_minutes INTEGER,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -81,6 +77,6 @@ CREATE TRIGGER update_course_instance_schedules_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Comment explaining the new architecture
-COMMENT ON TABLE public.course_instance_schedules IS 'Stores course-wide scheduling patterns instead of individual lesson schedules. Each course instance has one schedule pattern that defines when all lessons occur.';
+COMMENT ON TABLE public.course_instance_schedules IS 'Stores course-wide scheduling patterns instead of individual lesson schedules. Each course instance has one schedule pattern that defines when all lessons occur. Uses course_instances start_date/end_date for the schedule period.';
 COMMENT ON COLUMN public.course_instance_schedules.days_of_week IS 'Array of day indices where 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday';
 COMMENT ON COLUMN public.course_instance_schedules.time_slots IS 'JSON array of time slots: [{"day": 0, "start_time": "09:00", "end_time": "10:30"}, {"day": 2, "start_time": "14:00", "end_time": "15:30"}]';

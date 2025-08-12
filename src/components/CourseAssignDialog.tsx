@@ -47,10 +47,14 @@ interface TimeSlot {
 interface CourseInstanceSchedule {
   days_of_week: number[];
   time_slots: TimeSlot[];
-  start_date: string;
-  end_date?: string;
   total_lessons?: number;
   lesson_duration_minutes?: number;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  tasks?: any[];
 }
 
 interface EditData {
@@ -110,6 +114,7 @@ const CourseAssignDialog = ({
   const { toast } = useToast();
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -127,8 +132,6 @@ const CourseAssignDialog = ({
   const [courseSchedule, setCourseSchedule] = useState<CourseInstanceSchedule>({
     days_of_week: [],
     time_slots: [],
-    start_date: "",
-    end_date: "",
     total_lessons: 1,
     lesson_duration_minutes: 60,
   });
@@ -158,8 +161,6 @@ const CourseAssignDialog = ({
     setCourseSchedule({
       days_of_week: [],
       time_slots: [],
-      start_date: "",
-      end_date: "",
       total_lessons: 1,
       lesson_duration_minutes: 60,
     });
@@ -173,6 +174,9 @@ const CourseAssignDialog = ({
       
       if (mode === 'create') {
         resetForm();
+        if (courseId) {
+          fetchCourseLessons();
+        }
       } else if (mode === 'edit') {
         setStep(1);
         fetchExistingSchedule();
@@ -240,11 +244,72 @@ const CourseAssignDialog = ({
     }
   };
 
+  const fetchCourseLessons = async () => {
+    if (!courseId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from("lessons")
+        .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
+        .eq("course_id", courseId)
+        .order("created_at");
+
+      if (error) throw error;
+      
+      // Ensure lessons have tasks property properly set
+      const lessonsWithTasks = (data || []).map(lesson => ({
+        ...lesson,
+        tasks: lesson.lesson_tasks || []
+      }));
+      
+      setLessons(lessonsWithTasks);
+      
+      // Set default total_lessons to the number of lessons in the course
+      setCourseSchedule(prev => ({
+        ...prev,
+        total_lessons: lessonsWithTasks.length || 1
+      }));
+    } catch (error) {
+      console.error("Error fetching lessons:", error);
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן לטעון את רשימת השיעורים",
+        variant: "destructive",
+      });
+    }
+  };
+
   const fetchExistingSchedule = async () => {
     if (!editData?.instance_id) return;
     
     try {
-      // First check if there's a course_instance_schedules entry
+      // First, get the course_id from the instance to fetch lessons
+      const { data: instanceData, error: instanceError } = await supabase
+        .from("course_instances")
+        .select("course_id")
+        .eq("id", editData.instance_id)
+        .single();
+
+      if (instanceError) throw instanceError;
+
+      // Fetch lessons for this course
+      if (instanceData?.course_id) {
+        const { data: lessonsData, error: lessonsError } = await supabase
+          .from("lessons")
+          .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
+          .eq("course_id", instanceData.course_id)
+          .order("created_at");
+
+        if (!lessonsError && lessonsData) {
+          const lessonsWithTasks = lessonsData.map(lesson => ({
+            ...lesson,
+            tasks: lesson.lesson_tasks || []
+          }));
+          setLessons(lessonsWithTasks);
+        }
+      }
+
+      // Check if there's a course_instance_schedules entry
       const { data: scheduleData, error: scheduleError } = await supabase
         .from("course_instance_schedules")
         .select("*")
@@ -256,8 +321,6 @@ const CourseAssignDialog = ({
         setCourseSchedule({
           days_of_week: scheduleData.days_of_week || [],
           time_slots: (scheduleData.time_slots as TimeSlot[]) || [],
-          start_date: scheduleData.start_date || "",
-          end_date: scheduleData.end_date || "",
           total_lessons: scheduleData.total_lessons || 1,
           lesson_duration_minutes: scheduleData.lesson_duration_minutes || 60,
         });
@@ -283,8 +346,6 @@ const CourseAssignDialog = ({
           setCourseSchedule({
             days_of_week: daysOfWeek,
             time_slots: timeSlots,
-            start_date: new Date(legacySchedules[0].scheduled_start!).toISOString().split('T')[0],
-            end_date: formData.end_date,
             total_lessons: legacySchedules.length,
             lesson_duration_minutes: 60,
           });
@@ -317,8 +378,6 @@ const CourseAssignDialog = ({
               price_for_instructor: parseFloat(formData.price_for_instructor),
               start_date: formData.start_date,
               end_date: formData.end_date,
-              schedule_start_date: courseSchedule.start_date,
-              schedule_end_date: courseSchedule.end_date,
               days_of_week: courseSchedule.days_of_week,
               schedule_pattern: {
                 time_slots: courseSchedule.time_slots,
@@ -343,8 +402,6 @@ const CourseAssignDialog = ({
           price_for_instructor: parseFloat(formData.price_for_instructor),
           start_date: formData.start_date,
           end_date: formData.end_date,
-          schedule_start_date: courseSchedule.start_date,
-          schedule_end_date: courseSchedule.end_date,
           days_of_week: courseSchedule.days_of_week,
           schedule_pattern: {
             time_slots: courseSchedule.time_slots,
@@ -389,8 +446,6 @@ const CourseAssignDialog = ({
         course_instance_id: instanceId,
         days_of_week: courseSchedule.days_of_week,
         time_slots: courseSchedule.time_slots,
-        start_date: courseSchedule.start_date,
-        end_date: courseSchedule.end_date,
         total_lessons: courseSchedule.total_lessons,
         lesson_duration_minutes: courseSchedule.lesson_duration_minutes,
       };
@@ -649,73 +704,36 @@ const CourseAssignDialog = ({
         הגדר את לוח הזמנים הכללי עבור התוכנית "{courseName}"
       </div>
 
-      <div className="space-y-4">
-        {/* Schedule date range */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>תאריך התחלת לוח הזמנים</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !courseSchedule.start_date && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {courseSchedule.start_date
-                    ? formatDate(new Date(courseSchedule.start_date), "dd/MM/yyyy")
-                    : "בחר תאריך"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={courseSchedule.start_date ? new Date(courseSchedule.start_date) : undefined}
-                  onSelect={(date) =>
-                    setCourseSchedule(prev => ({
-                      ...prev,
-                      start_date: date ? date.toISOString().split("T")[0] : ""
-                    }))
-                  }
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="space-y-2">
-            <Label>תאריך סיום לוח הזמנים (אופציונלי)</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !courseSchedule.end_date && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {courseSchedule.end_date
-                    ? formatDate(new Date(courseSchedule.end_date), "dd/MM/yyyy")
-                    : "בחר תאריך"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={courseSchedule.end_date ? new Date(courseSchedule.end_date) : undefined}
-                  onSelect={(date) =>
-                    setCourseSchedule(prev => ({
-                      ...prev,
-                      end_date: date ? date.toISOString().split("T")[0] : ""
-                    }))
-                  }
-                />
-              </PopoverContent>
-            </Popover>
+      {/* Course Lessons Overview */}
+      {lessons.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-blue-900 mb-3">שיעורים בתוכנית ({lessons.length})</h3>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {lessons.map((lesson, index) => (
+              <div key={lesson.id} className="text-sm text-blue-800">
+                <span className="font-medium">{index + 1}.</span> {lesson.title}
+                {lesson.tasks && lesson.tasks.length > 0 && (
+                  <span className="text-blue-600 text-xs mr-2">
+                    ({lesson.tasks.length} משימות)
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         </div>
+      )}
+
+              <div className="space-y-4">
+          {/* Course Date Info */}
+          {formData.start_date && formData.end_date && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">תקופת הקורס:</span> {" "}
+                {formData.start_date && formatDate(new Date(formData.start_date), "dd/MM/yyyy")} - {" "}
+                {formData.end_date && formatDate(new Date(formData.end_date), "dd/MM/yyyy")}
+              </div>
+            </div>
+          )}
 
         {/* Days of week selection */}
         <div className="space-y-2">

@@ -27,8 +27,6 @@ export type Database = {
           price_for_customer: number | null
           price_for_instructor: number | null
           start_date: string | null
-          schedule_start_date: string | null
-          schedule_end_date: string | null
           days_of_week: number[] | null
           schedule_pattern: Json | null
         }
@@ -44,8 +42,6 @@ export type Database = {
           price_for_customer?: number | null
           price_for_instructor?: number | null
           start_date?: string | null
-          schedule_start_date?: string | null
-          schedule_end_date?: string | null
           days_of_week?: number[] | null
           schedule_pattern?: Json | null
         }
@@ -61,8 +57,6 @@ export type Database = {
           price_for_customer?: number | null
           price_for_instructor?: number | null
           start_date?: string | null
-          schedule_start_date?: string | null
-          schedule_end_date?: string | null
           days_of_week?: number[] | null
           schedule_pattern?: Json | null
         }
@@ -103,8 +97,6 @@ export type Database = {
           course_instance_id: string | null
           days_of_week: number[]
           time_slots: Json
-          start_date: string
-          end_date: string | null
           total_lessons: number | null
           lesson_duration_minutes: number | null
           created_at: string | null
@@ -115,8 +107,6 @@ export type Database = {
           course_instance_id?: string | null
           days_of_week: number[]
           time_slots: Json
-          start_date: string
-          end_date?: string | null
           total_lessons?: number | null
           lesson_duration_minutes?: number | null
           created_at?: string | null
@@ -127,8 +117,6 @@ export type Database = {
           course_instance_id?: string | null
           days_of_week?: number[]
           time_slots?: Json
-          start_date?: string
-          end_date?: string | null
           total_lessons?: number | null
           lesson_duration_minutes?: number | null
           created_at?: string | null
