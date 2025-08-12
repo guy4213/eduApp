@@ -624,6 +624,66 @@ const LessonReport = () => {
                 return;
             }
 
+            // Handle lesson_schedule_id for new architecture
+            let lessonScheduleId = scheduleId;
+            
+            // If we're using the new architecture (courseInstanceIdFromUrl), we need to find or create a lesson_schedule record
+            if (courseInstanceIdFromUrl && !scheduleId) {
+                console.log('Looking for existing lesson_schedule record...');
+                
+                // First, try to find an existing lesson_schedule record for this course instance and lesson
+                const { data: existingSchedule, error: findError } = await supabase
+                    .from('lesson_schedules')
+                    .select('id')
+                    .eq('course_instance_id', courseInstanceIdFromUrl)
+                    .eq('lesson_id', id)
+                    .single();
+
+                if (existingSchedule) {
+                    lessonScheduleId = existingSchedule.id;
+                    console.log('Found existing lesson_schedule with ID:', lessonScheduleId);
+                } else {
+                    console.log('No existing lesson_schedule found, creating one...');
+                    
+                    // Get the course instance schedule to get proper timing
+                    const { data: courseSchedule, error: courseScheduleError } = await supabase
+                        .from('course_instance_schedules')
+                        .select('*')
+                        .eq('course_instance_id', courseInstanceIdFromUrl)
+                        .single();
+
+                    if (courseScheduleError) {
+                        console.error('Error fetching course schedule:', courseScheduleError);
+                        throw new Error('שגיאה בטעינת נתוני לוח הזמנים');
+                    }
+
+                    // Create a lesson_schedule record for this lesson and course instance
+                    const { data: newSchedule, error: scheduleError } = await supabase
+                        .from('lesson_schedules')
+                        .insert({
+                            course_instance_id: courseInstanceIdFromUrl,
+                            lesson_id: id,
+                            scheduled_start: new Date().toISOString(), // Use current time as placeholder
+                            scheduled_end: new Date(Date.now() + 90 * 60 * 1000).toISOString(), // 90 minutes later
+                            instance_number: 1
+                        })
+                        .select()
+                        .single();
+
+                    if (scheduleError) {
+                        console.error('Error creating lesson_schedule:', scheduleError);
+                        throw new Error('שגיאה ביצירת רשומת לוח זמנים');
+                    }
+
+                    lessonScheduleId = newSchedule.id;
+                    console.log('Created lesson_schedule with ID:', lessonScheduleId);
+                }
+            }
+
+            if (!lessonScheduleId) {
+                throw new Error('לא ניתן ליצור דיווח ללא מזהה לוח זמנים תקין');
+            }
+
             // יצירת דיווח השיעור (ללא attended_student_ids)
             const { data: reportData, error: reportError } = await supabase
                 .from('lesson_reports')
@@ -636,7 +696,7 @@ const LessonReport = () => {
                     instructor_id: user.id,
                     is_lesson_ok: isLessonOk,
                     completed_task_ids: checkedTasks,
-                    lesson_schedule_id: scheduleId || courseInstanceIdFromUrl, // Use courseInstanceId as fallback
+                    lesson_schedule_id: lessonScheduleId,
                     lesson_id: id,
                     // הסרנו את attended_student_ids מכאן
                 })
