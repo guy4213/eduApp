@@ -217,6 +217,13 @@ const LessonReport = () => {
             return updated;
         });
         setNewStudentName('');
+
+        // Show success message
+        toast({
+            title: 'הצלחה',
+            description: 'תלמיד נוסף לרשימה. הוא יישמר במסד הנתונים בעת שליחת הדיווח.',
+            variant: 'default',
+        });
     };
 
     // Toggle student presence
@@ -241,7 +248,7 @@ const LessonReport = () => {
         console.log('New students to save:', newStudents);
         
         if (!courseInstanceId) {
-            throw new Error('Course instance ID is not available. Please refresh the page and try again.');
+            throw new Error('Course instance ID is not available. Please wait for the page to finish loading and try again.');
         }
         
         const studentsToInsert = newStudents.map(student => ({
@@ -712,33 +719,32 @@ const LessonReport = () => {
                                 {/* Add new student */}
                                 <div className="flex gap-2 mb-4">
                                     <Input
-                                        placeholder={courseInstanceId ? "הזן שם תלמיד חדש" : "טוען נתונים..."}
+                                        placeholder="הזן שם תלמיד חדש"
                                         value={newStudentName}
                                         onChange={(e) => setNewStudentName(e.target.value)}
                                         onKeyPress={(e) => e.key === 'Enter' && handleAddStudent()}
                                         className="flex-1"
-                                        disabled={!courseInstanceId}
                                     />
                                     <Button 
                                         type="button" 
                                         onClick={handleAddStudent} 
                                         variant="outline"
-                                        disabled={!courseInstanceId}
                                     >
                                         <Plus className="h-4 w-4" />
                                         הוסף
                                     </Button>
                                 </div>
+                                {!courseInstanceId && (
+                                    <div className="text-sm text-yellow-600 bg-yellow-50 p-2 rounded mb-2">
+                                        ⚠️ אזהרה: נתוני קורס עדיין נטענים. תלמידים חדשים יישמרו ברגע שהנתונים יטענו.
+                                    </div>
+                                )}
 
                                 {/* Attendance list */}
                                 <div className="max-h-64 overflow-y-auto border rounded-lg bg-white">
-                                    {!courseInstanceId ? (
+                                    {attendanceList.length === 0 ? (
                                         <div className="p-4 text-center text-gray-500">
-                                            טוען נתוני קורס...
-                                        </div>
-                                    ) : attendanceList.length === 0 ? (
-                                        <div className="p-4 text-center text-gray-500">
-                                            אין תלמידים ברשימה. הוסף תלמידים חדשים למעלה.
+                                            {!courseInstanceId ? 'טוען נתוני קורס...' : 'אין תלמידים ברשימה. הוסף תלמידים חדשים למעלה.'}
                                         </div>
                                     ) : (
                                         <div className="divide-y">
@@ -822,14 +828,14 @@ const LessonReport = () => {
                             <Button 
                                 className="w-full" 
                                 onClick={handleSubmit} 
-                                disabled={isSubmitting || !scheduleId || !courseInstanceId}
+                                disabled={isSubmitting}
                             >
                                 <CheckCircle className="h-4 w-4 ml-2" />
                                 {isSubmitting ? 'שומר...' : 'שמור דיווח'}
                             </Button>
                             {(!scheduleId || !courseInstanceId) && (
-                                <p className="text-sm text-red-600 text-center mt-2">
-                                    לא ניתן לשמור דיווח - חסרים נתוני קורס
+                                <p className="text-sm text-yellow-600 text-center mt-2">
+                                    ⚠️ אזהרה: נתוני קורס עדיין נטענים. הדיווח יישמר ברגע שהנתונים יטענו.
                                 </p>
                             )}
                         </CardContent>
