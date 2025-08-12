@@ -59,8 +59,11 @@ const LessonReport = () => {
     const [filteredReports, setFilteredReports] = useState([]);
 
     async function getMaxParticipantsByScheduleId(scheduleId) {
-        const { data, error } = await supabase
-            .from('lesson_schedules')
+        console.log('Getting max participants for schedule ID:', scheduleId);
+        
+        // First, try to get from the new course_instance_schedules table
+        let { data, error } = await supabase
+            .from('course_instance_schedules')
             .select(`course_instances (
                 max_participants,
                 id
@@ -68,11 +71,31 @@ const LessonReport = () => {
             .eq('id', scheduleId)
             .single();
 
-        if (error) {
-            console.error('Error fetching max participants:', error);
-            throw error;
+        // If not found in new table, try the legacy lesson_schedules table
+        if (error || !data) {
+            console.log('Not found in course_instance_schedules, trying lesson_schedules...');
+            const legacyResult = await supabase
+                .from('lesson_schedules')
+                .select(`course_instances (
+                    max_participants,
+                    id
+                )`)
+                .eq('id', scheduleId)
+                .single();
+
+            if (legacyResult.error) {
+                console.error('Error fetching max participants from both tables:', legacyResult.error);
+                throw new Error(`לא ניתן למצוא את לוח הזמנים עם מזהה ${scheduleId}. ייתכן שהלוח זמנים נמחק או שאינו קיים.`);
+            }
+            
+            data = legacyResult.data;
         }
 
+        if (!data || !data.course_instances) {
+            throw new Error(`לא נמצאו נתוני קורס עבור לוח הזמנים ${scheduleId}`);
+        }
+
+        console.log('Found course instance data:', data);
         return {
             maxParticipants: data.course_instances?.max_participants ?? null,
             courseInstanceId: data.course_instances?.id ?? null
@@ -98,18 +121,33 @@ const LessonReport = () => {
     useEffect(() => {
         async function fetchMaxParticipants() {
             try {
+                if (!scheduleId) {
+                    console.error('No scheduleId provided');
+                    toast({
+                        title: 'שגיאה',
+                        description: 'לא נמצא מזהה לוח זמנים. אנא חזור לדף הקודם ונסה שוב.',
+                        variant: 'destructive',
+                    });
+                    return;
+                }
+
                 const result = await getMaxParticipantsByScheduleId(scheduleId);
                 setMaxPar(result.maxParticipants);
                 setCourseInstanceId(result.courseInstanceId);
             } catch (err) {
-                console.error(err);
+                console.error('Error fetching max participants:', err);
+                toast({
+                    title: 'שגיאה',
+                    description: err.message || 'שגיאה בטעינת נתוני הקורס',
+                    variant: 'destructive',
+                });
             }
         }
 
         if (scheduleId) {
             fetchMaxParticipants();
         }
-    }, [scheduleId]);
+    }, [scheduleId, toast]);
 
     // Fetch students when course instance ID is available
     useEffect(() => {
@@ -319,16 +357,6 @@ const LessonReport = () => {
                         profiles (
                             full_name
                         ),
-                        lesson_schedules!lesson_schedule_id (
-                            id,
-                            course_instances (
-                                id,
-                                students (
-                                    id,
-                                    full_name
-                                )
-                            )
-                        ),
                         lesson_attendance (
                             student_id,
                             attended,
@@ -361,8 +389,44 @@ const LessonReport = () => {
                     });
                 } else {
                     // Process reports to include attendance data from lesson_attendance table
-                    const processedReports = data.map(report => {
-                        const allStudents = report.lesson_schedules?.course_instances?.students || [];
+                    const processedReports = await Promise.all(data.map(async (report) => {
+                        // Get course instance data from lesson_schedule_id
+                        let courseInstanceData = null;
+                        
+                        if (report.lesson_schedule_id) {
+                            // Try to get from new course_instance_schedules first
+                            let { data: scheduleData } = await supabase
+                                .from('course_instance_schedules')
+                                .select(`course_instances (
+                                    id,
+                                    students (
+                                        id,
+                                        full_name
+                                    )
+                                )`)
+                                .eq('id', report.lesson_schedule_id)
+                                .single();
+
+                            // If not found, try legacy lesson_schedules
+                            if (!scheduleData) {
+                                const { data: legacyData } = await supabase
+                                    .from('lesson_schedules')
+                                    .select(`course_instances (
+                                        id,
+                                        students (
+                                            id,
+                                            full_name
+                                        )
+                                    )`)
+                                    .eq('id', report.lesson_schedule_id)
+                                    .single();
+                                scheduleData = legacyData;
+                            }
+                            
+                            courseInstanceData = scheduleData;
+                        }
+
+                        const allStudents = courseInstanceData?.course_instances?.students || [];
                         const attendanceRecords = report.lesson_attendance || [];
                         
                         // יצירת נתוני נוכחות מהטבלה החדשה
@@ -384,7 +448,7 @@ const LessonReport = () => {
                             // חישוב מספר הנוכחים מתוך טבלת הנוכחות
                             participants_count: attendanceRecords.filter(r => r.attended).length
                         };
-                    });
+                    }));
 
                     setAllReports(processedReports || []);
                     setFilteredReports(processedReports || []);
@@ -542,7 +606,7 @@ const LessonReport = () => {
                     instructor_id: user.id,
                     is_lesson_ok: isLessonOk,
                     completed_task_ids: checkedTasks,
-                    lesson_schedule_id: scheduleId,
+                    lesson_schedule_id: scheduleId, // This can be from either old or new table
                     lesson_id: id,
                     // הסרנו את attended_student_ids מכאן
                 })
@@ -609,7 +673,14 @@ const LessonReport = () => {
             <div className="md:hidden"><MobileNavigation /></div>
             <div className="max-w-7xl mx-auto ">
                 {isInstructor ?
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">דיווח שיעור - {lesson?.title}</h1>
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                        דיווח שיעור - {lesson?.title}
+                        {!scheduleId && (
+                            <Badge variant="destructive" className="mr-2 text-xs">
+                                שגיאה: לא נמצא לוח זמנים
+                            </Badge>
+                        )}
+                    </h1>
                     :
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">כלל השיעורים שדווחו </h1>
                 }
@@ -748,10 +819,19 @@ const LessonReport = () => {
                                 <Textarea id="feedback" value={feedback} required={!isLessonOk} onChange={(e) => setFeedback(e.target.value)} rows={3} />
                             </div>
 
-                            <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
+                            <Button 
+                                className="w-full" 
+                                onClick={handleSubmit} 
+                                disabled={isSubmitting || !scheduleId || !courseInstanceId}
+                            >
                                 <CheckCircle className="h-4 w-4 ml-2" />
                                 {isSubmitting ? 'שומר...' : 'שמור דיווח'}
                             </Button>
+                            {(!scheduleId || !courseInstanceId) && (
+                                <p className="text-sm text-red-600 text-center mt-2">
+                                    לא ניתן לשמור דיווח - חסרים נתוני קורס
+                                </p>
+                            )}
                         </CardContent>
                     </Card>
 
