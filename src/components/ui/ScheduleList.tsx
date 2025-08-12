@@ -117,7 +117,7 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
               user.user_metadata.role === "instructor" && (
                 <button
                   onClick={() =>
-                    nav(`/lesson-report/${item?.lesson?.id}?scheduleId=${item.id}`)
+                    nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
                   }
                   className="schedule-list-button bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full font-semibold shadow-sm transition-colors"
                 >

@@ -39,6 +39,7 @@ const LessonReport = () => {
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
     const scheduleId = queryParams.get('scheduleId');
+    const courseInstanceIdFromUrl = queryParams.get('courseInstanceId');
 
     const [lesson, setLesson] = useState(null);
     const [lessonTasks, setLessonTasks] = useState([]);
@@ -121,8 +122,30 @@ const LessonReport = () => {
     useEffect(() => {
         async function fetchMaxParticipants() {
             try {
+                // If courseInstanceId is provided directly from URL, use it
+                if (courseInstanceIdFromUrl) {
+                    console.log('Using courseInstanceId from URL:', courseInstanceIdFromUrl);
+                    setCourseInstanceId(courseInstanceIdFromUrl);
+                    
+                    // Fetch max participants for this course instance
+                    const { data, error } = await supabase
+                        .from('course_instances')
+                        .select('max_participants')
+                        .eq('id', courseInstanceIdFromUrl)
+                        .single();
+
+                    if (error) {
+                        console.error('Error fetching max participants:', error);
+                        throw new Error('שגיאה בטעינת נתוני הקורס');
+                    }
+
+                    setMaxPar(data?.max_participants ?? null);
+                    return;
+                }
+
+                // Fallback to old scheduleId logic for backward compatibility
                 if (!scheduleId) {
-                    console.error('No scheduleId provided');
+                    console.error('No scheduleId or courseInstanceId provided');
                     toast({
                         title: 'שגיאה',
                         description: 'לא נמצא מזהה לוח זמנים. אנא חזור לדף הקודם ונסה שוב.',
@@ -144,10 +167,10 @@ const LessonReport = () => {
             }
         }
 
-        if (scheduleId) {
+        if (courseInstanceIdFromUrl || scheduleId) {
             fetchMaxParticipants();
         }
-    }, [scheduleId, toast]);
+    }, [courseInstanceIdFromUrl, scheduleId, toast]);
 
     // Fetch students when course instance ID is available
     useEffect(() => {
@@ -613,7 +636,7 @@ const LessonReport = () => {
                     instructor_id: user.id,
                     is_lesson_ok: isLessonOk,
                     completed_task_ids: checkedTasks,
-                    lesson_schedule_id: scheduleId, // This can be from either old or new table
+                    lesson_schedule_id: scheduleId || courseInstanceIdFromUrl, // Use courseInstanceId as fallback
                     lesson_id: id,
                     // הסרנו את attended_student_ids מכאן
                 })
@@ -682,7 +705,7 @@ const LessonReport = () => {
                 {isInstructor ?
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">
                         דיווח שיעור - {lesson?.title}
-                        {!scheduleId && (
+                        {!scheduleId && !courseInstanceIdFromUrl && (
                             <Badge variant="destructive" className="mr-2 text-xs">
                                 שגיאה: לא נמצא לוח זמנים
                             </Badge>
@@ -833,7 +856,7 @@ const LessonReport = () => {
                                 <CheckCircle className="h-4 w-4 ml-2" />
                                 {isSubmitting ? 'שומר...' : 'שמור דיווח'}
                             </Button>
-                            {(!scheduleId || !courseInstanceId) && (
+                            {(!scheduleId && !courseInstanceIdFromUrl) && !courseInstanceId && (
                                 <p className="text-sm text-yellow-600 text-center mt-2">
                                     ⚠️ אזהרה: נתוני קורס עדיין נטענים. הדיווח יישמר ברגע שהנתונים יטענו.
                                 </p>
