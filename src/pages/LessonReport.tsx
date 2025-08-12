@@ -685,6 +685,34 @@ const LessonReport = () => {
 
             console.log('Lesson report created:', reportData);
 
+            // Create a record in reported_lesson_instances to track this specific lesson instance
+            const reportedInstanceData = {
+                lesson_report_id: reportData.id,
+                lesson_id: id,
+                scheduled_date: new Date().toISOString().split('T')[0], // Today's date as default
+            };
+
+            // Add the appropriate schedule reference
+            if (courseInstanceIdForReport) {
+                reportedInstanceData.course_instance_id = courseInstanceIdForReport;
+                // For new architecture, we need to determine the lesson number
+                // This could be enhanced to calculate the actual lesson number based on the schedule
+                reportedInstanceData.lesson_number = 1; // Default to 1 for now
+            } else if (lessonScheduleId) {
+                reportedInstanceData.lesson_schedule_id = lessonScheduleId;
+            }
+
+            const { error: trackingError } = await supabase
+                .from('reported_lesson_instances')
+                .insert(reportedInstanceData);
+
+            if (trackingError) {
+                console.error('Error creating reported lesson instance record:', trackingError);
+                // Don't throw error here as the main report was created successfully
+            } else {
+                console.log('Reported lesson instance record created');
+            }
+
             // שמירת נתוני נוכחות בטבלה נפרדת
             try {
                 await saveStudentAttendance(reportData.id, updatedAttendanceList);

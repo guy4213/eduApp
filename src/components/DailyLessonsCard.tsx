@@ -72,25 +72,24 @@ export const DailyLessonsCard: React.FC<any> = ({
 useEffect(() => {
   async function fetchReportedSchedules() {
     const { data, error } = await supabase
-      .from('lesson_reports')
-      .select('lesson_schedule_id, course_instance_id, lesson_id'); // Get both old and new architecture data
+      .from('reported_lesson_instances')
+      .select('lesson_schedule_id, course_instance_id, lesson_id, scheduled_date');
 
     if (error) {
-      console.error('Failed to fetch reported schedules:', error);
+      console.error('Failed to fetch reported lesson instances:', error);
       return;
     }
 
-    // Create a set of reported schedule IDs (both old and new architecture)
+    // Create a set of reported lesson instance IDs
     const reportedIds = new Set<string>();
     
-    data?.forEach((report: { lesson_schedule_id: string | null, course_instance_id: string | null, lesson_id: string }) => {
-      if (report.lesson_schedule_id) {
+    data?.forEach((instance: { lesson_schedule_id: string | null, course_instance_id: string | null, lesson_id: string, scheduled_date: string }) => {
+      if (instance.lesson_schedule_id) {
         // Legacy architecture: use lesson_schedule_id
-        reportedIds.add(report.lesson_schedule_id);
-      } else if (report.course_instance_id && report.lesson_id) {
+        reportedIds.add(instance.lesson_schedule_id);
+      } else if (instance.course_instance_id && instance.lesson_id) {
         // New architecture: create a composite key for course_instance_id + lesson_id
-        // This matches how we identify lessons in the new architecture
-        reportedIds.add(`${report.course_instance_id}_${report.lesson_id}`);
+        reportedIds.add(`${instance.course_instance_id}_${instance.lesson_id}`);
       }
     });
     
