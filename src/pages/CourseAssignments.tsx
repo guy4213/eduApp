@@ -129,12 +129,28 @@ const CourseAssignments = () => {
 
       // Fetch lessons and tasks for assigned courses
       const courseIds = coursesData?.map((instance: any) => instance.course?.id).filter(Boolean) || [];
+      console.log(`[DEBUG] Course instances details:`, coursesData?.map(instance => ({
+        instanceId: instance.id,
+        courseId: instance.course?.id,
+        courseName: instance.course?.name,
+        instructorId: instance.instructor?.id
+      })));
       let lessonsData: any[] = [];
       let tasksData: any[] = [];
       let schedulesData: any[] = [];
 
       if (courseIds.length > 0) {
         // Fetch lessons
+        console.log(`[DEBUG] About to fetch lessons for course IDs:`, courseIds);
+        
+        // First, let's check if any lessons exist at all for these courses
+        const { data: allLessonsForCourse, error: allLessonsError } = await supabase
+          .from("lessons")
+          .select("id, title, course_id, instructor_id")
+          .in("course_id", courseIds);
+        
+        console.log(`[DEBUG] All lessons found for courses (before any filtering):`, allLessonsForCourse);
+        
         const { data: lessons, error: lessonsError } = await supabase
           .from("lessons")
           .select("*")
