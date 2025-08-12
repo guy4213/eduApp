@@ -73,15 +73,28 @@ useEffect(() => {
   async function fetchReportedSchedules() {
     const { data, error } = await supabase
       .from('lesson_reports')
-      .select('lesson_schedule_id'); // Adjust column name to your schema
+      .select('lesson_schedule_id, course_instance_id, lesson_id'); // Get both old and new architecture data
 
     if (error) {
       console.error('Failed to fetch reported schedules:', error);
       return;
     }
 
-    const ids = new Set(data.map((r: { lesson_schedule_id: string }) => r.lesson_schedule_id));
-    setReportedScheduleIds(ids);
+    // Create a set of reported schedule IDs (both old and new architecture)
+    const reportedIds = new Set<string>();
+    
+    data?.forEach((report: { lesson_schedule_id: string | null, course_instance_id: string | null, lesson_id: string }) => {
+      if (report.lesson_schedule_id) {
+        // Legacy architecture: use lesson_schedule_id
+        reportedIds.add(report.lesson_schedule_id);
+      } else if (report.course_instance_id && report.lesson_id) {
+        // New architecture: create a composite key for course_instance_id + lesson_id
+        // This matches how we identify lessons in the new architecture
+        reportedIds.add(`${report.course_instance_id}_${report.lesson_id}`);
+      }
+    });
+    
+    setReportedScheduleIds(reportedIds);
   }
 
   fetchReportedSchedules();
@@ -167,7 +180,10 @@ const instructorMap = useMemo(() => {
           const instructorName = lesson.instructor_id
           ? instructorMap.get(lesson.instructor_id) || "שם לא נמצא"
           : null;
-   const isReported = reportedScheduleIds.has(lesson.id);
+   // Check if lesson is reported - handle both old and new architecture
+   const isReported = reportedScheduleIds.has(lesson.id) || 
+                     (lesson.course_instance_id && lesson.lesson_id && 
+                      reportedScheduleIds.has(`${lesson.course_instance_id}_${lesson.lesson_id}`));
             return (
             <div
               key={lesson.lesson_id}
