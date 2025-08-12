@@ -117,7 +117,9 @@ const LessonReport = () => {
             if (!courseInstanceId) return;
 
             try {
+                console.log('Loading students for course instance:', courseInstanceId);
                 const existingStudents = await fetchStudentsByCourseInstance(courseInstanceId);
+                console.log('Existing students loaded:', existingStudents);
                 setStudents(existingStudents);
 
                 // Initialize attendance list with existing students
@@ -127,6 +129,7 @@ const LessonReport = () => {
                     isPresent: false,
                     isNew: false
                 }));
+                console.log('Initial attendance list:', initialAttendanceList);
                 setAttendanceList(initialAttendanceList);
             } catch (err) {
                 console.error('Error loading students:', err);
@@ -147,14 +150,34 @@ const LessonReport = () => {
             return;
         }
 
+        // Check for duplicate names
+        const trimmedName = newStudentName.trim();
+        const isDuplicate = attendanceList.some(student => 
+            student.name.toLowerCase() === trimmedName.toLowerCase()
+        );
+
+        if (isDuplicate) {
+            toast({
+                title: 'שגיאה',
+                description: 'תלמיד עם שם זה כבר קיים ברשימה',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         const newStudent = {
             id: `temp_${Date.now()}`,
-            name: newStudentName.trim(),
+            name: trimmedName,
             isPresent: false,
             isNew: true
         };
 
-        setAttendanceList(prev => [...prev, newStudent]);
+        console.log('Adding new student:', newStudent);
+        setAttendanceList(prev => {
+            const updated = [...prev, newStudent];
+            console.log('Updated attendance list:', updated);
+            return updated;
+        });
         setNewStudentName('');
     };
 
@@ -177,10 +200,19 @@ const LessonReport = () => {
     // Save new students to database and get their IDs
     async function saveNewStudents() {
         const newStudents = attendanceList.filter(student => student.isNew);
+        console.log('New students to save:', newStudents);
+        
+        if (!courseInstanceId) {
+            throw new Error('Course instance ID is not available. Please refresh the page and try again.');
+        }
+        
         const studentsToInsert = newStudents.map(student => ({
             course_instance_id: courseInstanceId,
             full_name: student.name
         }));
+
+        console.log('Students to insert:', studentsToInsert);
+        console.log('Course instance ID:', courseInstanceId);
 
         if (studentsToInsert.length > 0) {
             const { data, error } = await supabase
@@ -188,7 +220,10 @@ const LessonReport = () => {
                 .insert(studentsToInsert)
                 .select();
 
+            console.log('Database response:', { data, error });
+
             if (error) {
+                console.error('Error saving students:', error);
                 throw new Error(`שגיאה בשמירת תלמידים חדשים: ${error.message}`);
             }
 
@@ -203,6 +238,7 @@ const LessonReport = () => {
                 return student;
             });
 
+            console.log('Updated attendance list:', updatedAttendanceList);
             setAttendanceList(updatedAttendanceList);
             return updatedAttendanceList;
         }
@@ -476,8 +512,23 @@ const LessonReport = () => {
             const { data: { user }, error: userError } = await supabase.auth.getUser();
             if (userError || !user) throw new Error('משתמש לא מחובר');
 
+            console.log('Starting form submission...');
+            console.log('Current attendance list:', attendanceList);
+
             // שמירת סטודנטים חדשים קודם
-            const updatedAttendanceList = await saveNewStudents();
+            let updatedAttendanceList;
+            try {
+                updatedAttendanceList = await saveNewStudents();
+                console.log('Students saved successfully:', updatedAttendanceList);
+            } catch (studentError) {
+                console.error('Failed to save students:', studentError);
+                toast({
+                    title: 'שגיאה',
+                    description: studentError.message || 'שגיאה בשמירת תלמידים חדשים',
+                    variant: 'destructive',
+                });
+                return;
+            }
 
             // יצירת דיווח השיעור (ללא attended_student_ids)
             const { data: reportData, error: reportError } = await supabase
@@ -500,8 +551,20 @@ const LessonReport = () => {
 
             if (reportError) throw reportError;
 
+            console.log('Lesson report created:', reportData);
+
             // שמירת נתוני נוכחות בטבלה נפרדת
-            await saveStudentAttendance(reportData.id, updatedAttendanceList);
+            try {
+                await saveStudentAttendance(reportData.id, updatedAttendanceList);
+                console.log('Attendance saved successfully');
+            } catch (attendanceError) {
+                console.error('Failed to save attendance:', attendanceError);
+                toast({
+                    title: 'אזהרה',
+                    description: 'הדיווח נשמר אך הייתה שגיאה בשמירת הנוכחות',
+                    variant: 'destructive',
+                });
+            }
 
             if (files.length > 0) {
                 const uploadResults = await Promise.all(
@@ -568,18 +631,29 @@ const LessonReport = () => {
                                 <Label className="flex items-center">
                                     <UserCheck className="h-4 w-4 ml-2" />
                                     רשימת נוכחות תלמידים
+                                    {!courseInstanceId && (
+                                        <Badge variant="outline" className="mr-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
+                                            טוען...
+                                        </Badge>
+                                    )}
                                 </Label>
 
                                 {/* Add new student */}
                                 <div className="flex gap-2 mb-4">
                                     <Input
-                                        placeholder="הזן שם תלמיד חדש"
+                                        placeholder={courseInstanceId ? "הזן שם תלמיד חדש" : "טוען נתונים..."}
                                         value={newStudentName}
                                         onChange={(e) => setNewStudentName(e.target.value)}
                                         onKeyPress={(e) => e.key === 'Enter' && handleAddStudent()}
                                         className="flex-1"
+                                        disabled={!courseInstanceId}
                                     />
-                                    <Button type="button" onClick={handleAddStudent} variant="outline">
+                                    <Button 
+                                        type="button" 
+                                        onClick={handleAddStudent} 
+                                        variant="outline"
+                                        disabled={!courseInstanceId}
+                                    >
                                         <Plus className="h-4 w-4" />
                                         הוסף
                                     </Button>
@@ -587,7 +661,11 @@ const LessonReport = () => {
 
                                 {/* Attendance list */}
                                 <div className="max-h-64 overflow-y-auto border rounded-lg bg-white">
-                                    {attendanceList.length === 0 ? (
+                                    {!courseInstanceId ? (
+                                        <div className="p-4 text-center text-gray-500">
+                                            טוען נתוני קורס...
+                                        </div>
+                                    ) : attendanceList.length === 0 ? (
                                         <div className="p-4 text-center text-gray-500">
                                             אין תלמידים ברשימה. הוסף תלמידים חדשים למעלה.
                                         </div>
