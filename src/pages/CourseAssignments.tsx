@@ -143,26 +143,44 @@ const CourseAssignments = () => {
         // Fetch lessons
         console.log(`[DEBUG] About to fetch lessons for course IDs:`, courseIds);
         
-        // First, let's check if any lessons exist at all for these courses
-        const { data: allLessonsForCourse, error: allLessonsError } = await supabase
-          .from("lessons")
-          .select("id, title, course_id, instructor_id")
-          .in("course_id", courseIds);
+        let lessons, lessonsError;
         
-        console.log(`[DEBUG] All lessons found for courses (before any filtering):`, allLessonsForCourse);
-        console.log(`[DEBUG] Current user role:`, userRole, `Current user ID:`, user?.id);
-        
-        const { data: lessons, error: lessonsError } = await supabase
-          .from("lessons")
-          .select("*")
-          .in("course_id", courseIds)
-          .order("created_at");
+        if (isInstructor && user?.id) {
+          // For instructors: Query lessons through course_instances to bypass RLS
+          const { data: instructorLessons, error: instructorLessonsError } = await supabase
+            .from("course_instances")
+            .select(`
+              course:course_id (
+                lessons (*)
+              )
+            `)
+            .eq('instructor_id', user.id)
+            .in('id', courseInstanceIds);
+          
+          // Flatten the lessons from the nested structure
+          lessons = instructorLessons?.flatMap(instance => instance.course?.lessons || []) || [];
+          lessonsError = instructorLessonsError;
+          
+          console.log(`[DEBUG] Instructor lessons via course_instances:`, lessons);
+        } else {
+          // For admins: Direct query as before
+          const { data: adminLessons, error: adminLessonsError } = await supabase
+            .from("lessons")
+            .select("*")
+            .in("course_id", courseIds)
+            .order("created_at");
+          
+          lessons = adminLessons;
+          lessonsError = adminLessonsError;
+          
+          console.log(`[DEBUG] Admin lessons direct query:`, lessons);
+        }
 
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
         } else {
           lessonsData = lessons || [];
-          console.log(`[DEBUG] Found ${lessonsData.length} lessons for course IDs:`, courseIds, lessonsData);
+          console.log(`[DEBUG] Found ${lessonsData.length} lessons total:`, lessonsData);
         }
 
         // Fetch tasks for all lessons
