@@ -125,62 +125,24 @@ const CourseAssignments = () => {
 
       if (instancesError) throw instancesError;
 
-      console.log(`[DEBUG] Found ${coursesData?.length || 0} course instances for ${isInstructor ? 'instructor' : 'admin'}:`, coursesData);
-
       // Fetch lessons and tasks for assigned courses
       const courseIds = coursesData?.map((instance: any) => instance.course?.id).filter(Boolean) || [];
-      console.log(`[DEBUG] Course instances details:`, coursesData?.map(instance => ({
-        instanceId: instance.id,
-        courseId: instance.course?.id,
-        courseName: instance.course?.name,
-        instructorId: instance.instructor?.id
-      })));
       let lessonsData: any[] = [];
       let tasksData: any[] = [];
       let schedulesData: any[] = [];
 
       if (courseIds.length > 0) {
         // Fetch lessons
-        console.log(`[DEBUG] About to fetch lessons for course IDs:`, courseIds);
-        
-        let lessons, lessonsError;
-        
-        if (isInstructor && user?.id) {
-          // For instructors: Query lessons through course_instances to bypass RLS
-          const { data: instructorLessons, error: instructorLessonsError } = await supabase
-            .from("course_instances")
-            .select(`
-              course:course_id (
-                lessons (*)
-              )
-            `)
-            .eq('instructor_id', user.id)
-            .in('id', courseInstanceIds);
-          
-          // Flatten the lessons from the nested structure
-          lessons = instructorLessons?.flatMap(instance => instance.course?.lessons || []) || [];
-          lessonsError = instructorLessonsError;
-          
-          console.log(`[DEBUG] Instructor lessons via course_instances:`, lessons);
-        } else {
-          // For admins: Direct query as before
-          const { data: adminLessons, error: adminLessonsError } = await supabase
-            .from("lessons")
-            .select("*")
-            .in("course_id", courseIds)
-            .order("created_at");
-          
-          lessons = adminLessons;
-          lessonsError = adminLessonsError;
-          
-          console.log(`[DEBUG] Admin lessons direct query:`, lessons);
-        }
+        const { data: lessons, error: lessonsError } = await supabase
+          .from("lessons")
+          .select("*")
+          .in("course_id", courseIds)
+          .order("created_at");
 
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
         } else {
           lessonsData = lessons || [];
-          console.log(`[DEBUG] Found ${lessonsData.length} lessons total:`, lessonsData);
         }
 
         // Fetch tasks for all lessons
@@ -198,7 +160,6 @@ const CourseAssignments = () => {
             console.error("Error fetching tasks:", tasksError);
           } else {
             tasksData = tasks || [];
-            console.log(`[DEBUG] Found ${tasksData.length} tasks for ${lessonIds.length} lessons:`, tasksData);
           }
         }
 
@@ -211,7 +172,6 @@ const CourseAssignments = () => {
             schedulesData = allSchedules.filter(schedule => 
               courseInstanceIds.includes(schedule.course_instance_id)
             );
-            console.log(`[DEBUG] Found ${schedulesData.length} schedules for course instances:`, courseInstanceIds, schedulesData);
 
           } catch (error) {
             console.error("Error fetching combined schedules:", error);
@@ -278,11 +238,6 @@ const CourseAssignments = () => {
       };
 
       const formattedAssignments = coursesData?.map(formatAssignmentData) || [];
-      console.log(`[DEBUG] Final formatted assignments:`, formattedAssignments.map(a => ({ 
-        name: a.name, 
-        tasks_count: a.tasks.length,
-        lesson_count: a.lesson_count 
-      })));
       setAssignments(formattedAssignments);
     } catch (error) {
       console.error("Error fetching assignments:", error);
