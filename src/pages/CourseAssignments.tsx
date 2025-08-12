@@ -132,11 +132,17 @@ const CourseAssignments = () => {
 
       if (courseIds.length > 0) {
         // Fetch lessons
-        const { data: lessons, error: lessonsError } = await supabase
+        let lessonsQuery = supabase
           .from("lessons")
           .select("*")
-          .in("course_id", courseIds)
-          .order("created_at");
+          .in("course_id", courseIds);
+
+        // If user is instructor, filter lessons by their instructor_id
+        if (isInstructor && user?.id) {
+          lessonsQuery = lessonsQuery.eq('instructor_id', user.id);
+        }
+
+        const { data: lessons, error: lessonsError } = await lessonsQuery.order("created_at");
 
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
