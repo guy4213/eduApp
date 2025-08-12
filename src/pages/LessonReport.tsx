@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, FileText, CheckCircle, X, Eye, Calendar, User, Users, CalendarDays, Filter } from 'lucide-react';
+import { Camera, FileText, CheckCircle, X, Eye, Calendar, User, Users, CalendarDays, Filter, Plus, UserCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,677 +19,1011 @@ import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 
 const LessonReport = () => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<File[]>([]);
-  const [lessonTitle, setLessonTitle] = useState('');
-  const [participants, setParticipants] = useState('');
-  const [notes, setNotes] = useState('');
-  const [feedback, setFeedback] = useState('');
-  const [marketingConsent, setMarketingConsent] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
+    const fileInputRef = useRef(null);
+    const [files, setFiles] = useState([]);
+    const [lessonTitle, setLessonTitle] = useState('');
+    const [notes, setNotes] = useState('');
+    const [feedback, setFeedback] = useState('');
+    const [marketingConsent, setMarketingConsent] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { toast } = useToast();
 
+    // Student attendance state
+    const [students, setStudents] = useState([]);
+    const [newStudentName, setNewStudentName] = useState('');
+    const [attendanceList, setAttendanceList] = useState([]);
+    const [courseInstanceId, setCourseInstanceId] = useState(null);
+    const [expandedRows, setExpandedRows] = useState(new Set());
 
-  const { id } = useParams<{ id: string }>(); // lesson.lesson_id from URL path
-const location = useLocation();
-const queryParams = new URLSearchParams(location.search);
-const scheduleId = queryParams.get('scheduleId'); // scheduleId from query string
+    const { id } = useParams();
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const scheduleId = queryParams.get('scheduleId');
 
-  const [lesson, setLesson] = useState<any>(null);
-  const [lessonTasks, setLessonTasks] = useState<any[]>([]);
-  const [checkedTasks, setCheckedTasks] = useState<string[]>([]);
-  const [allReports, setAllReports] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-   const [isLessonOk, setIsLessonOk] = useState(false);
-  const[maxPar,setMaxPar]=  useState<any>();
-  const { user } = useAuth();
- const [selectedReport, setSelectedReport] = useState<any | null>(null);
-const [dialogOpen, setDialogOpen] = useState(false);
-  const isInstructor = user?.user_metadata.role === 'instructor';
-  const isAdmin = user?.user_metadata.role === 'admin';
-  
-  // Date filtering state (admin only)
-  const [dateFrom, setDateFrom] = useState<Date | undefined>();
-  const [dateTo, setDateTo] = useState<Date | undefined>();
-  const [filteredReports, setFilteredReports] = useState<any[]>([]);
-  
-    
-  
-  async function getMaxParticipantsByScheduleId(scheduleId) {
-  const { data, error } = await supabase
-    .from('lesson_schedules')
-    .select(`
-      course_instances (
-        max_participants
-      )
-    `)
-    .eq('id', scheduleId)
-    .single();
+    const [lesson, setLesson] = useState(null);
+    const [lessonTasks, setLessonTasks] = useState([]);
+    const [checkedTasks, setCheckedTasks] = useState([]);
+    const [allReports, setAllReports] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [isLessonOk, setIsLessonOk] = useState(false);
+    const [maxPar, setMaxPar] = useState(null);
+    const { user } = useAuth();
+    const [selectedReport, setSelectedReport] = useState(null);
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const isInstructor = user?.user_metadata.role === 'instructor';
+    const isAdmin = user?.user_metadata.role === 'admin';
 
-  if (error) {
-    console.error('Error fetching max participants:', error);
-    throw error;
-  }
+    // Date filtering state (admin only)
+    const [dateFrom, setDateFrom] = useState(undefined);
+    const [dateTo, setDateTo] = useState(undefined);
+    const [filteredReports, setFilteredReports] = useState([]);
 
-  // data.course_instances will be an object with max_participants
-  return data.course_instances?.max_participants ?? null;
-}
-
-useEffect(() => {
-  async function fetchMaxParticipants() {
-    try {
-      const max = await getMaxParticipantsByScheduleId(scheduleId);
-      setMaxPar(max);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  if (scheduleId) {
-    fetchMaxParticipants();
-  }
-}, [scheduleId]);
-
-
-  useEffect(() => {
-
-    if (isInstructor && !id) return;
-    
-    if (isInstructor) {
-      // Fetch lesson data for instructors
-      const fetchLessonData = async () => {
-        const [lessonRes, tasksRes] = await Promise.all([
-          supabase.from('lessons').select('*').eq('id', id).single(),
-          supabase.from('lesson_tasks').select('*').eq('lesson_id', id),
-        ]);
-
-        if (lessonRes.error) {
-          console.error('Lesson fetch error:', lessonRes.error);
-        } else {
-          setLesson(lessonRes.data);
-        }
-
-        if (tasksRes.error) {
-          console.error('Tasks fetch error:', tasksRes.error);
-        } else {
-          setLessonTasks(tasksRes.data || []);
-        }
-      };
-
-      fetchLessonData();
-    } else {
-      // Fetch all reports for admins/managers
-      const fetchAllReports = async () => {
-        setLoading(true);
-       const { data, error } = await supabase
-  .from('lesson_reports')
-  .select(`
-    *,
-    instructor:instructor_id (
-      id,
-      full_name
-    ),
-    profiles (
-      full_name
-    ),
-    lessons:lesson_id (
-      id,
-      course_id,
-      lesson_tasks (
-        id,
-        title,
-        description,
-        is_mandatory
-      ),
-      courses:course_id (
-        name
-      )
-    )
-  `)
-  .order('created_at', { ascending: false });
+    async function getMaxParticipantsByScheduleId(scheduleId) {
+        const { data, error } = await supabase
+            .from('lesson_schedules')
+            .select(`course_instances (
+                max_participants,
+                id
+            )`)
+            .eq('id', scheduleId)
+            .single();
 
         if (error) {
-          console.error('Reports fetch error:', error);
-          toast({
-            title: 'שגיאה',
-            description: 'שגיאה בטעינת הדיווחים',
-            variant: 'destructive',
-          });
-        } else {
-          setAllReports(data || []);
-          setFilteredReports(data || []);
+            console.error('Error fetching max participants:', error);
+            throw error;
         }
-        setLoading(false);
-      };
 
-      fetchAllReports();
+        return {
+            maxParticipants: data.course_instances?.max_participants ?? null,
+            courseInstanceId: data.course_instances?.id ?? null
+        };
     }
-  }, [id, isInstructor, toast]);
 
-  // Date filtering effect (admin only)
-  useEffect(() => {
-    if (!isAdmin || !allReports.length) return;
-    
-    let filtered = [...allReports];
-    
-    if (dateFrom) {
-      filtered = filtered.filter(report => 
-        new Date(report.created_at) >= dateFrom
-      );
+    // Fetch existing students for the course instance
+    async function fetchStudentsByCourseInstance(courseInstanceId) {
+        const { data, error } = await supabase
+            .from('students')
+            .select('*')
+            .eq('course_instance_id', courseInstanceId)
+            .order('full_name');
+
+        if (error) {
+            console.error('Error fetching students:', error);
+            return [];
+        }
+
+        return data || [];
     }
-    
-    if (dateTo) {
-      const endOfDay = new Date(dateTo);
-      endOfDay.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(report => 
-        new Date(report.created_at) <= endOfDay
-      );
-    }
-    
-    setFilteredReports(filtered);
-  }, [dateFrom, dateTo, allReports, isAdmin]);
 
-  const clearDateFilters = () => {
-    setDateFrom(undefined);
-    setDateTo(undefined);
-  };
+    useEffect(() => {
+        async function fetchMaxParticipants() {
+            try {
+                const result = await getMaxParticipantsByScheduleId(scheduleId);
+                setMaxPar(result.maxParticipants);
+                setCourseInstanceId(result.courseInstanceId);
+            } catch (err) {
+                console.error(err);
+            }
+        }
 
-  const handleToggleTask = (taskId: string) => {
-    setCheckedTasks((prev) =>
-      prev.includes(taskId)
-        ? prev.filter((id) => id !== taskId)
-        : [...prev, taskId]
-    );
-  };
+        if (scheduleId) {
+            fetchMaxParticipants();
+        }
+    }, [scheduleId]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files || []);
-    setFiles((prev) => [...prev, ...selectedFiles]);
-  };
+    // Fetch students when course instance ID is available
+    useEffect(() => {
+        async function loadStudents() {
+            if (!courseInstanceId) return;
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const droppedFiles = Array.from(event.dataTransfer.files);
-    setFiles((prev) => [...prev, ...droppedFiles]);
-  };
+            try {
+                const existingStudents = await fetchStudentsByCourseInstance(courseInstanceId);
+                setStudents(existingStudents);
 
-  const handleClick = () => fileInputRef.current?.click();
+                // Initialize attendance list with existing students
+                const initialAttendanceList = existingStudents.map(student => ({
+                    id: student.id,
+                    name: student.full_name,
+                    isPresent: false,
+                    isNew: false
+                }));
+                setAttendanceList(initialAttendanceList);
+            } catch (err) {
+                console.error('Error loading students:', err);
+            }
+        }
 
-  const handleRemoveFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-  };
+        loadStudents();
+    }, [courseInstanceId]);
 
-  console.log("allReports",allReports)
-  const uploadFile = async (file: File, lessonReportId: string) => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
-    const filePath = `lesson-reports/${lessonReportId}/${fileName}`;
+    // Add new student to attendance list (UI only)
+    const handleAddStudent = () => {
+        if (!newStudentName.trim()) {
+            toast({
+                title: 'שגיאה',
+                description: 'נדרש להזין שם תלמיד',
+                variant: 'destructive',
+            });
+            return;
+        }
 
-    const { error: uploadError } = await supabase.storage
-      .from('lesson-files')
-      .upload(filePath, file);
+        const newStudent = {
+            id: `temp_${Date.now()}`,
+            name: newStudentName.trim(),
+            isPresent: false,
+            isNew: true
+        };
 
-    if (uploadError) throw uploadError;
+        setAttendanceList(prev => [...prev, newStudent]);
+        setNewStudentName('');
+    };
 
-    const { error: dbError } = await supabase.from('lesson_files').insert({
-      lesson_report_id: lessonReportId,
-      file_name: file.name,
-      file_path: filePath,
-      file_size: file.size,
-      file_type: file.type,
-      is_for_marketing: marketingConsent,
-    });
-
-    if (dbError) throw dbError;
-
-    return true;
-  };
-
-  const handleSubmit = async () => {
-    if(participants>maxPar||participants=='0'||!participants||isNaN(Number(participants))){
-      toast({
-        title: 'שגיאה',
-        description: `נדרש להזין מספר! ועד ${maxPar} משתתפים` ,
-        variant: 'destructive',
-      });
-       return;
-    }
-    if (!lessonTitle.trim()) {
-      toast({
-        title: 'שגיאה',
-        description: 'נדרש להזין כותרת שיעור',
-        variant: 'destructive',
-      });
-      return;
-    }
-  if (!isLessonOk && !feedback.trim()) {
-    toast({
-      title: 'שגיאה',
-      description: 'בבקשה הזן משוב במידה והשיעור לא התנהל כשורה',
-      variant: 'destructive',
-    });
-    return;
-  }
-    setIsSubmitting(true);
-
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) throw new Error('משתמש לא מחובר');
-
-      const { data: reportData, error: reportError } = await supabase
-        .from('lesson_reports')
-        .insert({
-          lesson_title: lessonTitle,
-          participants_count: parseInt(participants) || 0,
-          notes,
-          feedback,
-          marketing_consent: marketingConsent,
-          instructor_id: user.id,
-          is_lesson_ok:isLessonOk,
-          completed_task_ids: checkedTasks,
-          lesson_schedule_id: scheduleId,
-          lesson_id: id,
-        })
-        .select()
-        .single();
-
-      if (reportError) throw reportError;
-
-      if (files.length > 0) {
-        const uploadResults = await Promise.all(
-          files.map((file) => uploadFile(file, reportData.id))
+    // Toggle student presence
+    const handleTogglePresence = (studentId) => {
+        setAttendanceList(prev =>
+            prev.map(student =>
+                student.id === studentId
+                    ? { ...student, isPresent: !student.isPresent }
+                    : student
+            )
         );
-        const failed = uploadResults.filter((r) => !r).length;
-        if (failed > 0) {
-          toast({
-            title: 'אזהרה',
-            description: `${failed} קבצים לא הועלו בהצלחה`,
-            variant: 'destructive',
-          });
+    };
+
+    // Remove student from attendance list (UI only)
+    const handleRemoveStudent = (studentId) => {
+        setAttendanceList(prev => prev.filter(student => student.id !== studentId));
+    };
+
+    // Save new students to database and get their IDs
+    async function saveNewStudents() {
+        const newStudents = attendanceList.filter(student => student.isNew);
+        const studentsToInsert = newStudents.map(student => ({
+            course_instance_id: courseInstanceId,
+            full_name: student.name
+        }));
+
+        if (studentsToInsert.length > 0) {
+            const { data, error } = await supabase
+                .from('students')
+                .insert(studentsToInsert)
+                .select();
+
+            if (error) {
+                throw new Error(`שגיאה בשמירת תלמידים חדשים: ${error.message}`);
+            }
+
+            // Update attendance list with real IDs
+            const updatedAttendanceList = attendanceList.map(student => {
+                if (student.isNew) {
+                    const savedStudent = data.find(s => s.full_name === student.name);
+                    if (savedStudent) {
+                        return { ...student, id: savedStudent.id, isNew: false };
+                    }
+                }
+                return student;
+            });
+
+            setAttendanceList(updatedAttendanceList);
+            return updatedAttendanceList;
         }
-      }
 
-      toast({ title: 'הצלחה!', description: 'דיווח השיעור נשמר בהצלחה' });
-
-      // Reset
-      setLessonTitle('');
-      setParticipants('');
-      setNotes('');
-      setFeedback('');
-      setFiles([]);
-      setCheckedTasks([]);
-      setMarketingConsent(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-
-    } catch (err: any) {
-      toast({
-        title: 'שגיאה',
-        description: err.message || 'אירעה שגיאה בשמירת הדיווח',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
+        return attendanceList;
     }
-  };
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="md:hidden"><MobileNavigation /></div>
-      <div className="max-w-7xl mx-auto ">
-{   isInstructor?     
-<h1 className="text-3xl font-bold text-gray-900 mb-2">דיווח שיעור - {lesson?.title}</h1>
-:
-<h1 className="text-3xl font-bold text-gray-900 mb-2">כלל השיעורים שדווחו </h1>
+    // שמירת נוכחות בטבלת lesson_attendance
+    async function saveStudentAttendance(lessonReportId, attendanceList) {
+        const attendanceRecords = attendanceList
+            .filter(student => !student.isNew) // רק סטודנטים קיימים (עם ID אמיתי)
+            .map(student => ({
+                lesson_report_id: lessonReportId,
+                student_id: student.id,
+                attended: student.isPresent
+            }));
 
+        if (attendanceRecords.length > 0) {
+            const { error } = await supabase
+                .from('lesson_attendance')
+                .insert(attendanceRecords);
 
-}
+            if (error) {
+                throw new Error(`שגיאה בשמירת נוכחות: ${error.message}`);
+            }
+        }
+    }
 
-       { isInstructor?   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Report Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center"><FileText className="h-5 w-5 ml-2" />טופס דיווח</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="lesson-title">נושא השיעור *</Label>
-                <Input id="lesson-title" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} required />
-              </div>
+    // Toggle row expansion for attendance details
+    const toggleRowExpansion = (reportId) => {
+        setExpandedRows(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(reportId)) {
+                newSet.delete(reportId);
+            } else {
+                newSet.add(reportId);
+            }
+            return newSet;
+        });
+    };
 
-              <div>
-                <Label htmlFor="participants">מספר משתתפים</Label>
-                <Input id="participants" type="number" value={participants} placeholder={ '  מקסימום משתתפים : '+maxPar} onChange={(e) => setParticipants(e.target.value)} />
-              </div>
-             
-              <div>
-                <Label>משימות</Label>
-                {lessonTasks.map((task) => (
-                  <div key={task.id} className="flex items-center gap-2 mb-2">
-                    <input
-                      type="checkbox"
-                      checked={checkedTasks.includes(task.id)}
-                      onChange={() => handleToggleTask(task.id)}
-                      className="w-4 h-4"
-                    />
-                    <label className="text-sm">{task.title}</label>
-                  </div>
-                ))}
-              </div>
-                 <div className="flex items-center  ">
-                    <input
-                      type="checkbox"
-                      checked={isLessonOk}
-                      onChange={() => setIsLessonOk(!isLessonOk)}
-                      className="w-4 h-4"
-                    />
-                    <label className="text-sm pr-1">האם השיעור התנהל כשורה </label>
-                  </div>
-              <div>
-                <Label htmlFor="notes">הערות נוספות</Label>
-                <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-              </div>
+    useEffect(() => {
+        if (isInstructor && !id) return;
 
-              <div>
-                <Label htmlFor="feedback">משוב כללי</Label>
-                <Textarea id="feedback" value={feedback} required={!isLessonOk} onChange={(e) => setFeedback(e.target.value)} rows={3} />
-              </div>
+        if (isInstructor) {
+            // Fetch lesson data for instructors
+            const fetchLessonData = async () => {
+                const [lessonRes, tasksRes] = await Promise.all([
+                    supabase.from('lessons').select('*').eq('id', id).single(),
+                    supabase.from('lesson_tasks').select('*').eq('lesson_id', id),
+                ]);
 
-              <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
-                <CheckCircle className="h-4 w-4 ml-2" />
-                {isSubmitting ? 'שומר...' : 'שמור דיווח'}
-              </Button>
-            </CardContent>
-          </Card>
+                if (lessonRes.error) {
+                    console.error('Lesson fetch error:', lessonRes.error);
+                } else {
+                    setLesson(lessonRes.data);
+                }
 
-          {/* File Upload */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center"><Camera className="h-5 w-5 ml-2" />העלאת קבצים</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div
-                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-gray-400"
-                onClick={handleClick}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-              >
-                <Camera className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">גרור קבצים לכאן או לחץ להעלאה</p>
-                <Button variant="outline" type="button">בחר קבצים</Button>
-                <input
-                  type="file"
-                  multiple
-                  hidden
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept="image/*,video/*,.pdf,.doc,.docx"
-                />
-              </div>
+                if (tasksRes.error) {
+                    console.error('Tasks fetch error:', tasksRes.error);
+                } else {
+                    setLessonTasks(tasksRes.data || []);
+                }
+            };
 
-              {files.length > 0 && (
-                <div className="bg-gray-100 p-3 rounded-lg space-y-2">
-                  <h4 className="text-sm font-semibold text-right">קבצים שנבחרו:</h4>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    {files.map((file, index) => (
-                      <li key={index} className="flex justify-between items-center">
-                        <span className="truncate">{file.name}</span>
-                        <Button variant="ghost" size="icon" onClick={() => handleRemoveFile(index)} type="button">
-                          <X className="w-4 h-4 text-red-500" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+            fetchLessonData();
+        } else {
+            // Fetch all reports for admins/managers with enhanced data
+            const fetchAllReports = async () => {
+                setLoading(true);
+                const { data, error } = await supabase
+                    .from('lesson_reports')
+                    .select(`*,
+                        instructor:instructor_id (
+                            id,
+                            full_name
+                        ),
+                        profiles (
+                            full_name
+                        ),
+                        lesson_schedules!lesson_schedule_id (
+                            id,
+                            course_instances (
+                                id,
+                                students (
+                                    id,
+                                    full_name
+                                )
+                            )
+                        ),
+                        lesson_attendance (
+                            student_id,
+                            attended,
+                            students (
+                                id,
+                                full_name
+                            )
+                        ),
+                        lessons:lesson_id (
+                            id,
+                            course_id,
+                            lesson_tasks (
+                                id,
+                                title,
+                                description,
+                                is_mandatory
+                            ),
+                            courses:course_id (
+                                name
+                            )
+                        )`)
+                    .order('created_at', { ascending: false });
 
-              <Label className="flex items-center justify-end">
-                <input
-                  type="checkbox"
-                  className="ml-2"
-                  checked={marketingConsent}
-                  onChange={(e) => setMarketingConsent(e.target.checked)}
-                />
-                אישור להשתמש בתמונות לצרכי שיווק
-              </Label>
-            </CardContent>
-          </Card>
-        </div>
-        :
-        <div className="space-y-6 ">
-          {/* Date Filter for Admins */}
-          {isAdmin && (
-            <Card className="border-primary/20 shadow-md">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center text-primary">
-                  <Filter className="h-5 w-5 ml-2" />
-                  סינון לפי תאריך יצירה
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4 items-end">
-                  <div className="flex-1">
-                    <Label htmlFor="date-from">מתאריך</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                        >
-                          <CalendarDays className="ml-2 h-4 w-4" />
-                          {dateFrom ? format(dateFrom, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך התחלה'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={dateFrom}
-                          onSelect={setDateFrom}
-                          initialFocus
-                          locale={he}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  
-                  <div className="flex-1">
-                    <Label htmlFor="date-to">עד תאריך</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                        >
-                          <CalendarDays className="ml-2 h-4 w-4" />
-                          {dateTo ? format(dateTo, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך סיום'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={dateTo}
-                          onSelect={setDateTo}
-                          initialFocus
-                          locale={he}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  
-                  <Button 
-                    variant="outline" 
-                    onClick={clearDateFilters}
-                    className="px-6"
-                  >
-                    נקה סינון
-                  </Button>
-                </div>
-                
-                {(dateFrom || dateTo) && (
-                  <div className="mt-4 p-3 bg-primary/5 rounded-lg">
-                    <p className="text-sm text-primary font-medium">
-                      מציג {filteredReports.length} דיווחים מתוך {allReports.length}
-                      {dateFrom && ` מתאריך ${format(dateFrom, 'dd/MM/yyyy', { locale: he })}`}
-                      {dateTo && ` עד תאריך ${format(dateTo, 'dd/MM/yyyy', { locale: he })}`}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-          
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">טוען דיווחים...</p>
-            </div>
-          ) : allReports.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-8">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">אין דיווחים זמינים</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="border-border/50 shadow-lg">
-              <CardHeader className="border-b border-border/50 bg-muted/10">
-                <CardTitle className="flex items-center text-primary">
-                  <FileText className="h-5 w-5 ml-2" />
-                  כל הדיווחים ({isAdmin ? filteredReports.length : allReports.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-primary/5 border-b-2 border-primary/20 hover:bg-primary/10">
-                        <TableHead className="font-bold text-primary py-4 px-6 text-right">כותרת השיעור</TableHead>
-                        <TableHead className="font-bold text-primary py-4 px-6 text-right">קורס</TableHead>
-                        <TableHead className="font-bold text-primary py-4 px-6 text-right">מדריך</TableHead>
-                        <TableHead className="font-bold text-primary py-4 px-6 text-right">משתתפים</TableHead>
-                        <TableHead className="font-bold text-primary py-4 px-6 text-right">משימות שבוצעו</TableHead>
-                        <TableHead className="font-bold text-primary py-4 px-6 text-right">תאריך</TableHead>
-                        <TableHead className="font-bold text-primary py-4 px-6 text-right">משוב</TableHead>
-                        <TableHead className="font-bold text-primary py-4 px-6 text-right">התנהל כשורה</TableHead>
-                        <TableHead className="font-bold text-primary py-4 px-6 text-right">צפייה</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(isAdmin ? filteredReports : allReports).map((report, index) => (
-                        <TableRow 
-                          key={report.id} 
-                          className={`
-                            hover:bg-primary/5 transition-all duration-200 border-b border-border/30
-                            ${index % 2 === 0 ? 'bg-background' : 'bg-muted/20'}
-                          `}
-                        >
-                          <TableCell className="font-medium py-4 px-6">
-                            <div className="font-bold text-foreground text-base">
-                              {report.lesson_title}
+                if (error) {
+                    console.error('Reports fetch error:', error);
+                    toast({
+                        title: 'שגיאה',
+                        description: 'שגיאה בטעינת הדיווחים',
+                        variant: 'destructive',
+                    });
+                } else {
+                    // Process reports to include attendance data from lesson_attendance table
+                    const processedReports = data.map(report => {
+                        const allStudents = report.lesson_schedules?.course_instances?.students || [];
+                        const attendanceRecords = report.lesson_attendance || [];
+                        
+                        // יצירת נתוני נוכחות מהטבלה החדשה
+                        const attendanceData = allStudents.map(student => {
+                            const attendanceRecord = attendanceRecords.find(
+                                record => record.student_id === student.id
+                            );
+                            return {
+                                id: student.id,
+                                name: student.full_name,
+                                attended: attendanceRecord ? attendanceRecord.attended : false
+                            };
+                        });
+
+                        return {
+                            ...report,
+                            totalStudents: allStudents.length,
+                            attendanceData: attendanceData,
+                            // חישוב מספר הנוכחים מתוך טבלת הנוכחות
+                            participants_count: attendanceRecords.filter(r => r.attended).length
+                        };
+                    });
+
+                    setAllReports(processedReports || []);
+                    setFilteredReports(processedReports || []);
+                }
+                setLoading(false);
+            };
+
+            fetchAllReports();
+        }
+    }, [id, isInstructor, toast]);
+
+    // Date filtering effect (admin only)
+    useEffect(() => {
+        if (!isAdmin || !allReports.length) return;
+
+        let filtered = [...allReports];
+
+        if (dateFrom) {
+            filtered = filtered.filter(report =>
+                new Date(report.created_at) >= dateFrom
+            );
+        }
+
+        if (dateTo) {
+            const endOfDay = new Date(dateTo);
+            endOfDay.setHours(23, 59, 59, 999);
+            filtered = filtered.filter(report =>
+                new Date(report.created_at) <= endOfDay
+            );
+        }
+
+        setFilteredReports(filtered);
+    }, [dateFrom, dateTo, allReports, isAdmin]);
+
+    const clearDateFilters = () => {
+        setDateFrom(undefined);
+        setDateTo(undefined);
+    };
+
+    const handleToggleTask = (taskId) => {
+        setCheckedTasks((prev) =>
+            prev.includes(taskId)
+                ? prev.filter((id) => id !== taskId)
+                : [...prev, taskId]
+        );
+    };
+
+    const handleFileSelect = (event) => {
+        const selectedFiles = Array.from(event.target.files || []);
+        setFiles((prev) => [...prev, ...selectedFiles]);
+    };
+
+    const handleDrop = (event) => {
+        event.preventDefault();
+        const droppedFiles = Array.from(event.dataTransfer.files);
+        setFiles((prev) => [...prev, ...droppedFiles]);
+    };
+
+    const handleClick = () => fileInputRef.current?.click();
+
+    const handleRemoveFile = (index) => {
+        setFiles((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const uploadFile = async (file, lessonReportId) => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
+        const filePath = `lesson-reports/${lessonReportId}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('lesson-files')
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { error: dbError } = await supabase.from('lesson_files').insert({
+            lesson_report_id: lessonReportId,
+            file_name: file.name,
+            file_path: filePath,
+            file_size: file.size,
+            file_type: file.type,
+            is_for_marketing: marketingConsent,
+        });
+
+        if (dbError) throw dbError;
+
+        return true;
+    };
+
+    const handleSubmit = async () => {
+        // Count present students
+        const presentStudents = attendanceList.filter(student => student.isPresent).length;
+        const participantsCount = presentStudents;
+
+        if (participantsCount > maxPar || participantsCount === 0) {
+            toast({
+                title: 'שגיאה',
+                description: `נדרש לבחור לפחות תלמיד אחד ועד ${maxPar} משתתפים`,
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        if (!lessonTitle.trim()) {
+            toast({
+                title: 'שגיאה',
+                description: 'נדרש להזין כותרת שיעור',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        if (!isLessonOk && !feedback.trim()) {
+            toast({
+                title: 'שגיאה',
+                description: 'בבקשה הזן משוב במידה והשיעור לא התנהל כשורה',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        try {
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError || !user) throw new Error('משתמש לא מחובר');
+
+            // שמירת סטודנטים חדשים קודם
+            const updatedAttendanceList = await saveNewStudents();
+
+            // יצירת דיווח השיעור (ללא attended_student_ids)
+            const { data: reportData, error: reportError } = await supabase
+                .from('lesson_reports')
+                .insert({
+                    lesson_title: lessonTitle,
+                    participants_count: participantsCount,
+                    notes,
+                    feedback,
+                    marketing_consent: marketingConsent,
+                    instructor_id: user.id,
+                    is_lesson_ok: isLessonOk,
+                    completed_task_ids: checkedTasks,
+                    lesson_schedule_id: scheduleId,
+                    lesson_id: id,
+                    // הסרנו את attended_student_ids מכאן
+                })
+                .select()
+                .single();
+
+            if (reportError) throw reportError;
+
+            // שמירת נתוני נוכחות בטבלה נפרדת
+            await saveStudentAttendance(reportData.id, updatedAttendanceList);
+
+            if (files.length > 0) {
+                const uploadResults = await Promise.all(
+                    files.map((file) => uploadFile(file, reportData.id))
+                );
+                const failed = uploadResults.filter((r) => !r).length;
+                if (failed > 0) {
+                    toast({
+                        title: 'אזהרה',
+                        description: `${failed} קבצים לא הועלו בהצלחה`,
+                        variant: 'destructive',
+                    });
+                }
+            }
+
+            toast({ title: 'הצלחה!', description: 'דיווח השיעור נשמר בהצלחה' });
+
+            // Reset form
+            setLessonTitle('');
+            setNotes('');
+            setFeedback('');
+            setFiles([]);
+            setCheckedTasks([]);
+            setMarketingConsent(false);
+            // Reset attendance but keep existing students
+            setAttendanceList(prev => prev.map(student => ({ ...student, isPresent: false, isNew: false })));
+            if (fileInputRef.current) fileInputRef.current.value = '';
+
+        } catch (err) {
+            toast({
+                title: 'שגיאה',
+                description: err.message || 'אירעה שגיאה בשמירת הדיווח',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-50 p-6">
+            <div className="md:hidden"><MobileNavigation /></div>
+            <div className="max-w-7xl mx-auto ">
+                {isInstructor ?
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">דיווח שיעור - {lesson?.title}</h1>
+                    :
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">כלל השיעורים שדווחו </h1>
+                }
+
+                {isInstructor ? <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Report Form */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center"><FileText className="h-5 w-5 ml-2" />טופס דיווח</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <Label htmlFor="lesson-title">נושא השיעור *</Label>
+                                <Input id="lesson-title" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} required />
                             </div>
-                          </TableCell>
-                          <TableCell className="py-4 ml-4">
-                            <Badge variant="outline" className="font-medium border-primary/30 text-primary bg-primary/5 hover:bg-primary/10">
-                              {report.lessons?.courses?.name || 'לא זמין'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="py-4 ">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 bg-primary/10 rounded-full">
-                                <User className="h-4 w-4 text-primary" />
-                              </div>
-                              <span className="font-medium text-foreground">{report.instructor?.full_name || 'לא זמין'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 bg-accent/20 rounded-full">
-                                <Users className="h-4 w-4 text-accent-foreground" />
-                              </div>
-                              <span className="font-bold text-lg text-accent-foreground">{report.participants_count || 0}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-4 px-6">
-                            <div className="space-y-1">
-                              {report.lessons?.lesson_tasks && report.lessons.lesson_tasks.length > 0 ? (
-                                <div className="flex items-center gap-3">
-                                  <Badge variant="secondary" className="text-sm font-medium bg-secondary/80 text-secondary-foreground px-3 py-1">
-                                    {report.completed_task_ids?.length || 0} מתוך {report.lessons.lesson_tasks.length}
-                                  </Badge>
-                                  <div className="p-1 bg-emerald-100 rounded-full">
-                                    <CheckCircle className="h-4 w-4 text-emerald-600" />
-                                  </div>
+
+                            {/* Student Attendance List */}
+                            <div>
+                                <Label className="flex items-center">
+                                    <UserCheck className="h-4 w-4 ml-2" />
+                                    רשימת נוכחות תלמידים
+                                </Label>
+
+                                {/* Add new student */}
+                                <div className="flex gap-2 mb-4">
+                                    <Input
+                                        placeholder="הזן שם תלמיד חדש"
+                                        value={newStudentName}
+                                        onChange={(e) => setNewStudentName(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleAddStudent()}
+                                        className="flex-1"
+                                    />
+                                    <Button type="button" onClick={handleAddStudent} variant="outline">
+                                        <Plus className="h-4 w-4" />
+                                        הוסף
+                                    </Button>
                                 </div>
-                              ) : (
-                                <div className="flex items-center text-muted-foreground">
-                                  <span className="text-sm font-medium">אין משימות</span>
+
+                                {/* Attendance list */}
+                                <div className="max-h-64 overflow-y-auto border rounded-lg bg-white">
+                                    {attendanceList.length === 0 ? (
+                                        <div className="p-4 text-center text-gray-500">
+                                            אין תלמידים ברשימה. הוסף תלמידים חדשים למעלה.
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y">
+                                            {attendanceList.map((student) => (
+                                                <div key={student.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
+                                                    <div className="flex items-center gap-3">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={student.isPresent}
+                                                            onChange={() => handleTogglePresence(student.id)}
+                                                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                                        />
+                                                        <span className={`font-medium ${student.isPresent ? 'text-green-700' : 'text-gray-700'}`}>
+                                                            {student.name}
+                                                        </span>
+                                                        {student.isNew && (
+                                                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                                                חדש
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleRemoveStudent(student.id)}
+                                                        className="text-red-500 hover:text-red-700"
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                              )}
+                                {/* Present students counter */}
+                                <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded mt-2">
+                                    נוכחים: <span className="font-bold text-green-600">{attendanceList.filter(s => s.isPresent).length}</span> מתוך {attendanceList.length} תלמידים
+                                    {maxPar && (
+                                        <span className="mr-2">
+                                            (מקסימום: {maxPar})
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                          </TableCell>
-                          <TableCell className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 bg-muted rounded-full">
-                                <Calendar className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                              <span className="text-sm font-medium text-foreground">
-                                {new Date(report.created_at).toLocaleDateString('he-IL')}
-                              </span>
+                            <div>
+                                <Label>משימות</Label>
+                                {lessonTasks.map((task) => (
+                                    <div key={task.id} className="flex items-center gap-2 mb-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={checkedTasks.includes(task.id)}
+                                            onChange={() => handleToggleTask(task.id)}
+                                            className="w-4 h-4"
+                                        />
+                                        <label className="text-sm">{task.title}</label>
+                                    </div>
+                                ))}
                             </div>
-                          </TableCell>
-                          <TableCell className="py-4 px-6">
-                            {report.feedback ? (
-                              <Badge variant="default" className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-medium">
-                                יש משוב
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-muted-foreground">
-                                אין משוב
-                              </Badge>
-                            )}
-                          </TableCell>
-                         <TableCell className='px-12'> {report.is_lesson_ok? (
-                              <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
-                                כן 
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-muted-foreground bg-red-100  hover:bg-red-200">
-                                 לא
-                              </Badge>
-                            )}
-                            </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="hover:bg-primary hover:text-primary-foreground transition-colors"
-                              onClick={() => {
-                                setSelectedReport(report);
-                                setDialogOpen(true);
-                              }}
-                            >
-                              <Eye className="h-3 w-3 " />
-                              צפה במשוב
+
+                            <div className="flex items-center ">
+                                <input
+                                    type="checkbox"
+                                    checked={isLessonOk}
+                                    onChange={() => setIsLessonOk(!isLessonOk)}
+                                    className="w-4 h-4"
+                                />
+                                <label className="text-sm pr-1">האם השיעור התנהל כשורה </label>
+                            </div>
+
+                            <div>
+                                <Label htmlFor="notes">הערות נוספות</Label>
+                                <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="feedback">משוב כללי</Label>
+                                <Textarea id="feedback" value={feedback} required={!isLessonOk} onChange={(e) => setFeedback(e.target.value)} rows={3} />
+                            </div>
+
+                            <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
+                                <CheckCircle className="h-4 w-4 ml-2" />
+                                {isSubmitting ? 'שומר...' : 'שמור דיווח'}
                             </Button>
+                        </CardContent>
+                    </Card>
 
+                    {/* File Upload */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center"><Camera className="h-5 w-5 ml-2" />העלאת קבצים</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div
+                                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-gray-400"
+                                onClick={handleClick}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={handleDrop}
+                            >
+                                <Camera className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                                <p className="text-gray-500 mb-4">גרור קבצים לכאן או לחץ להעלאה</p>
+                                <Button variant="outline" type="button">בחר קבצים</Button>
+                                <input
+                                    type="file"
+                                    multiple
+                                    hidden
+                                    ref={fileInputRef}
+                                    onChange={handleFileSelect}
+                                    accept="image/*,video/*,.pdf,.doc,.docx"
+                                />
+                            </div>
 
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                            {files.length > 0 && (
+                                <div className="bg-gray-100 p-3 rounded-lg space-y-2">
+                                    <h4 className="text-sm font-semibold text-right">קבצים שנבחרו:</h4>
+                                    <ul className="text-sm text-gray-700 space-y-1">
+                                        {files.map((file, index) => (
+                                            <li key={index} className="flex justify-between items-center">
+                                                <span className="truncate">{file.name}</span>
+                                                <Button variant="ghost" size="icon" onClick={() => handleRemoveFile(index)} type="button">
+                                                    <X className="w-4 h-4 text-red-500" />
+                                                </Button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            <Label className="flex items-center justify-end">
+                                <input
+                                    type="checkbox"
+                                    className="ml-2"
+                                    checked={marketingConsent}
+                                    onChange={(e) => setMarketingConsent(e.target.checked)}
+                                />
+                                אישור להשתמש בתמונות לצרכי שיווק
+                            </Label>
+                        </CardContent>
+                    </Card>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>}
-      </div>
-      <FeedbackDialog
-  open={dialogOpen}
-  onOpenChange={setDialogOpen}
-  report={selectedReport}
-/>
-    </div>
-  );
+                    :
+                    <div className="space-y-6 ">
+                        {/* Date Filter for Admins */}
+                        {isAdmin && (
+                            <Card className="border-primary/20 shadow-md">
+                                <CardHeader className="pb-4">
+                                    <CardTitle className="flex items-center text-primary">
+                                        <Filter className="h-5 w-5 ml-2" />
+                                        סינון לפי תאריך יצירה
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex flex-col sm:flex-row gap-4 items-end">
+                                        <div className="flex-1">
+                                            <Label htmlFor="date-from">מתאריך</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        className="w-full justify-start text-left font-normal"
+                                                    >
+                                                        <CalendarDays className="ml-2 h-4 w-4" />
+                                                        {dateFrom ? format(dateFrom, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך התחלה'}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <CalendarComponent
+                                                        mode="single"
+                                                        selected={dateFrom}
+                                                        onSelect={setDateFrom}
+                                                        initialFocus
+                                                        locale={he}
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+
+                                        <div className="flex-1">
+                                            <Label htmlFor="date-to">עד תאריך</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        className="w-full justify-start text-left font-normal"
+                                                    >
+                                                        <CalendarDays className="ml-2 h-4 w-4" />
+                                                        {dateTo ? format(dateTo, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך סיום'}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <CalendarComponent
+                                                        mode="single"
+                                                        selected={dateTo}
+                                                        onSelect={setDateTo}
+                                                        initialFocus
+                                                        locale={he}
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+
+                                        <Button
+                                            variant="outline"
+                                            onClick={clearDateFilters}
+                                            className="px-6"
+                                        >
+                                            נקה סינון
+                                        </Button>
+                                    </div>
+
+                                    {(dateFrom || dateTo) && (
+                                        <div className="mt-4 p-3 bg-primary/5 rounded-lg">
+                                            <p className="text-sm text-primary font-medium">
+                                                מציג {filteredReports.length} דיווחים מתוך {allReports.length}
+                                                {dateFrom && ` מתאריך ${format(dateFrom, 'dd/MM/yyyy', { locale: he })}`}
+                                                {dateTo && ` עד תאריך ${format(dateTo, 'dd/MM/yyyy', { locale: he })}`}
+                                            </p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {loading ? (
+                            <div className="text-center py-8">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                                <p className="text-muted-foreground">טוען דיווחים...</p>
+                            </div>
+                        ) : allReports.length === 0 ? (
+                            <Card>
+                                <CardContent className="text-center py-8">
+                                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                                    <p className="text-muted-foreground">אין דיווחים זמינים</p>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <Card className="border-border/50 shadow-lg">
+                                <CardHeader className="border-b border-border/50 bg-muted/10">
+                                    <CardTitle className="flex items-center text-primary">
+                                        <FileText className="h-5 w-5 ml-2" />
+                                        כל הדיווחים ({isAdmin ? filteredReports.length : allReports.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                    <div className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="bg-primary/5 border-b-2 border-primary/20 hover:bg-primary/10">
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">כותרת השיעור</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">קורס</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">מדריך</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">נוכחות</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">רשימת תלמידים</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">משימות שבוצעו</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">תאריך</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">משוב</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">התנהל כשורה</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">צפייה</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {(isAdmin ? filteredReports : allReports).map((report, index) => (
+                                                    <React.Fragment key={report.id}>
+                                                        <TableRow
+                                                            className={`hover:bg-primary/5 transition-all duration-200 border-b border-border/30
+                                                            ${index % 2 === 0 ? 'bg-background' : 'bg-muted/20'}
+                                                            `}
+                                                        >
+                                                            <TableCell className="font-medium py-4 px-6">
+                                                                <div className="font-bold text-foreground text-base">
+                                                                    {report.lesson_title}
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="py-4 ml-4">
+                                                                <Badge variant="outline" className="font-medium border-primary/30 text-primary bg-primary/5 hover:bg-primary/10">
+                                                                    {report.lessons?.courses?.name || 'לא זמין'}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="py-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="p-1.5 bg-primary/10 rounded-full">
+                                                                        <User className="h-4 w-4 text-primary" />
+                                                                    </div>
+                                                                    <span className="font-medium text-foreground">{report.instructor?.full_name || 'לא זמין'}</span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="py-4 px-6">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="p-1.5 bg-accent/20 rounded-full">
+                                                                        <Users className="h-4 w-4 text-accent-foreground" />
+                                                                    </div>
+                                                                    <span className="font-bold text-lg">
+                                                                        {report.participants_count || 0}
+                                                                        <span className="text-sm font-normal text-muted-foreground">
+                                                                            {' '}מתוך {report.totalStudents || 0}
+                                                                        </span>
+                                                                    </span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="py-4 px-6">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => toggleRowExpansion(report.id)}
+                                                                    className="flex items-center gap-1 hover:bg-primary/10"
+                                                                >
+                                                                    <Users className="h-4 w-4" />
+                                                                    <span>הצג רשימה</span>
+                                                                    {expandedRows.has(report.id) ? 
+                                                                        <ChevronUp className="h-3 w-3" /> : 
+                                                                        <ChevronDown className="h-3 w-3" />
+                                                                    }
+                                                                </Button>
+                                                            </TableCell>
+                                                            <TableCell className="py-4 px-6">
+                                                                <div className="space-y-1">
+                                                                    {report.lessons?.lesson_tasks && report.lessons.lesson_tasks.length > 0 ? (
+                                                                        <div className="flex items-center gap-3">
+                                                                            <Badge variant="secondary" className="text-sm font-medium bg-secondary/80 text-secondary-foreground px-3 py-1">
+                                                                                {report.completed_task_ids?.length || 0} מתוך {report.lessons.lesson_tasks.length}
+                                                                            </Badge>
+                                                                            <div className="p-1 bg-emerald-100 rounded-full">
+                                                                                <CheckCircle className="h-4 w-4 text-emerald-600" />
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex items-center text-muted-foreground">
+                                                                            <span className="text-sm font-medium">אין משימות</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="py-4 px-6">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="p-1.5 bg-muted rounded-full">
+                                                                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                                                                    </div>
+                                                                    <span className="text-sm font-medium text-foreground">
+                                                                        {new Date(report.created_at).toLocaleDateString('he-IL')}
+                                                                    </span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="py-4 px-6">
+                                                                {report.feedback ? (
+                                                                    <Badge variant="default" className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-medium">
+                                                                        יש משוב
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="text-muted-foreground">
+                                                                        אין משוב
+                                                                    </Badge>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell className='px-12'>
+                                                                {report.is_lesson_ok ? (
+                                                                    <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
+                                                                        כן
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="text-muted-foreground bg-red-100 hover:bg-red-200">
+                                                                        לא
+                                                                    </Badge>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="hover:bg-primary hover:text-primary-foreground transition-colors"
+                                                                    onClick={() => {
+                                                                        setSelectedReport(report);
+                                                                        setDialogOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <Eye className="h-3 w-3 " />
+                                                                    צפה במשוב
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        {/* Expandable row for attendance details */}
+                                                        {expandedRows.has(report.id) && (
+                                                            <TableRow>
+                                                                <TableCell colSpan={10} className="bg-gray-50 p-4">
+                                                                    <div className="grid grid-cols-2 gap-6">
+                                                                        <div>
+                                                                            <h4 className="font-semibold text-green-700 mb-2 flex items-center">
+                                                                                <CheckCircle className="h-4 w-4 ml-1" />
+                                                                                נוכחים ({report.attendanceData?.filter(s => s.attended).length || 0})
+                                                                            </h4>
+                                                                            <div className="space-y-1">
+                                                                                {report.attendanceData?.filter(s => s.attended).map(student => (
+                                                                                    <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                                                        <span className="w-2 h-2 bg-green-500 rounded-full ml-2"></span>
+                                                                                        {student.name}
+                                                                                    </div>
+                                                                                )) || <span className="text-gray-500">אין נתונים</span>}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div>
+                                                                            <h4 className="font-semibold text-red-700 mb-2 flex items-center">
+                                                                                <X className="h-4 w-4 ml-1" />
+                                                                                נעדרים ({report.attendanceData?.filter(s => !s.attended).length || 0})
+                                                                            </h4>
+                                                                            <div className="space-y-1">
+                                                                                {report.attendanceData?.filter(s => !s.attended).map(student => (
+                                                                                    <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                                                        <span className="w-2 h-2 bg-red-500 rounded-full ml-2"></span>
+                                                                                        {student.name}
+                                                                                    </div>
+                                                                                )) || <span className="text-gray-500">אין נתונים</span>}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+                                                    </React.Fragment>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
+                }
+            </div>
+            <FeedbackDialog
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+                report={selectedReport}
+            />
+        </div>
+    );
 };
 
 export default LessonReport;

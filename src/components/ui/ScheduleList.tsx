@@ -113,17 +113,7 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
                 <Check className="w-5 h-5 ml-1" />
                 השיעור דווח בהצלחה
               </button>
-            ) : new Date(item.scheduled_end).getTime() > Date.now() ? (
-              user.user_metadata.role === "instructor" && (
-                <button
-                  disabled
-                  className="schedule-list-button bg-yellow-400 rounded-full p-2 flex items-center font-bold cursor-default"
-                  title="רק לאחר סיום השיעור תוכל לדווח"
-                >
-                  רק לאחר סיום השיעור תוכל לדווח
-                </button>
-              )
-            ) : (
+            )  : (
               user.user_metadata.role === "instructor" && (
                 <button
                   onClick={() =>

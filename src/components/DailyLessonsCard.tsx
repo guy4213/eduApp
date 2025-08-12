@@ -208,25 +208,17 @@ const instructorMap = useMemo(() => {
                         <Check className="w-5 h-5 ml-1" />
                         השיעור דווח בהצלחה
                       </button>
-                    ):
-                    new Date(lesson.scheduled_end).getTime() > Date.now() ? (
-  user.user_metadata.role==='instructor'&&
-  <button
-    disabled
-    className="bg-yellow-400 rounded-full p-2 flex items-center font-bold cursor-default"
-    title="רק לאחר סיום השיעור תוכל לדווח"
-  >
-    רק לאחר סיום השיעור תוכל לדווח
-  </button>
-)  : (
-                    user.user_metadata?.role === "instructor" &&   <button
+                    ) 
+                 
+                    
+                 
+
+                   :( user.user_metadata?.role === "instructor" &&   <button
                         onClick={() => nav(`/lesson-report/${lesson.lesson_id}?scheduleId=${lesson.id}`)}
                         className="bg-green-300 rounded-full p-2 items-center font-bold"
                       >
                         דיווח שיעור
-                      </button>
-                    )}
-                 
+                      </button>)}
                 </div>
               </div>
             </div>

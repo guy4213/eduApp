@@ -545,6 +545,35 @@ export type Database = {
           },
         ]
       }
+      students: {
+        Row: {
+          course_instance_id: string | null
+          created_at: string | null
+          full_name: string
+          id: string
+        }
+        Insert: {
+          course_instance_id?: string | null
+          created_at?: string | null
+          full_name: string
+          id?: string
+        }
+        Update: {
+          course_instance_id?: string | null
+          created_at?: string | null
+          full_name?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -614,7 +643,7 @@ export type Database = {
     Functions: {
       delete_by_course_instance_id: {
         Args: { p_uuid: string }
-        Returns: undefined
+        Returns: number
       }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
