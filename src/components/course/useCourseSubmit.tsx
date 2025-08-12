@@ -53,8 +53,9 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
   const updateExistingLessonsAndTasks = async (courseId: string, lessons: Lesson[]) => {
     const { data: existingLessons } = await supabase
       .from('lessons')
-      .select(`id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)`)  
-      .eq('course_id', courseId);
+      .select(`id, title, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)`)  
+      .eq('course_id', courseId)
+      .order('order_index');
 
     // Create a map of existing lessons by ID for matching
     const existingLessonsMap = new Map(existingLessons.map(lesson => [lesson.id, lesson]));
@@ -83,6 +84,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
             scheduled_start: new Date().toISOString(),
             scheduled_end: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
             status: 'scheduled',
+            order_index: lesson.order_index || 0,
           })
           .select('id')
           .single();
@@ -200,7 +202,8 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
   };
 
   const createNewLessonsAndTasks = async (courseId: string, lessons: Lesson[]) => {
-    for (const lesson of lessons) {
+    for (let i = 0; i < lessons.length; i++) {
+      const lesson = lessons[i];
       const { data: savedLesson, error: lessonError } = await supabase
         .from('lessons')
         .insert({
@@ -208,7 +211,8 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           title: lesson.title,
           scheduled_start: new Date().toISOString(),
           scheduled_end: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-          status: 'scheduled'
+          status: 'scheduled',
+          order_index: lesson.order_index || i,
         })
         .select('id')
         .single();

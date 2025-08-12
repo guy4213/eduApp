@@ -71,6 +71,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         .select(`
           id,
           title,
+          order_index,
           lesson_tasks (
             id,
             title,
@@ -81,7 +82,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
           )
         `)
         .eq('course_id', actualCourseId)
-        .order('id');
+        .order('order_index');
 
       // If no lessons found, try to get course_id from instance_id
       if (!lessonsData || lessonsData.length === 0) {
@@ -99,6 +100,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
             .select(`
               id,
               title,
+              order_index,
               lesson_tasks (
                 id,
                 title,
@@ -109,7 +111,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
               )
             `)
             .eq('course_id', actualCourseId)
-            .order('id');
+            .order('order_index');
             
           lessonsData = retryLessonsData;
           lessonsError = retryLessonsError;

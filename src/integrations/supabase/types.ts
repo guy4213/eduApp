@@ -427,6 +427,7 @@ export type Database = {
           id: string
           instructor_id: string | null
           notes: string | null
+          order_index: number
           participants_count: number | null
           scheduled_end: string
           scheduled_start: string
@@ -442,6 +443,7 @@ export type Database = {
           id?: string
           instructor_id?: string | null
           notes?: string | null
+          order_index?: number
           participants_count?: number | null
           scheduled_end: string
           scheduled_start: string
@@ -457,6 +459,7 @@ export type Database = {
           id?: string
           instructor_id?: string | null
           notes?: string | null
+          order_index?: number
           participants_count?: number | null
           scheduled_end?: string
           scheduled_start?: string
