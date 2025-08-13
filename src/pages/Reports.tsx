@@ -50,8 +50,8 @@ const Reports = () => {
   const [instructorReports, setInstructorReports] = useState<InstructorReport[]>([]);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
-  const [selectedInstructor, setSelectedInstructor] = useState<string>('all');
-  const [instructorsList, setInstructorsList] = useState<{id: string, name: string}[]>([]);
+  const [selectedInstructor, setSelectedInstructor] = useState<any>('all');
+  const [instructorsList, setInstructorsList] = useState<any>([]);
 
   useEffect(() => {
     const fetchInstructorsList = async () => {
@@ -61,6 +61,7 @@ const Reports = () => {
         .eq('role', 'instructor')
         .order('full_name');
       
+        console.log("DATA",data);
       setInstructorsList(data || []);
     };
 
@@ -383,7 +384,7 @@ const Reports = () => {
                         <SelectItem value="all">כל המדריכים</SelectItem>
                         {instructorsList.map(instructor => (
                           <SelectItem key={instructor.id} value={instructor.id}>
-                            {instructor.name}
+                            {instructor.full_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
