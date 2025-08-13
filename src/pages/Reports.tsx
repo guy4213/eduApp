@@ -307,7 +307,7 @@ const Reports = () => {
         `)
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       const { data: reports, error } = await query;
       if (error) throw error;
