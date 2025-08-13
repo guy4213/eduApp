@@ -871,24 +871,37 @@ return (
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
-        <StatsCard
+         <div className="col-span-3">
+          <DailyLessonsCard
+            dateLabel={new Date().toLocaleDateString('he-IL')}
+            onAddLesson={() => nav('/courses')}
+            lessons={lessons}
+          />
+        </div>
+        <div className="md:col-span-1 col-span-3">
+        <StatsCard  
           title="תלמידים פעילים"
           value={stats.activeStudents}
           icon={Users}
           color="bg-gradient-to-r from-orange-500 to-red-500"
         />
+        </div>
+         <div className="md:col-span-1 col-span-3 mx-2">
         <StatsCard
           title="שיעורים הושלמו"
           value={stats.totalLessons}
           icon={Award}
           color="bg-gradient-to-r from-green-500 to-emerald-500"
         />
+        </div>
+         <div className="md:col-span-1 col-span-3">
         <StatsCard
           title="קורסים פעילים"
           value={stats.activeCourses}
           icon={BookOpen}
           color="bg-gradient-to-r from-blue-500 to-cyan-500"
         />
+        </div>
         {/* <StatsCard
           title="רווחים חודשיים"
           value={`₪${stats.monthlyEarnings.toLocaleString()}`}
@@ -898,73 +911,65 @@ return (
       </div>
 
       {/* Main Dashboard Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
-        {/* Daily Lessons */}
-        <div className="lg:col-span-2">
-          <DailyLessonsCard
-            dateLabel={new Date().toLocaleDateString('he-IL')}
-            onAddLesson={() => nav('/courses')}
-            lessons={lessons}
-          />
+    {/* Main Dashboard Grid */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+  {/* ביצועים השבוע Card */}
+  <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-0 shadow-xl">
+    <CardHeader className="p-3 md:p-6">
+      <CardTitle className="flex items-center text-white text-sm md:text-lg">
+        <TrendingUp className="h-4 w-4 md:h-5 md:w-5 mr-2" />
+        ביצועים השבוע
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="p-3 md:p-6 pt-0">
+      <div className="space-y-2 md:space-y-3 text-xs md:text-sm">
+        <div className="flex justify-between">
+          <span>שיעורים שהתקיימו</span>
+          <span className="font-bold">{weeklyReports.length}</span>
         </div>
-
-        {/* Quick Stats */}
-        <div className="space-y-4 md:space-y-6">
-          <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-0 shadow-xl">
-            <CardHeader className="p-3 md:p-6">
-              <CardTitle className="flex items-center text-white text-sm md:text-lg">
-                <TrendingUp className="h-4 w-4 md:h-5 md:w-5 mr-2" />
-                ביצועים השבוע
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 md:p-6 pt-0">
-              <div className="space-y-2 md:space-y-3 text-xs md:text-sm">
-                <div className="flex justify-between">
-                  <span>שיעורים שהתקיימו</span>
-                  <span className="font-bold">{weeklyReports.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>נוכחות ממוצעת</span>
-                  <span className="font-bold">92%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>דירוג כללי</span>
-                  <span className="font-bold flex items-center">
-                    4.8 <Star className="h-3 w-3 md:h-4 md:w-4 text-yellow-300 mr-1" />
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-green-500 to-teal-600 text-white border-0 shadow-xl">
-            <CardHeader className="p-3 md:p-6">
-              <CardTitle className="flex items-center text-white text-sm md:text-lg">
-                <Target className="h-4 w-4 md:h-5 md:w-5 mr-2" />
-                יעדים חודשיים
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 md:p-6 pt-0">
-              <div className="space-y-3 md:space-y-4 text-xs md:text-sm">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span>שיעורים</span>
-                    <span>{reports.length}/{monthlySchedules}</span>
-                  </div>
-                  <Progress value={75} className="h-1.5 md:h-2 bg-white/20" />
-                </div>
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span>הכנסות</span>
-                    <span>₪4,350/₪6,000</span>
-                  </div>
-                  <Progress value={72} className="h-1.5 md:h-2 bg-white/20" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="flex justify-between">
+          <span>נוכחות ממוצעת</span>
+          <span className="font-bold">92%</span>
+        </div>
+        <div className="flex justify-between">
+          <span>דירוג כללי</span>
+          <span className="font-bold flex items-center">
+            4.8 <Star className="h-3 w-3 md:h-4 md:w-4 text-yellow-300 mr-1" />
+          </span>
         </div>
       </div>
+    </CardContent>
+  </Card>
+
+  {/* יעדים חודשיים Card */}
+  <Card className="bg-gradient-to-br from-green-500 to-teal-600 text-white border-0 shadow-xl">
+    <CardHeader className="p-3 md:p-6">
+      <CardTitle className="flex items-center text-white text-sm md:text-lg">
+        <Target className="h-4 w-4 md:h-5 md:w-5 mr-2" />
+        יעדים חודשיים
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="p-3 md:p-6 pt-0">
+      <div className="space-y-3 md:space-y-4 text-xs md:text-sm">
+        <div>
+          <div className="flex justify-between mb-2">
+            <span>שיעורים</span>
+            <span>{reports.length}/{monthlySchedules}</span>
+          </div>
+          <Progress value={75} className="h-1.5 md:h-2 bg-white/20" />
+        </div>
+        <div>
+          <div className="flex justify-between mb-2">
+            <span>הכנסות</span>
+            <span>₪4,350/₪6,000</span>
+          </div>
+          <Progress value={72} className="h-1.5 md:h-2 bg-white/20" />
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
 
       {/* Menu Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">

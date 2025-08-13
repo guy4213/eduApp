@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Edit2, Check } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -83,6 +84,10 @@ export default function Rewards() {
   const [salesLeads, setSalesLeads] = useState<SalesLead[]>([]);
   const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
+const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
   const [monthlySummary, setMonthlySummary] = useState<MonthlySummary>({
     teaching_incentives: 2600,
     closing_bonuses: 1350,
@@ -222,6 +227,12 @@ export default function Rewards() {
     setFilteredSalesLeads(filtered);
   }, [dateFrom, dateTo, salesLeads]);
 
+  // Calculate monthly summary whenever filtered leads change
+  useEffect(() => {
+    const calculatedSummary = calculateMonthlySummary(filteredSalesLeads);
+    setMonthlySummary(calculatedSummary);
+  }, [filteredSalesLeads]);
+
   const clearDateFilters = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
@@ -266,11 +277,6 @@ export default function Rewards() {
       setSalesLeads(data || []);
       setFilteredSalesLeads(data || []);
       
-      // Calculate and update monthly summary based on actual data
-      if (data) {
-        const calculatedSummary = calculateMonthlySummary(data);
-        setMonthlySummary(calculatedSummary);
-      }
     } catch (error) {
       console.error('Error fetching sales leads:', error);
     } finally {
@@ -282,6 +288,29 @@ export default function Rewards() {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('he-IL');
   };
+
+  const updateLeadValue = async (leadId: string, newValue: number) => {
+  try {
+    const { error } = await supabase
+      .from('sales_leads')
+      .update({ potential_value: newValue })
+      .eq('id', leadId);
+
+    if (error) {
+      console.error('Error updating lead value:', error);
+      return;
+    }
+
+    setSalesLeads(prev =>
+      prev.map(lead =>
+        lead.id === leadId ? { ...lead, potential_value: newValue } : lead
+      )
+    );
+
+  } catch (error) {
+    console.error('Error updating lead value:', error);
+  }
+};
 
   const updateLeadStatus = async (leadId: string, newStatus: string) => {
     try {
@@ -309,19 +338,6 @@ export default function Rewards() {
             }
           : lead
       ));
-
-      // Recalculate monthly summary
-      const updatedLeads = salesLeads.map(lead => 
-        lead.id === leadId 
-          ? { 
-              ...lead, 
-              status: newStatus,
-              ...(newStatus.startsWith('closed_') ? { closed_at: new Date().toISOString() } : {})
-            }
-          : lead
-      );
-      const calculatedSummary = calculateMonthlySummary(updatedLeads);
-      setMonthlySummary(calculatedSummary);
       
     } catch (error) {
       console.error('Error updating lead status:', error);
@@ -471,113 +487,145 @@ export default function Rewards() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {filteredSalesLeads.map((lead) => (
-                <Card key={lead.id} className="shadow-lg border-0 bg-white/90 backdrop-blur-sm hover:shadow-xl transition-all">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        {getStatusIcon(lead.status)}
-                        <CardTitle className="text-xl mr-3">{lead.institution_name}</CardTitle>
-                      </div>
-                      <div className="min-w-[180px]">
-                        <Select 
-                          value={lead.status || "new"} 
-                          onValueChange={(value) => updateLeadStatus(lead.id, value)}
-                        >
-                          <SelectTrigger className={`${getStatusColor(lead.status)} border-0 font-medium`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {leadStatuses.map((status) => (
-                              <SelectItem key={status.value} value={status.value}>
-                                {status.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">מדריך:</p>
-                        <p className="text-gray-900 flex items-center">
-                          <Crown className="h-4 w-4 ml-1 text-purple-500" />
-                          {lead.instructor?.full_name || 'לא הוקצה'}
-                        </p>
-                        {lead.instructor?.phone && (
-                          <p className="text-sm text-gray-500">{lead.instructor.phone}</p>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">איש קשר:</p>
-                        <p className="text-gray-900">{lead.contact_person || 'לא צוין'}</p>
-                        {lead.contact_phone && (
-                          <p className="text-sm text-gray-500 flex items-center">
-                            <Phone className="h-3 w-3 ml-1" />
-                            {lead.contact_phone}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">ערך פוטנציאלי:</p>
-                        <p className="text-lg font-bold text-green-600 flex items-center ">
-                          {lead.potential_value?.toLocaleString() || '0'}₪
-                        </p>
-                        {lead.commission_percentage && (
-                          <p className="text-sm text-gray-500">עמלה: {lead.commission_percentage}%</p>
-                        )}ז
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-2">התקדמות:</p>
-                        <div className="flex items-center space-x-3 space-x-reverse">
-                          <Progress 
-                            value={getProgressFromStatus(lead.status)} 
-                            className="flex-1 h-3"
-                          />
-                          <span className="text-sm font-bold text-gray-700 min-w-[35px]">
-                            {getProgressFromStatus(lead.status)}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">תאריך יצירה:</p>
-                        <p className="text-sm text-gray-600">
-                          {formatDate(lead.created_at)}
-                        </p>
-                      </div>
-                      
-                      {lead.closed_at && (
-                        <div>
-                          <p className="text-sm font-medium text-gray-700 mb-1">תאריך סגירה:</p>
-                          <p className="text-sm text-gray-600">
-                            {formatDate(lead.closed_at)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {lead.notes && (
-                      <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                        <p className="text-sm font-medium text-blue-900 mb-1">הערות:</p>
-                        <p className="text-blue-800">
-                          {lead.notes}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+      <div className="space-y-4">
+  {filteredSalesLeads.map((lead) => {
+    const isEditing = editingPriceId === lead.id;
+    const value = priceValues[lead.id] ?? lead.potential_value ?? 0;
+
+    return (
+      <Card key={lead.id} className="shadow-lg border-0 bg-white/90 backdrop-blur-sm hover:shadow-xl transition-all">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              {getStatusIcon(lead.status)}
+              <CardTitle className="text-xl mr-3">{lead.institution_name}</CardTitle>
             </div>
+            <div className="min-w-[180px]">
+              <Select 
+                value={lead.status || "new"} 
+                onValueChange={(value) => updateLeadStatus(lead.id, value)}
+              >
+                <SelectTrigger className={`${getStatusColor(lead.status)} border-0 font-medium`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {leadStatuses.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* מדריך */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-1">מדריך:</p>
+              <p className="text-gray-900 flex items-center">
+                <Crown className="h-4 w-4 ml-1 text-purple-500" />
+                {lead.instructor?.full_name || 'לא הוקצה'}
+              </p>
+              {lead.instructor?.phone && (
+                <p className="text-sm text-gray-500">{lead.instructor.phone}</p>
+              )}
+            </div>
+
+            {/* איש קשר */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-1">איש קשר:</p>
+              <p className="text-gray-900">{lead.contact_person || 'לא צוין'}</p>
+              {lead.contact_phone && (
+                <p className="text-sm text-gray-500 flex items-center">
+                  <Phone className="h-3 w-3 ml-1" />
+                  {lead.contact_phone}
+                </p>
+              )}
+            </div>
+
+            {/* ערך פוטנציאלי */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-1">ערך פוטנציאלי:</p>
+              <div className="flex items-center text-lg font-bold text-green-600">
+                <button
+                  className="text-black px-1 py-0.5 hover:bg-gray-200 rounded flex items-center"
+                  onClick={() => {
+                    if (isEditing) {
+                      updateLeadValue(lead.id, value);
+                      setEditingPriceId(null);
+                    } else {
+                      setEditingPriceId(lead.id);
+                      setPriceValues(prev => ({ ...prev, [lead.id]: lead.potential_value ?? 0 }));
+                    }
+                  }}
+                >
+{user?.user_metadata.role !== "instructor" && (
+  isEditing ? <Check className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />
+)}             
+ </button>
+
+                {isEditing ? (
+                  <input
+                    type="number"
+                    value={value}
+                    onChange={(e) => setPriceValues(prev => ({ ...prev, [lead.id]: Number(e.target.value) }))}
+                    className="text-lg font-bold text-green-600 border border-gray-300 rounded px-1 py-0.5 mr-2 w-24"
+                  />
+                ) : (
+                  <span className="mr-2">{lead.potential_value?.toLocaleString() || '0'}₪</span>
+                )}
+              </div>
+
+              {lead.commission_percentage && (
+                <p className="text-sm text-gray-500">עמלה: {lead.commission_percentage}%</p>
+              )}
+            </div>
+
+            {/* התקדמות */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">התקדמות:</p>
+              <div className="flex items-center space-x-3 space-x-reverse">
+                <Progress 
+                  value={getProgressFromStatus(lead.status)} 
+                  className="flex-1 h-3"
+                />
+                <span className="text-sm font-bold text-gray-700 min-w-[35px]">
+                  {getProgressFromStatus(lead.status)}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* תאריכים */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-1">תאריך יצירה:</p>
+              <p className="text-sm text-gray-600">{formatDate(lead.created_at)}</p>
+            </div>
+
+            {lead.closed_at && (
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-1">תאריך סגירה:</p>
+                <p className="text-sm text-gray-600">{formatDate(lead.closed_at)}</p>
+              </div>
+            )}
+          </div>
+
+          {/* הערות */}
+          {lead.notes && (
+            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+              <p className="text-sm font-medium text-blue-900 mb-1">הערות:</p>
+              <p className="text-blue-800">{lead.notes}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  })}
+</div>
           )}
         </div>
 
@@ -587,6 +635,11 @@ export default function Rewards() {
             <CardTitle className="text-2xl flex items-center">
               <DollarSign className="h-7 w-7 ml-2" />
               סיכום תגמולים – יוני 2025
+              {(dateFrom || dateTo) && (
+                <span className="text-sm font-normal mr-2 bg-white/20 px-2 py-1 rounded">
+                  (מסונן)
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -604,11 +657,18 @@ export default function Rewards() {
                 <p className="text-2xl font-bold">₪{monthlySummary.team_rewards.toLocaleString()}</p>
               </div> */}
               <div className="text-center bg-white/20 rounded-lg p-4">
-                <p className="text-purple-100 text-sm mb-1">סה״כ צפוי</p>
+                <p className="text-purple-100 text-sm mb-1">
+                  {(dateFrom || dateTo) ? 'סה״כ צפוי (מסונן)' : 'סה״כ צפוי'}
+                </p>
                 <p className="text-3xl font-bold flex items-center justify-center">
                   ₪{monthlySummary.total.toLocaleString()}
                   <Flame className="h-6 w-6 ml-2 text-orange-300" />
                 </p>
+                {(dateFrom || dateTo) && (
+                  <p className="text-purple-100 text-xs mt-1">
+                    מבוסס על {filteredSalesLeads.length} לידים מתוך {salesLeads.length}
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
