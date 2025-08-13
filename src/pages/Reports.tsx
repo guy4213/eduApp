@@ -13,7 +13,20 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { format, addMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+interface MonthlyReport {
+  month: string;
+  monthKey: string;
+  date: Date;
+  totalLessons: number;
+  totalHours: number;
+  totalEarnings: number;
+  completedLessons: number;
+  cancelledLessons: number;
+  completionRate: number;
+  instructorData?: InstructorReport[];
+  institutionData?: InstitutionReport[];
+}
 
 interface InstructorReport {
   id: string;
@@ -29,6 +42,7 @@ interface LessonReportDetail {
   id: string;
   lesson_title: string;
   course_name: string;
+  institution_name: string;
   lesson_number: number;
   participants_count: number;
   total_students: number;
@@ -67,8 +81,8 @@ const Reports = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState<'instructors' | 'institutions'>('instructors');
-  const [instructorReports, setInstructorReports] = useState<InstructorReport[]>([]);
-  const [institutionReports, setInstitutionReports] = useState<InstitutionReport[]>([]);
+  const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>('current');
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [selectedInstructor, setSelectedInstructor] = useState<any>('all');
@@ -76,7 +90,6 @@ const Reports = () => {
   const [instructorsList, setInstructorsList] = useState<any>([]);
   const [institutionsList, setInstitutionsList] = useState<any>([]);
   const [expandedRows, setExpandedRows] = useState(new Set());
-  const [selectedMonth, setSelectedMonth] = useState<string>('current');
 
   // Generate months list (current month + 12 months forward)
   const monthsList = useMemo(() => {
@@ -94,7 +107,36 @@ const Reports = () => {
     return months;
   }, []);
 
-  // Toggle row expansion for attendance details
+  // Get current month data
+  const currentMonthData = useMemo(() => {
+    const selectedMonthData = monthlyReports.find(report => 
+      selectedMonth === 'current' ? report.monthKey === 'current' : report.monthKey === selectedMonth
+    );
+    
+    if (!selectedMonthData) {
+      return {
+        totalEarnings: 0,
+        totalLessons: 0,
+        completionRate: 0,
+        totalStudents: 0
+      };
+    }
+
+    const totalStudents = reportType === 'instructors' 
+      ? selectedMonthData.instructorData?.reduce((sum, instructor) => 
+          sum + instructor.reports.reduce((reportSum, report) => reportSum + report.total_students, 0), 0) || 0
+      : selectedMonthData.institutionData?.reduce((sum, institution) => sum + institution.total_students, 0) || 0;
+
+    return {
+      totalEarnings: reportType === 'instructors' ? selectedMonthData.totalEarnings : 
+                    selectedMonthData.institutionData?.reduce((sum, inst) => sum + inst.total_revenue, 0) || 0,
+      totalLessons: selectedMonthData.totalLessons,
+      completionRate: selectedMonthData.completionRate,
+      totalStudents
+    };
+  }, [monthlyReports, selectedMonth, reportType]);
+
+  // Toggle row expansion
   const toggleRowExpansion = (id: string) => {
     setExpandedRows(prev => {
       const newSet = new Set(prev);
@@ -128,23 +170,75 @@ const Reports = () => {
     fetchLists();
   }, []);
 
-  // Fetch instructor reports with filtering and monthly breakdown
-  const fetchInstructorReports = async () => {
-    if (!user) return;
+  // Fetch reports data for all months
+  useEffect(() => {
+    const fetchAllMonthlyReports = async () => {
+      if (!user) return;
 
-    setLoading(true);
-    try {
-      // Get current month date range
-      const currentMonth = monthsList.find(m => m.key === selectedMonth);
-      let dateFromFilter = dateFrom;
-      let dateToFilter = dateTo;
-      
-      if (currentMonth && selectedMonth !== 'current') {
-        dateFromFilter = currentMonth.startDate;
-        dateToFilter = currentMonth.endDate;
+      setLoading(true);
+      try {
+        const reports: MonthlyReport[] = [];
+
+        for (const month of monthsList) {
+          const monthData = await fetchMonthData(month.startDate, month.endDate, month.key);
+          reports.push({
+            month: month.label,
+            monthKey: month.key,
+            date: month.date,
+            ...monthData
+          });
+        }
+
+        setMonthlyReports(reports);
+      } catch (error) {
+        console.error('Error fetching monthly reports:', error);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      // Get all lesson reports with detailed information
+    fetchAllMonthlyReports();
+  }, [user, monthsList]);
+
+  const fetchMonthData = async (startDate: Date, endDate: Date, monthKey: string) => {
+    try {
+      // Fetch instructor data
+      const instructorData = await fetchInstructorDataForMonth(startDate, endDate);
+      const institutionData = await fetchInstitutionDataForMonth(startDate, endDate);
+
+      const totalLessons = instructorData.reduce((sum, instructor) => sum + instructor.total_reports, 0);
+      const totalEarnings = instructorData.reduce((sum, instructor) => sum + instructor.total_salary, 0);
+      const completedLessons = instructorData.reduce((sum, instructor) => 
+        sum + instructor.reports.filter(report => report.is_lesson_ok).length, 0);
+
+      return {
+        totalLessons,
+        totalHours: totalLessons * 1.5, // Assuming 1.5 hours per lesson
+        totalEarnings,
+        completedLessons,
+        cancelledLessons: totalLessons - completedLessons,
+        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        instructorData,
+        institutionData
+      };
+    } catch (error) {
+      console.error('Error fetching month data:', error);
+      return {
+        totalLessons: 0,
+        totalHours: 0,
+        totalEarnings: 0,
+        completedLessons: 0,
+        cancelledLessons: 0,
+        completionRate: 0,
+        instructorData: [],
+        institutionData: []
+      };
+    }
+  };
+
+  const fetchInstructorDataForMonth = async (startDate: Date, endDate: Date) => {
+    try {
+      // Get lesson reports with comprehensive data including institution info
       let query = supabase
         .from('lesson_reports')
         .select(`
@@ -180,31 +274,18 @@ const Reports = () => {
             )
           )
         `)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: false });
 
-      // Apply date filters
-      if (dateFromFilter) {
-        query = query.gte('created_at', dateFromFilter.toISOString());
-      }
-      if (dateToFilter) {
-        const endOfDay = new Date(dateToFilter);
-        endOfDay.setHours(23, 59, 59, 999);
-        query = query.lte('created_at', endOfDay.toISOString());
-      }
-
-      // Apply instructor filter
       if (selectedInstructor !== 'all') {
         query = query.eq('instructor_id', selectedInstructor);
       }
 
       const { data: reports, error } = await query;
+      if (error) throw error;
 
-      if (error) {
-        console.error('Error fetching reports:', error);
-        return;
-      }
-
-      // Process reports for each instructor
+      // Process reports and get institution info
       const instructorMap = new Map<string, InstructorReport>();
 
       for (const report of reports || []) {
@@ -213,34 +294,8 @@ const Reports = () => {
         
         if (!instructor || !instructorId) continue;
 
-        // Validate instructor matches course instance
-        let isValidInstructor = true;
-        if (report.course_instance_id) {
-          const { data: courseInstance } = await supabase
-            .from('course_instances')
-            .select('instructor_id')
-            .eq('id', report.course_instance_id)
-            .single();
-          
-          isValidInstructor = courseInstance?.instructor_id === instructorId;
-        } else if (report.lesson_schedule_id) {
-          // Check through lesson_schedules -> course_instances
-          const { data: lessonSchedule } = await supabase
-            .from('lesson_schedules')
-            .select(`
-              course_instances (
-                instructor_id
-              )
-            `)
-            .eq('id', report.lesson_schedule_id)
-            .single();
-          
-          isValidInstructor = lessonSchedule?.course_instances?.instructor_id === instructorId;
-        }
-
-        if (!isValidInstructor) continue;
-
-        // Get course instance data for total students count
+        // Get institution info and course instance data
+        let institutionName = 'לא זמין';
         let totalStudents = 0;
         let hourlyRate = instructor.hourly_rate || 0;
 
@@ -249,28 +304,39 @@ const Reports = () => {
             .from('course_instances')
             .select(`
               price_for_instructor,
-              students (id)
+              students (id),
+              educational_institutions (
+                name
+              )
             `)
             .eq('id', report.course_instance_id)
             .single();
           
-          totalStudents = courseInstanceData?.students?.length || 0;
-          hourlyRate = courseInstanceData?.price_for_instructor || instructor.hourly_rate || 0;
+          if (courseInstanceData) {
+            totalStudents = courseInstanceData.students?.length || 0;
+            hourlyRate = courseInstanceData.price_for_instructor || instructor.hourly_rate || 0;
+            institutionName = courseInstanceData.educational_institutions?.name || 'לא זמין';
+          }
         } else if (report.lesson_schedule_id) {
-          // Get from lesson_schedules -> course_instances
           const { data: scheduleData } = await supabase
             .from('lesson_schedules')
             .select(`
               course_instances (
                 price_for_instructor,
-                students (id)
+                students (id),
+                educational_institutions (
+                  name
+                )
               )
             `)
             .eq('id', report.lesson_schedule_id)
             .single();
           
-          totalStudents = scheduleData?.course_instances?.students?.length || 0;
-          hourlyRate = scheduleData?.course_instances?.price_for_instructor || instructor.hourly_rate || 0;
+          if (scheduleData?.course_instances) {
+            totalStudents = scheduleData.course_instances.students?.length || 0;
+            hourlyRate = scheduleData.course_instances.price_for_instructor || instructor.hourly_rate || 0;
+            institutionName = scheduleData.course_instances.educational_institutions?.name || 'לא זמין';
+          }
         }
 
         // Process attendance data
@@ -291,6 +357,7 @@ const Reports = () => {
           id: report.id,
           lesson_title: report.lesson_title,
           course_name: report.lessons?.courses?.name || 'לא זמין',
+          institution_name: institutionName,
           lesson_number: report.reported_lesson_instances?.[0]?.lesson_number || (report.lessons?.order_index ? report.lessons.order_index + 1 : 1),
           participants_count: report.participants_count || 0,
           total_students: totalStudents,
@@ -315,42 +382,27 @@ const Reports = () => {
         const instructorReport = instructorMap.get(instructorId)!;
         instructorReport.reports.push(lessonDetail);
         instructorReport.total_reports += 1;
-        instructorReport.total_hours += 1; // Each lesson = 1 hour (can be adjusted)
+        instructorReport.total_hours += 1;
         instructorReport.total_salary += hourlyRate;
       }
 
-      setInstructorReports(Array.from(instructorMap.values()));
+      return Array.from(instructorMap.values());
     } catch (error) {
-      console.error('Error fetching instructor reports:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching instructor data:', error);
+      return [];
     }
   };
 
-  // Fetch institution reports with comprehensive lesson data
-  const fetchInstitutionReports = async () => {
-    if (!user) return;
-
-    setLoading(true);
+  const fetchInstitutionDataForMonth = async (startDate: Date, endDate: Date) => {
     try {
-      // Get current month date range
-      const currentMonth = monthsList.find(m => m.key === selectedMonth);
-      let dateFromFilter = dateFrom;
-      let dateToFilter = dateTo;
-      
-      if (currentMonth && selectedMonth !== 'current') {
-        dateFromFilter = currentMonth.startDate;
-        dateToFilter = currentMonth.endDate;
-      }
-
-      // First get all course instances for institutions
+      // Get course instances with institution data and lesson reports
       let query = supabase
         .from('course_instances')
         .select(`
           id,
           price_for_customer,
           price_for_instructor,
-          educational_institutions (
+          educational_institutions!inner (
             id,
             name
           ),
@@ -366,7 +418,7 @@ const Reports = () => {
             id,
             full_name
           ),
-          lesson_reports (
+          lesson_reports!inner (
             id,
             lesson_title,
             participants_count,
@@ -384,19 +436,16 @@ const Reports = () => {
               lesson_number
             )
           )
-        `);
+        `)
+        .gte('lesson_reports.created_at', startDate.toISOString())
+        .lte('lesson_reports.created_at', endDate.toISOString());
 
-      // Apply institution filter
       if (selectedInstitution !== 'all') {
         query = query.eq('institution_id', selectedInstitution);
       }
 
       const { data: courseInstances, error } = await query;
-
-      if (error) {
-        console.error('Error fetching institution reports:', error);
-        return;
-      }
+      if (error) throw error;
 
       // Process institution data
       const institutionMap = new Map<string, InstitutionReport>();
@@ -420,80 +469,64 @@ const Reports = () => {
 
         const institutionReport = institutionMap.get(institutionId)!;
 
-        // Filter lesson reports by date if specified
-        const filteredReports = (instance.lesson_reports || []).filter(report => {
-          const reportDate = new Date(report.created_at);
-          if (dateFromFilter && reportDate < dateFromFilter) return false;
-          if (dateToFilter && reportDate > dateToFilter) return false;
-          return true;
-        });
-
-        if (filteredReports.length > 0) {
-          // Process attendance data for each lesson
-          const lessonsWithAttendance = filteredReports.map(report => {
-            const attendanceData: AttendanceRecord[] = [];
-            if (report.lesson_attendance) {
-              for (const attendance of report.lesson_attendance) {
-                if (attendance.students) {
-                  attendanceData.push({
-                    id: attendance.students.id,
-                    name: attendance.students.full_name,
-                    attended: attendance.attended
-                  });
-                }
+        // Process lessons with attendance
+        const lessonsWithAttendance = (instance.lesson_reports || []).map(report => {
+          const attendanceData: AttendanceRecord[] = [];
+          if (report.lesson_attendance) {
+            for (const attendance of report.lesson_attendance) {
+              if (attendance.students) {
+                attendanceData.push({
+                  id: attendance.students.id,
+                  name: attendance.students.full_name,
+                  attended: attendance.attended
+                });
               }
             }
+          }
 
-            return {
-              id: report.id,
-              lesson_title: report.lesson_title,
-              course_name: instance.courses?.name || 'לא זמין',
-              lesson_number: report.reported_lesson_instances?.[0]?.lesson_number || 1,
-              participants_count: report.participants_count || 0,
-              total_students: instance.students?.length || 0,
-              is_lesson_ok: report.is_lesson_ok || false,
-              hourly_rate: instance.price_for_customer || 0,
-              created_at: report.created_at,
-              attendanceData
-            };
-          });
+          return {
+            id: report.id,
+            lesson_title: report.lesson_title,
+            course_name: instance.courses?.name || 'לא זמין',
+            institution_name: institutionName,
+            lesson_number: report.reported_lesson_instances?.[0]?.lesson_number || 1,
+            participants_count: report.participants_count || 0,
+            total_students: instance.students?.length || 0,
+            is_lesson_ok: report.is_lesson_ok || false,
+            hourly_rate: instance.price_for_customer || 0,
+            created_at: report.created_at,
+            attendanceData
+          };
+        });
 
+        if (lessonsWithAttendance.length > 0) {
           const courseDetail: CourseDetail = {
             id: instance.id,
             course_name: instance.courses?.name || 'לא זמין',
             instructor_name: instance.instructor?.full_name || 'לא זמין',
-            lesson_count: filteredReports.length,
+            lesson_count: lessonsWithAttendance.length,
             student_count: instance.students?.length || 0,
             price_per_lesson: instance.price_for_customer || 0,
             lesson_details: lessonsWithAttendance
           };
 
           institutionReport.courses.push(courseDetail);
-          institutionReport.total_lessons += filteredReports.length;
-          institutionReport.total_revenue += (instance.price_for_customer || 0) * filteredReports.length;
+          institutionReport.total_lessons += lessonsWithAttendance.length;
+          institutionReport.total_revenue += (instance.price_for_customer || 0) * lessonsWithAttendance.length;
           
-          // Count unique students across all courses
-          const existingStudents = new Set(institutionReport.total_students);
-          (instance.students || []).forEach(student => existingStudents.add(student.id));
-          institutionReport.total_students = existingStudents.size;
+          // Add unique students
+          const uniqueStudents = new Set();
+          (instance.students || []).forEach(student => uniqueStudents.add(student.id));
+          institutionReport.total_students = Math.max(institutionReport.total_students, uniqueStudents.size);
         }
       }
 
-      setInstitutionReports(Array.from(institutionMap.values()));
+      return Array.from(institutionMap.values());
     } catch (error) {
-      console.error('Error fetching institution reports:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching institution data:', error);
+      return [];
     }
   };
-
-  useEffect(() => {
-    if (reportType === 'instructors') {
-      fetchInstructorReports();
-    } else {
-      fetchInstitutionReports();
-    }
-  }, [user, reportType, dateFrom, dateTo, selectedInstructor, selectedInstitution, selectedMonth]);
 
   const clearFilters = () => {
     setDateFrom(undefined);
@@ -503,15 +536,6 @@ const Reports = () => {
     setSelectedMonth('current');
   };
 
-  const totalSalaryAllInstructors = instructorReports.reduce((sum, instructor) => sum + instructor.total_salary, 0);
-  const totalHoursAllInstructors = instructorReports.reduce((sum, instructor) => sum + instructor.total_hours, 0);
-  const totalReportsAllInstructors = instructorReports.reduce((sum, instructor) => sum + instructor.total_reports, 0);
-  
-  // Institution totals
-  const totalRevenueAllInstitutions = institutionReports.reduce((sum, institution) => sum + institution.total_revenue, 0);
-  const totalLessonsAllInstitutions = institutionReports.reduce((sum, institution) => sum + institution.total_lessons, 0);
-  const totalStudentsAllInstitutions = institutionReports.reduce((sum, institution) => sum + institution.total_students, 0);
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -520,12 +544,17 @@ const Reports = () => {
     );
   }
 
+  const selectedMonthData = monthlyReports.find(report => 
+    selectedMonth === 'current' ? report.monthKey === 'current' : report.monthKey === selectedMonth
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="md:hidden">
         <MobileNavigation />
       </div>
+      
+      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -543,6 +572,11 @@ const Reports = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">סיכום חודשי</h2>
+          <p className="text-gray-600">צפייה בדוחות ביצועים וחישוב שכר חודשי</p>
+        </div>
+
         {/* Report Type Selection */}
         <Card className="mb-8">
           <CardHeader>
@@ -562,100 +596,109 @@ const Reports = () => {
           </CardContent>
         </Card>
 
-        {/* Monthly Tabs */}
+        {/* Month Selection Tabs */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center">
               <Calendar className="h-5 w-5 ml-2" />
-              תצוגה לפי חודשים
+              בחירת חודש
             </CardTitle>
-            <CardDescription>בחר חודש לצפייה בדוחות הרלוונטיים</CardDescription>
+            <CardDescription>לחץ על חודש כדי לראות את הנתונים הרלוונטיים</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={selectedMonth} onValueChange={setSelectedMonth} className="w-full">
-              <TabsList className="grid w-full grid-cols-4 lg:grid-cols-7 gap-2">
-                {monthsList.slice(0, 7).map((month) => (
-                  <TabsTrigger 
-                    key={month.key} 
-                    value={month.key}
-                    className="text-xs px-2 py-1"
-                  >
-                    {month.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              {monthsList.length > 7 && (
-                <TabsList className="grid w-full grid-cols-6 gap-2 mt-2">
-                  {monthsList.slice(7).map((month) => (
-                    <TabsTrigger 
-                      key={month.key} 
-                      value={month.key}
-                      className="text-xs px-2 py-1"
-                    >
-                      {month.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              )}
-            </Tabs>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {monthsList.map((month) => (
+                <Button
+                  key={month.key}
+                  variant={selectedMonth === month.key ? "default" : "outline"}
+                  onClick={() => setSelectedMonth(month.key)}
+                  className="text-sm px-3 py-2 h-auto flex flex-col"
+                >
+                  <span className="font-medium">{month.label}</span>
+                  {monthlyReports.find(r => r.monthKey === month.key) && (
+                    <span className="text-xs mt-1 opacity-75">
+                      {monthlyReports.find(r => r.monthKey === month.key)?.totalLessons || 0} שיעורים
+                    </span>
+                  )}
+                </Button>
+              ))}
+            </div>
           </CardContent>
         </Card>
+
+        {/* Current Month Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-green-600">₪{currentMonthData.totalEarnings.toLocaleString()}</p>
+                  <p className="text-gray-600 font-medium">
+                    {reportType === 'instructors' ? 'הכנסות החודש' : 'הכנסות המוסדות'}
+                  </p>
+                </div>
+                <div className="p-3 rounded-full bg-green-500">
+                  <DollarSign className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-blue-600">{currentMonthData.totalLessons}</p>
+                  <p className="text-gray-600 font-medium">שיעורים החודש</p>
+                </div>
+                <div className="p-3 rounded-full bg-blue-500">
+                  <Calendar className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-purple-600">{currentMonthData.completionRate.toFixed(1)}%</p>
+                  <p className="text-gray-600 font-medium">אחוז השלמה</p>
+                </div>
+                <div className="p-3 rounded-full bg-purple-500">
+                  <TrendingUp className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-orange-600">{currentMonthData.totalStudents}</p>
+                  <p className="text-gray-600 font-medium">
+                    {reportType === 'instructors' ? 'תלמידים פעילים' : 'סה"כ תלמידים'}
+                  </p>
+                </div>
+                <div className="p-3 rounded-full bg-orange-500">
+                  <Users className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Filters */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center">
               <Filter className="h-5 w-5 ml-2" />
-              סינונים מתקדמים
+              סינונים נוספים
             </CardTitle>
-            <CardDescription>
-              השתמש בסינונים אלה לקבלת תוצאות מדויקות יותר. הסינון לא יגרום לרענון הדף
-            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div>
-                <Label>מתאריך</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-right">
-                      <CalendarDays className="ml-2 h-4 w-4" />
-                      {dateFrom ? format(dateFrom, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={dateFrom}
-                      onSelect={setDateFrom}
-                      initialFocus
-                      locale={he}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div>
-                <Label>עד תאריך</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-right">
-                      <CalendarDays className="ml-2 h-4 w-4" />
-                      {dateTo ? format(dateTo, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={dateTo}
-                      onSelect={setDateTo}
-                      initialFocus
-                      locale={he}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {reportType === 'instructors' ? (
                 <div>
                   <Label>מדריך</Label>
@@ -691,7 +734,6 @@ const Reports = () => {
                   </Select>
                 </div>
               )}
-
               <div className="flex items-end">
                 <Button variant="outline" onClick={clearFilters} className="w-full">
                   נקה סינונים
@@ -701,465 +743,403 @@ const Reports = () => {
           </CardContent>
         </Card>
 
-        {reportType === 'instructors' ? (
-          <>
-
-            {/* Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-green-600">₪{totalSalaryAllInstructors.toLocaleString()}</p>
-                      <p className="text-gray-600 font-medium">סה"כ שכר</p>
-                    </div>
-                    <div className="p-3 rounded-full bg-green-500">
-                      <DollarSign className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-blue-600">{totalReportsAllInstructors}</p>
-                      <p className="text-gray-600 font-medium">סה"כ דיווחים</p>
-                    </div>
-                    <div className="p-3 rounded-full bg-blue-500">
-                      <FileText className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-purple-600">{totalHoursAllInstructors}</p>
-                      <p className="text-gray-600 font-medium">סה"כ שעות</p>
-                    </div>
-                    <div className="p-3 rounded-full bg-purple-500">
-                      <Calendar className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-orange-600">{instructorReports.length}</p>
-                      <p className="text-gray-600 font-medium">מדריכים פעילים</p>
-                    </div>
-                    <div className="p-3 rounded-full bg-orange-500">
-                      <Users className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+        {/* Monthly Reports Table */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>דוח חודשי מפורט</CardTitle>
+            <CardDescription>סיכום פעילות ורווחים לכל החודשים</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-right">
+                    <th className="py-3 px-4 font-medium text-gray-900">חודש</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">שיעורים</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">שעות</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">הושלמו</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">לא הושלמו</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">הכנסות</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">סטטוס</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {monthlyReports.map((report, index) => (
+                    <tr 
+                      key={index} 
+                      className={`hover:bg-gray-50 cursor-pointer ${selectedMonth === report.monthKey ? 'bg-blue-50' : ''}`}
+                      onClick={() => setSelectedMonth(report.monthKey)}
+                    >
+                      <td className="py-3 px-4 font-medium">{report.month}</td>
+                      <td className="py-3 px-4">{report.totalLessons}</td>
+                      <td className="py-3 px-4">{report.totalHours.toFixed(1)}</td>
+                      <td className="py-3 px-4">
+                        <span className="text-green-600 font-medium">{report.completedLessons}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-red-600 font-medium">{report.cancelledLessons}</span>
+                      </td>
+                      <td className="py-3 px-4 font-bold">₪{report.totalEarnings.toLocaleString()}</td>
+                      <td className="py-3 px-4">
+                        {report.totalLessons > 0 ? (
+                          <Badge variant={report.completionRate > 80 ? "default" : "secondary"}>
+                            {report.completionRate.toFixed(0)}% הושלם
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">אין פעילות</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Instructor Reports */}
-            <div className="space-y-6">
-              {instructorReports.map((instructor) => (
-                <Card key={instructor.id} className="overflow-hidden">
-                  <CardHeader className="bg-gray-50">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-xl">{instructor.full_name}</CardTitle>
-                        <CardDescription>
-                          סה"כ דיווחים: {instructor.total_reports} | 
-                          סה"כ שעות: {instructor.total_hours} | 
-                          סה"כ שכר: ₪{instructor.total_salary.toLocaleString()}
-                        </CardDescription>
-                      </div>
-                      <Badge variant="outline" className="text-lg font-bold">
-                        ₪{instructor.total_salary.toLocaleString()}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
-                            <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
-                            <th className="text-right py-3 px-4 font-medium">קורס</th>
-                            <th className="text-right py-3 px-4 font-medium">נוכחות</th>
-                            <th className="text-right py-3 px-4 font-medium">שכר לשיעור</th>
-                            <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
-                            <th className="text-right py-3 px-4 font-medium">תאריך</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {instructor.reports.map((report) => (
-                            <React.Fragment key={report.id}>
-                              <tr className="hover:bg-gray-50">
-                                <td className="py-3 px-4 font-medium text-blue-600">
-                                  שיעור {report.lesson_number}
-                                </td>
-                                <td className="py-3 px-4 font-medium">{report.lesson_title}</td>
-                                <td className="py-3 px-4">
-                                  <Badge variant="outline">{report.course_name}</Badge>
-                                </td>
-                                <td className="py-3 px-4">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <Users className="h-4 w-4 text-gray-500" />
-                                      <span className="font-medium">
-                                        {report.participants_count} מתוך {report.total_students}
-                                      </span>
-                                    </div>
-                                    {report.attendanceData.length > 0 && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => toggleRowExpansion(report.id)}
-                                        className="flex items-center gap-1"
-                                      >
-                                        <span className="text-xs">רשימת נוכחות</span>
-                                        {expandedRows.has(report.id) ? 
-                                          <ChevronUp className="h-3 w-3" /> : 
-                                          <ChevronDown className="h-3 w-3" />
-                                        }
-                                      </Button>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-3 px-4 font-bold text-green-600">
-                                  ₪{report.hourly_rate.toLocaleString()}
-                                </td>
-                                <td className="py-3 px-4">
-                                  {report.is_lesson_ok ? (
-                                    <Badge className="bg-green-100 text-green-800">
-                                      <CheckCircle className="h-3 w-3 ml-1" />
-                                      כן
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="destructive">
-                                      <X className="h-3 w-3 ml-1" />
-                                      לא
-                                    </Badge>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4 text-gray-600">
-                                  {new Date(report.created_at).toLocaleDateString('he-IL')}
-                                </td>
-                              </tr>
-                              {/* Expandable attendance row */}
-                              {expandedRows.has(report.id) && (
-                                <tr>
-                                  <td colSpan={7} className="bg-gray-50 p-4">
-                                    <div className="grid grid-cols-2 gap-6">
-                                      <div>
-                                        <h4 className="font-semibold text-green-700 mb-2 flex items-center">
-                                          <CheckCircle className="h-4 w-4 ml-1" />
-                                          נוכחים ({report.attendanceData.filter(s => s.attended).length})
-                                        </h4>
-                                        <div className="space-y-1">
-                                          {report.attendanceData.filter(s => s.attended).map(student => (
-                                            <div key={student.id} className="text-sm text-gray-700 flex items-center">
-                                              <span className="w-2 h-2 bg-green-500 rounded-full ml-2"></span>
-                                              {student.name}
-                                            </div>
-                                          ))}
-                                          {report.attendanceData.filter(s => s.attended).length === 0 && (
-                                            <span className="text-gray-500 text-sm">אין תלמידים נוכחים</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-semibold text-red-700 mb-2 flex items-center">
-                                          <X className="h-4 w-4 ml-1" />
-                                          נעדרים ({report.attendanceData.filter(s => !s.attended).length})
-                                        </h4>
-                                        <div className="space-y-1">
-                                          {report.attendanceData.filter(s => !s.attended).map(student => (
-                                            <div key={student.id} className="text-sm text-gray-700 flex items-center">
-                                              <span className="w-2 h-2 bg-red-500 rounded-full ml-2"></span>
-                                              {student.name}
-                                            </div>
-                                          ))}
-                                          {report.attendanceData.filter(s => !s.attended).length === 0 && (
-                                            <span className="text-gray-500 text-sm">כל התלמידים נוכחים</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {instructorReports.length === 0 && (
-                <Card>
-                  <CardContent className="text-center py-12">
-                    <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">אין דוחות זמינים</h3>
-                    <p className="text-gray-600">לא נמצאו דוחות בפילטרים שנבחרו</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Institution Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-green-600">₪{totalRevenueAllInstitutions.toLocaleString()}</p>
-                      <p className="text-gray-600 font-medium">סה"כ הכנסות</p>
-                    </div>
-                    <div className="p-3 rounded-full bg-green-500">
-                      <DollarSign className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-blue-600">{totalLessonsAllInstitutions}</p>
-                      <p className="text-gray-600 font-medium">סה"כ שיעורים</p>
-                    </div>
-                    <div className="p-3 rounded-full bg-blue-500">
-                      <FileText className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-purple-600">{totalStudentsAllInstitutions}</p>
-                      <p className="text-gray-600 font-medium">סה"כ תלמידים</p>
-                    </div>
-                    <div className="p-3 rounded-full bg-purple-500">
-                      <Users className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-orange-600">{institutionReports.length}</p>
-                      <p className="text-gray-600 font-medium">מוסדות פעילים</p>
-                    </div>
-                    <div className="p-3 rounded-full bg-orange-500">
-                      <Building2 className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Institution Reports */}
-            <div className="space-y-6">
-              {institutionReports.map((institution) => (
-                <Card key={institution.id} className="overflow-hidden">
-                  <CardHeader className="bg-gray-50">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-xl flex items-center">
-                          <Building2 className="h-5 w-5 ml-2" />
-                          {institution.name}
-                        </CardTitle>
-                        <CardDescription>
-                          סה"כ שיעורים: {institution.total_lessons} | 
-                          סה"כ תלמידים: {institution.total_students} | 
-                          סה"כ הכנסות: ₪{institution.total_revenue.toLocaleString()}
-                        </CardDescription>
-                      </div>
-                      <Badge variant="outline" className="text-lg font-bold">
-                        ₪{institution.total_revenue.toLocaleString()}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="p-0">
-                    {institution.courses.map((course) => (
-                      <div key={course.id} className="border-b border-gray-200 last:border-b-0">
-                        <div className="bg-gray-100 px-4 py-3 flex justify-between items-center cursor-pointer"
-                             onClick={() => toggleRowExpansion(course.id)}>
-                          <div className="flex items-center gap-4">
-                            <div className="p-2 bg-blue-100 rounded-full">
-                              <BookOpen className="h-4 w-4 text-blue-600" />
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-gray-900">{course.course_name}</h4>
-                              <p className="text-sm text-gray-600">
-                                מדריך: {course.instructor_name} | 
-                                {course.lesson_count} שיעורים | 
-                                {course.student_count} תלמידים
-                              </p>
-                            </div>
+        {/* Selected Month Detailed Data */}
+        {selectedMonthData && (
+          <Card>
+            <CardHeader>
+              <CardTitle>פירוט נתונים - {selectedMonthData.month}</CardTitle>
+              <CardDescription>
+                נתונים מפורטים על {reportType === 'instructors' ? 'מדריכים' : 'מוסדות'} בחודש שנבחר
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {reportType === 'instructors' ? (
+                <div className="space-y-6">
+                  {selectedMonthData.instructorData?.map((instructor) => (
+                    <Card key={instructor.id} className="overflow-hidden">
+                      <CardHeader className="bg-gray-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-xl">{instructor.full_name}</CardTitle>
+                            <CardDescription>
+                              סה"כ דיווחים: {instructor.total_reports} | 
+                              סה"כ שעות: {instructor.total_hours} | 
+                              סה"כ שכר: ₪{instructor.total_salary.toLocaleString()}
+                            </CardDescription>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                              ₪{(course.price_per_lesson * course.lesson_count).toLocaleString()}
-                            </Badge>
-                            {expandedRows.has(course.id) ? 
-                              <ChevronUp className="h-4 w-4 text-gray-500" /> : 
-                              <ChevronDown className="h-4 w-4 text-gray-500" />
-                            }
-                          </div>
+                          <Badge variant="outline" className="text-lg font-bold">
+                            ₪{instructor.total_salary.toLocaleString()}
+                          </Badge>
                         </div>
-                        
-                        {expandedRows.has(course.id) && (
-                          <div className="overflow-x-auto">
-                            <table className="w-full">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
-                                  <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
-                                  <th className="text-right py-3 px-4 font-medium">נוכחות</th>
-                                  <th className="text-right py-3 px-4 font-medium">מחיר לשיעור</th>
-                                  <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
-                                  <th className="text-right py-3 px-4 font-medium">תאריך</th>
-                                  <th className="text-right py-3 px-4 font-medium">פרטי נוכחות</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-200">
-                                {course.lesson_details.map((lesson) => (
-                                  <React.Fragment key={lesson.id}>
-                                    <tr className="hover:bg-gray-50">
-                                      <td className="py-3 px-4 font-medium text-blue-600">
-                                        שיעור {lesson.lesson_number}
-                                      </td>
-                                      <td className="py-3 px-4 font-medium">{lesson.lesson_title}</td>
-                                      <td className="py-3 px-4">
+                      </CardHeader>
+                      
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-100">
+                              <tr>
+                                <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
+                                <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
+                                <th className="text-right py-3 px-4 font-medium">קורס</th>
+                                <th className="text-right py-3 px-4 font-medium">מוסד</th>
+                                <th className="text-right py-3 px-4 font-medium">נוכחות</th>
+                                <th className="text-right py-3 px-4 font-medium">שכר לשיעור</th>
+                                <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
+                                <th className="text-right py-3 px-4 font-medium">תאריך</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {instructor.reports.map((report) => (
+                                <React.Fragment key={report.id}>
+                                  <tr className="hover:bg-gray-50">
+                                    <td className="py-3 px-4 font-medium text-blue-600">
+                                      שיעור {report.lesson_number}
+                                    </td>
+                                    <td className="py-3 px-4 font-medium">{report.lesson_title}</td>
+                                    <td className="py-3 px-4">
+                                      <Badge variant="outline">{report.course_name}</Badge>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                                        {report.institution_name}
+                                      </Badge>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                           <Users className="h-4 w-4 text-gray-500" />
                                           <span className="font-medium">
-                                            {lesson.participants_count} מתוך {lesson.total_students}
+                                            {report.participants_count} מתוך {report.total_students}
                                           </span>
                                         </div>
-                                      </td>
-                                      <td className="py-3 px-4 font-bold text-green-600">
-                                        ₪{lesson.hourly_rate.toLocaleString()}
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        {lesson.is_lesson_ok ? (
-                                          <Badge className="bg-green-100 text-green-800">
-                                            <CheckCircle className="h-3 w-3 ml-1" />
-                                            כן
-                                          </Badge>
-                                        ) : (
-                                          <Badge variant="destructive">
-                                            <X className="h-3 w-3 ml-1" />
-                                            לא
-                                          </Badge>
-                                        )}
-                                      </td>
-                                      <td className="py-3 px-4 text-gray-600">
-                                        {new Date(lesson.created_at).toLocaleDateString('he-IL')}
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        {lesson.attendanceData.length > 0 && (
+                                        {report.attendanceData.length > 0 && (
                                           <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => toggleRowExpansion(lesson.id)}
+                                            onClick={() => toggleRowExpansion(report.id)}
                                             className="flex items-center gap-1"
                                           >
-                                            <span className="text-xs">הצג נוכחות</span>
-                                            {expandedRows.has(lesson.id) ? 
+                                            <span className="text-xs">רשימת נוכחות</span>
+                                            {expandedRows.has(report.id) ? 
                                               <ChevronUp className="h-3 w-3" /> : 
                                               <ChevronDown className="h-3 w-3" />
                                             }
                                           </Button>
                                         )}
-                                      </td>
-                                    </tr>
-                                    {/* Attendance details */}
-                                    {expandedRows.has(lesson.id) && (
-                                      <tr>
-                                        <td colSpan={7} className="bg-gray-50 p-4">
-                                          <div className="grid grid-cols-2 gap-6">
-                                            <div>
-                                              <h4 className="font-semibold text-green-700 mb-2 flex items-center">
-                                                <CheckCircle className="h-4 w-4 ml-1" />
-                                                נוכחים ({lesson.attendanceData.filter(s => s.attended).length})
-                                              </h4>
-                                              <div className="space-y-1">
-                                                {lesson.attendanceData.filter(s => s.attended).map(student => (
-                                                  <div key={student.id} className="text-sm text-gray-700 flex items-center">
-                                                    <span className="w-2 h-2 bg-green-500 rounded-full ml-2"></span>
-                                                    {student.name}
-                                                  </div>
-                                                ))}
-                                                {lesson.attendanceData.filter(s => s.attended).length === 0 && (
-                                                  <span className="text-gray-500 text-sm">אין תלמידים נוכחים</span>
-                                                )}
-                                              </div>
-                                            </div>
-                                            <div>
-                                              <h4 className="font-semibold text-red-700 mb-2 flex items-center">
-                                                <X className="h-4 w-4 ml-1" />
-                                                נעדרים ({lesson.attendanceData.filter(s => !s.attended).length})
-                                              </h4>
-                                              <div className="space-y-1">
-                                                {lesson.attendanceData.filter(s => !s.attended).map(student => (
-                                                  <div key={student.id} className="text-sm text-gray-700 flex items-center">
-                                                    <span className="w-2 h-2 bg-red-500 rounded-full ml-2"></span>
-                                                    {student.name}
-                                                  </div>
-                                                ))}
-                                                {lesson.attendanceData.filter(s => !s.attended).length === 0 && (
-                                                  <span className="text-gray-500 text-sm">כל התלמידים נוכחים</span>
-                                                )}
-                                              </div>
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-4 font-bold text-green-600">
+                                      ₪{report.hourly_rate.toLocaleString()}
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      {report.is_lesson_ok ? (
+                                        <Badge className="bg-green-100 text-green-800">
+                                          <CheckCircle className="h-3 w-3 ml-1" />
+                                          כן
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="destructive">
+                                          <X className="h-3 w-3 ml-1" />
+                                          לא
+                                        </Badge>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-4 text-gray-600">
+                                      {new Date(report.created_at).toLocaleDateString('he-IL')}
+                                    </td>
+                                  </tr>
+                                  {/* Expandable attendance row */}
+                                  {expandedRows.has(report.id) && (
+                                    <tr>
+                                      <td colSpan={8} className="bg-gray-50 p-4">
+                                        <div className="grid grid-cols-2 gap-6">
+                                          <div>
+                                            <h4 className="font-semibold text-green-700 mb-2 flex items-center">
+                                              <CheckCircle className="h-4 w-4 ml-1" />
+                                              נוכחים ({report.attendanceData.filter(s => s.attended).length})
+                                            </h4>
+                                            <div className="space-y-1">
+                                              {report.attendanceData.filter(s => s.attended).map(student => (
+                                                <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                  <span className="w-2 h-2 bg-green-500 rounded-full ml-2"></span>
+                                                  {student.name}
+                                                </div>
+                                              ))}
+                                              {report.attendanceData.filter(s => s.attended).length === 0 && (
+                                                <span className="text-gray-500 text-sm">אין תלמידים נוכחים</span>
+                                              )}
                                             </div>
                                           </div>
-                                        </td>
-                                      </tr>
-                                    )}
-                                  </React.Fragment>
-                                ))}
-                              </tbody>
-                            </table>
+                                          <div>
+                                            <h4 className="font-semibold text-red-700 mb-2 flex items-center">
+                                              <X className="h-4 w-4 ml-1" />
+                                              נעדרים ({report.attendanceData.filter(s => !s.attended).length})
+                                            </h4>
+                                            <div className="space-y-1">
+                                              {report.attendanceData.filter(s => !s.attended).map(student => (
+                                                <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                  <span className="w-2 h-2 bg-red-500 rounded-full ml-2"></span>
+                                                  {student.name}
+                                                </div>
+                                              ))}
+                                              {report.attendanceData.filter(s => !s.attended).length === 0 && (
+                                                <span className="text-gray-500 text-sm">כל התלמידים נוכחים</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {selectedMonthData.institutionData?.map((institution) => (
+                    <Card key={institution.id} className="overflow-hidden">
+                      <CardHeader className="bg-gray-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-xl flex items-center">
+                              <Building2 className="h-5 w-5 ml-2" />
+                              {institution.name}
+                            </CardTitle>
+                            <CardDescription>
+                              סה"כ שיעורים: {institution.total_lessons} | 
+                              סה"כ תלמידים: {institution.total_students} | 
+                              סה"כ הכנסות: ₪{institution.total_revenue.toLocaleString()}
+                            </CardDescription>
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
-
-              {institutionReports.length === 0 && (
-                <Card>
-                  <CardContent className="text-center py-12">
-                    <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">אין מוסדות זמינים</h3>
-                    <p className="text-gray-600">לא נמצאו מוסדות בפילטרים שנבחרו</p>
-                  </CardContent>
-                </Card>
+                          <Badge variant="outline" className="text-lg font-bold">
+                            ₪{institution.total_revenue.toLocaleString()}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      
+                      <CardContent className="p-0">
+                        {institution.courses.map((course) => (
+                          <div key={course.id} className="border-b border-gray-200 last:border-b-0">
+                            <div className="bg-gray-100 px-4 py-3 flex justify-between items-center cursor-pointer"
+                                 onClick={() => toggleRowExpansion(course.id)}>
+                              <div className="flex items-center gap-4">
+                                <div className="p-2 bg-blue-100 rounded-full">
+                                  <BookOpen className="h-4 w-4 text-blue-600" />
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-gray-900">{course.course_name}</h4>
+                                  <p className="text-sm text-gray-600">
+                                    מדריך: {course.instructor_name} | 
+                                    {course.lesson_count} שיעורים | 
+                                    {course.student_count} תלמידים
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                  ₪{(course.price_per_lesson * course.lesson_count).toLocaleString()}
+                                </Badge>
+                                {expandedRows.has(course.id) ? 
+                                  <ChevronUp className="h-4 w-4 text-gray-500" /> : 
+                                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                                }
+                              </div>
+                            </div>
+                            
+                            {expandedRows.has(course.id) && (
+                              <div className="overflow-x-auto">
+                                <table className="w-full">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
+                                      <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
+                                      <th className="text-right py-3 px-4 font-medium">נוכחות</th>
+                                      <th className="text-right py-3 px-4 font-medium">מחיר לשיעור</th>
+                                      <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
+                                      <th className="text-right py-3 px-4 font-medium">תאריך</th>
+                                      <th className="text-right py-3 px-4 font-medium">פרטי נוכחות</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-200">
+                                    {course.lesson_details.map((lesson) => (
+                                      <React.Fragment key={lesson.id}>
+                                        <tr className="hover:bg-gray-50">
+                                          <td className="py-3 px-4 font-medium text-blue-600">
+                                            שיעור {lesson.lesson_number}
+                                          </td>
+                                          <td className="py-3 px-4 font-medium">{lesson.lesson_title}</td>
+                                          <td className="py-3 px-4">
+                                            <div className="flex items-center gap-2">
+                                              <Users className="h-4 w-4 text-gray-500" />
+                                              <span className="font-medium">
+                                                {lesson.participants_count} מתוך {lesson.total_students}
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="py-3 px-4 font-bold text-green-600">
+                                            ₪{lesson.hourly_rate.toLocaleString()}
+                                          </td>
+                                          <td className="py-3 px-4">
+                                            {lesson.is_lesson_ok ? (
+                                              <Badge className="bg-green-100 text-green-800">
+                                                <CheckCircle className="h-3 w-3 ml-1" />
+                                                כן
+                                              </Badge>
+                                            ) : (
+                                              <Badge variant="destructive">
+                                                <X className="h-3 w-3 ml-1" />
+                                                לא
+                                              </Badge>
+                                            )}
+                                          </td>
+                                          <td className="py-3 px-4 text-gray-600">
+                                            {new Date(lesson.created_at).toLocaleDateString('he-IL')}
+                                          </td>
+                                          <td className="py-3 px-4">
+                                            {lesson.attendanceData.length > 0 && (
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => toggleRowExpansion(lesson.id)}
+                                                className="flex items-center gap-1"
+                                              >
+                                                <span className="text-xs">הצג נוכחות</span>
+                                                {expandedRows.has(lesson.id) ? 
+                                                  <ChevronUp className="h-3 w-3" /> : 
+                                                  <ChevronDown className="h-3 w-3" />
+                                                }
+                                              </Button>
+                                            )}
+                                          </td>
+                                        </tr>
+                                        {/* Attendance details */}
+                                        {expandedRows.has(lesson.id) && (
+                                          <tr>
+                                            <td colSpan={7} className="bg-gray-50 p-4">
+                                              <div className="grid grid-cols-2 gap-6">
+                                                <div>
+                                                  <h4 className="font-semibold text-green-700 mb-2 flex items-center">
+                                                    <CheckCircle className="h-4 w-4 ml-1" />
+                                                    נוכחים ({lesson.attendanceData.filter(s => s.attended).length})
+                                                  </h4>
+                                                  <div className="space-y-1">
+                                                    {lesson.attendanceData.filter(s => s.attended).map(student => (
+                                                      <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                        <span className="w-2 h-2 bg-green-500 rounded-full ml-2"></span>
+                                                        {student.name}
+                                                      </div>
+                                                    ))}
+                                                    {lesson.attendanceData.filter(s => s.attended).length === 0 && (
+                                                      <span className="text-gray-500 text-sm">אין תלמידים נוכחים</span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                                <div>
+                                                  <h4 className="font-semibold text-red-700 mb-2 flex items-center">
+                                                    <X className="h-4 w-4 ml-1" />
+                                                    נעדרים ({lesson.attendanceData.filter(s => !s.attended).length})
+                                                  </h4>
+                                                  <div className="space-y-1">
+                                                    {lesson.attendanceData.filter(s => !s.attended).map(student => (
+                                                      <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                        <span className="w-2 h-2 bg-red-500 rounded-full ml-2"></span>
+                                                        {student.name}
+                                                      </div>
+                                                    ))}
+                                                    {lesson.attendanceData.filter(s => !s.attended).length === 0 && (
+                                                      <span className="text-gray-500 text-sm">כל התלמידים נוכחים</span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </React.Fragment>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  ))}
+                  
+                  {(!selectedMonthData.institutionData || selectedMonthData.institutionData.length === 0) && (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">אין נתוני מוסדות</h3>
+                        <p className="text-gray-600">לא נמצאו נתונים עבור החודש שנבחר</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               )}
-            </div>
-          </>
+            </CardContent>
+          </Card>
         )}
       </main>
     </div>
