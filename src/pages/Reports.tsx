@@ -198,7 +198,7 @@ const Reports = () => {
     };
 
     fetchAllMonthlyReports();
-  }, [user, monthsList]);
+  }, [user, monthsList, selectedInstructor, selectedInstitution, reportType]);
 
   const fetchMonthData = async (startDate: Date, endDate: Date, monthKey: string) => {
     try {
@@ -596,32 +596,40 @@ const Reports = () => {
           </CardContent>
         </Card>
 
-        {/* Month Selection Tabs */}
+        {/* Month Selection with Summary Data */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center">
               <Calendar className="h-5 w-5 ml-2" />
-              בחירת חודש
+              בחירת חודש - {reportType === 'instructors' ? 'מדריכים' : 'מוסדות'}
             </CardTitle>
             <CardDescription>לחץ על חודש כדי לראות את הנתונים הרלוונטיים</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {monthsList.map((month) => (
-                <Button
-                  key={month.key}
-                  variant={selectedMonth === month.key ? "default" : "outline"}
-                  onClick={() => setSelectedMonth(month.key)}
-                  className="text-sm px-3 py-2 h-auto flex flex-col"
-                >
-                  <span className="font-medium">{month.label}</span>
-                  {monthlyReports.find(r => r.monthKey === month.key) && (
-                    <span className="text-xs mt-1 opacity-75">
-                      {monthlyReports.find(r => r.monthKey === month.key)?.totalLessons || 0} שיעורים
-                    </span>
-                  )}
-                </Button>
-              ))}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {monthsList.map((month) => {
+                const monthReport = monthlyReports.find(r => r.monthKey === month.key);
+                const monthEarnings = reportType === 'instructors' 
+                  ? monthReport?.totalEarnings || 0
+                  : monthReport?.institutionData?.reduce((sum, inst) => sum + inst.total_revenue, 0) || 0;
+                
+                return (
+                  <Button
+                    key={month.key}
+                    variant={selectedMonth === month.key ? "default" : "outline"}
+                    onClick={() => setSelectedMonth(month.key)}
+                    className="text-sm px-3 py-3 h-auto flex flex-col items-center justify-center"
+                  >
+                    <span className="font-medium text-center">{month.label}</span>
+                    {monthReport && (
+                      <div className="text-xs mt-2 space-y-1 opacity-75">
+                        <div>{monthReport.totalLessons} שיעורים</div>
+                        <div className="font-bold">₪{monthEarnings.toLocaleString()}</div>
+                      </div>
+                    )}
+                  </Button>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -698,7 +706,7 @@ const Reports = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {reportType === 'instructors' ? (
                 <div>
                   <Label>מדריך</Label>
@@ -1014,7 +1022,7 @@ const Reports = () => {
                                       <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
                                       <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
                                       <th className="text-right py-3 px-4 font-medium">נוכחות</th>
-                                      <th className="text-right py-3 px-4 font-medium">מחיר לשיעור</th>
+                                                                             <th className="text-right py-3 px-4 font-medium">מחיר ללקוח</th>
                                       <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
                                       <th className="text-right py-3 px-4 font-medium">תאריך</th>
                                       <th className="text-right py-3 px-4 font-medium">פרטי נוכחות</th>
