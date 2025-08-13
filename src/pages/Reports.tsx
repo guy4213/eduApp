@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverContent } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { format, addMonths, startOfMonth, endOfMonth } from 'date-fns';
@@ -84,12 +83,10 @@ const Reports = () => {
   const [reportType, setReportType] = useState<'instructors' | 'institutions'>('instructors');
   const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>('current');
-  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
-  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
-  const [selectedInstructor, setSelectedInstructor] = useState<any>('all');
-  const [selectedInstitution, setSelectedInstitution] = useState<any>('all');
-  const [instructorsList, setInstructorsList] = useState<any>([]);
-  const [institutionsList, setInstitutionsList] = useState<any>([]);
+  const [selectedInstructor, setSelectedInstructor] = useState<string>('all');
+  const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
+  const [instructorsList, setInstructorsList] = useState<any[]>([]);
+  const [institutionsList, setInstitutionsList] = useState<any[]>([]);
   const [expandedRows, setExpandedRows] = useState(new Set());
 
   // Generate months list (current month + 12 months forward)
@@ -108,8 +105,8 @@ const Reports = () => {
     return months;
   }, []);
 
-  // Get current month data
-  const currentMonthData = useMemo(() => {
+  // Get filtered data for selected month
+  const filteredMonthData = useMemo(() => {
     const selectedMonthData = monthlyReports.find(report => 
       selectedMonth === 'current' ? report.monthKey === 'current' : report.monthKey === selectedMonth
     );
@@ -119,23 +116,56 @@ const Reports = () => {
         totalEarnings: 0,
         totalLessons: 0,
         completionRate: 0,
-        totalStudents: 0
+        totalStudents: 0,
+        detailData: []
       };
     }
 
-    const totalStudents = reportType === 'instructors' 
-      ? selectedMonthData.instructorData?.reduce((sum, instructor) => 
-          sum + instructor.reports.reduce((reportSum, report) => reportSum + report.total_students, 0), 0) || 0
-      : selectedMonthData.institutionData?.reduce((sum, institution) => sum + institution.total_students, 0) || 0;
+    if (reportType === 'instructors') {
+      // Filter instructors based on selection
+      const filteredInstructors = selectedInstructor === 'all' 
+        ? selectedMonthData.instructorData || []
+        : (selectedMonthData.instructorData || []).filter(instructor => instructor.id === selectedInstructor);
 
-    return {
-      totalEarnings: reportType === 'instructors' ? selectedMonthData.totalEarnings : 
-                    selectedMonthData.institutionData?.reduce((sum, inst) => sum + inst.total_revenue, 0) || 0,
-      totalLessons: selectedMonthData.totalLessons,
-      completionRate: selectedMonthData.completionRate,
-      totalStudents
-    };
-  }, [monthlyReports, selectedMonth, reportType]);
+      const totalEarnings = filteredInstructors.reduce((sum, instructor) => sum + instructor.total_salary, 0);
+      const totalLessons = filteredInstructors.reduce((sum, instructor) => sum + instructor.total_reports, 0);
+      const completedLessons = filteredInstructors.reduce((sum, instructor) => 
+        sum + instructor.reports.filter(report => report.is_lesson_ok).length, 0);
+      const totalStudents = filteredInstructors.reduce((sum, instructor) => 
+        sum + instructor.reports.reduce((reportSum, report) => reportSum + report.total_students, 0), 0);
+
+      return {
+        totalEarnings,
+        totalLessons,
+        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        totalStudents,
+        detailData: filteredInstructors
+      };
+    } else {
+      // Filter institutions based on selection
+      const filteredInstitutions = selectedInstitution === 'all' 
+        ? selectedMonthData.institutionData || []
+        : (selectedMonthData.institutionData || []).filter(institution => institution.id === selectedInstitution);
+
+      const totalEarnings = filteredInstitutions.reduce((sum, institution) => sum + institution.total_revenue, 0);
+      const totalLessons = filteredInstitutions.reduce((sum, institution) => sum + institution.total_lessons, 0);
+      const totalStudents = filteredInstitutions.reduce((sum, institution) => sum + institution.total_students, 0);
+      
+      // Calculate completion rate from lesson details
+      const allLessonDetails = filteredInstitutions.flatMap(inst => 
+        inst.courses.flatMap(course => course.lesson_details)
+      );
+      const completedLessons = allLessonDetails.filter(lesson => lesson.is_lesson_ok).length;
+
+      return {
+        totalEarnings,
+        totalLessons,
+        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        totalStudents,
+        detailData: filteredInstitutions
+      };
+    }
+  }, [monthlyReports, selectedMonth, reportType, selectedInstructor, selectedInstitution]);
 
   // Toggle row expansion
   const toggleRowExpansion = (id: string) => {
@@ -171,7 +201,7 @@ const Reports = () => {
     fetchLists();
   }, []);
 
-  // Fetch reports data for all months
+  // Fetch reports data for all months (only once on load, no dependency on filters)
   useEffect(() => {
     const fetchAllMonthlyReports = async () => {
       if (!user) return;
@@ -199,11 +229,11 @@ const Reports = () => {
     };
 
     fetchAllMonthlyReports();
-  }, [user, monthsList]);
+  }, [user, monthsList]); // Removed filter dependencies
 
   const fetchMonthData = async (startDate: Date, endDate: Date, monthKey: string) => {
     try {
-      // Fetch instructor data
+      // Fetch ALL data without filtering - we'll filter in the frontend
       const instructorData = await fetchInstructorDataForMonth(startDate, endDate);
       const institutionData = await fetchInstitutionDataForMonth(startDate, endDate);
 
@@ -239,7 +269,7 @@ const Reports = () => {
 
   const fetchInstructorDataForMonth = async (startDate: Date, endDate: Date) => {
     try {
-      // Get lesson reports with comprehensive data including institution info
+      // Get ALL lesson reports without instructor filtering
       let query = supabase
         .from('lesson_reports')
         .select(`
@@ -278,10 +308,6 @@ const Reports = () => {
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: false });
-
-      if (selectedInstructor !== 'all') {
-        query = query.eq('instructor_id', selectedInstructor);
-      }
 
       const { data: reports, error } = await query;
       if (error) throw error;
@@ -396,7 +422,7 @@ const Reports = () => {
 
   const fetchInstitutionDataForMonth = async (startDate: Date, endDate: Date) => {
     try {
-      // Get course instances with institution data and lesson reports
+      // Get ALL course instances without institution filtering
       let query = supabase
         .from('course_instances')
         .select(`
@@ -440,10 +466,6 @@ const Reports = () => {
         `)
         .gte('lesson_reports.created_at', startDate.toISOString())
         .lte('lesson_reports.created_at', endDate.toISOString());
-
-      if (selectedInstitution !== 'all') {
-        query = query.eq('institution_id', selectedInstitution);
-      }
 
       const { data: courseInstances, error } = await query;
       if (error) throw error;
@@ -530,8 +552,6 @@ const Reports = () => {
   };
 
   const clearFilters = () => {
-    setDateFrom(undefined);
-    setDateTo(undefined);
     setSelectedInstructor('all');
     setSelectedInstitution('all');
     setSelectedMonth('current');
@@ -544,10 +564,6 @@ const Reports = () => {
       </div>
     );
   }
-
-  const selectedMonthData = monthlyReports.find(report => 
-    selectedMonth === 'current' ? report.monthKey === 'current' : report.monthKey === selectedMonth
-  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -597,45 +613,15 @@ const Reports = () => {
           </CardContent>
         </Card>
 
-        {/* Month Selection Tabs */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Calendar className="h-5 w-5 ml-2" />
-              בחירת חודש
-            </CardTitle>
-            <CardDescription>לחץ על חודש כדי לראות את הנתונים הרלוונטיים</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {monthsList.map((month) => (
-                <Button
-                  key={month.key}
-                  variant={selectedMonth === month.key ? "default" : "outline"}
-                  onClick={() => setSelectedMonth(month.key)}
-                  className="text-sm px-3 py-2 h-auto flex flex-col"
-                >
-                  <span className="font-medium">{month.label}</span>
-                  {monthlyReports.find(r => r.monthKey === month.key) && (
-                    <span className="text-xs mt-1 opacity-75">
-                      {monthlyReports.find(r => r.monthKey === month.key)?.totalLessons || 0} שיעורים
-                    </span>
-                  )}
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Current Month Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold text-green-600">₪{currentMonthData.totalEarnings.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-green-600">₪{filteredMonthData.totalEarnings.toLocaleString()}</p>
                   <p className="text-gray-600 font-medium">
-                    {reportType === 'instructors' ? 'הכנסות החודש' : 'הכנסות המוסדות'}
+                    {reportType === 'instructors' ? 'משכורות ' : 'הכנסות '}
                   </p>
                 </div>
                 <div className="p-3 rounded-full bg-green-500">
@@ -649,7 +635,7 @@ const Reports = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold text-blue-600">{currentMonthData.totalLessons}</p>
+                  <p className="text-2xl font-bold text-blue-600">{filteredMonthData.totalLessons}</p>
                   <p className="text-gray-600 font-medium">שיעורים החודש</p>
                 </div>
                 <div className="p-3 rounded-full bg-blue-500">
@@ -663,7 +649,7 @@ const Reports = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold text-purple-600">{currentMonthData.completionRate.toFixed(1)}%</p>
+                  <p className="text-2xl font-bold text-purple-600">{filteredMonthData.completionRate.toFixed(1)}%</p>
                   <p className="text-gray-600 font-medium">אחוז השלמה</p>
                 </div>
                 <div className="p-3 rounded-full bg-purple-500">
@@ -677,7 +663,7 @@ const Reports = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold text-orange-600">{currentMonthData.totalStudents}</p>
+                  <p className="text-2xl font-bold text-orange-600">{filteredMonthData.totalStudents}</p>
                   <p className="text-gray-600 font-medium">
                     {reportType === 'instructors' ? 'תלמידים פעילים' : 'סה"כ תלמידים'}
                   </p>
@@ -695,11 +681,27 @@ const Reports = () => {
           <CardHeader>
             <CardTitle className="flex items-center">
               <Filter className="h-5 w-5 ml-2" />
-              סינונים נוספים
+              סינונים
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label>חודש</Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthsList.map((month) => (
+                      <SelectItem key={month.key} value={month.key}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               {reportType === 'instructors' ? (
                 <div>
                   <Label>מדריך</Label>
@@ -748,7 +750,7 @@ const Reports = () => {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>דוח חודשי מפורט</CardTitle>
-            <CardDescription>סיכום פעילות ורווחים לכל החודשים</CardDescription>
+            <CardDescription>סיכום פעילות ורווחים לכל החודשים - לחץ על חודש לצפייה מפורטת</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -765,33 +767,39 @@ const Reports = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {monthlyReports.map((report, index) => (
-                    <tr 
-                      key={index} 
-                      className={`hover:bg-gray-50 cursor-pointer ${selectedMonth === report.monthKey ? 'bg-blue-50' : ''}`}
-                      onClick={() => setSelectedMonth(report.monthKey)}
-                    >
-                      <td className="py-3 px-4 font-medium">{report.month}</td>
-                      <td className="py-3 px-4">{report.totalLessons}</td>
-                      <td className="py-3 px-4">{report.totalHours.toFixed(1)}</td>
-                      <td className="py-3 px-4">
-                        <span className="text-green-600 font-medium">{report.completedLessons}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-red-600 font-medium">{report.cancelledLessons}</span>
-                      </td>
-                      <td className="py-3 px-4 font-bold">₪{report.totalEarnings.toLocaleString()}</td>
-                      <td className="py-3 px-4">
-                        {report.totalLessons > 0 ? (
-                          <Badge variant={report.completionRate > 80 ? "default" : "secondary"}>
-                            {report.completionRate.toFixed(0)}% הושלם
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">אין פעילות</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {monthlyReports.map((report, index) => {
+                    const monthEarnings = reportType === 'instructors' 
+                      ? report.totalEarnings
+                      : report.institutionData?.reduce((sum, inst) => sum + inst.total_revenue, 0) || 0;
+                    
+                    return (
+                                              <tr 
+                        key={index} 
+                        className={`hover:bg-gray-50 cursor-pointer ${selectedMonth === report.monthKey ? 'bg-blue-50' : ''}`}
+                        onClick={() => setSelectedMonth(report.monthKey)}
+                      >
+                        <td className="py-3 px-4 font-medium">{report.month}</td>
+                        <td className="py-3 px-4">{report.totalLessons}</td>
+                        <td className="py-3 px-4">{report.totalHours.toFixed(1)}</td>
+                        <td className="py-3 px-4">
+                          <span className="text-green-600 font-medium">{report.completedLessons}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-red-600 font-medium">{report.cancelledLessons}</span>
+                        </td>
+                        <td className="py-3 px-4 font-bold">₪{monthEarnings.toLocaleString()}</td>
+                        <td className="py-3 px-4">
+                          {report.totalLessons > 0 ? (
+                            <Badge variant={report.completionRate > 80 ? "default" : "secondary"}>
+                              {report.completionRate.toFixed(0)}% הושלם
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">אין פעילות</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -799,18 +807,27 @@ const Reports = () => {
         </Card>
 
         {/* Selected Month Detailed Data */}
-        {selectedMonthData && (
-          <Card>
-            <CardHeader>
-              <CardTitle>פירוט נתונים - {selectedMonthData.month}</CardTitle>
-              <CardDescription>
-                נתונים מפורטים על {reportType === 'instructors' ? 'מדריכים' : 'מוסדות'} בחודש שנבחר
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {reportType === 'instructors' ? (
-                <div className="space-y-6">
-                  {selectedMonthData.instructorData?.map((instructor) => (
+        <Card>
+          <CardHeader>
+            <CardTitle>פירוט נתונים - {monthsList.find(m => m.key === selectedMonth)?.label}</CardTitle>
+            <CardDescription>
+              נתונים מפורטים על {reportType === 'instructors' ? 'מדריכים' : 'מוסדות'} בחודש שנבחר
+              {(selectedInstructor !== 'all' || selectedInstitution !== 'all') && ' (מסונן)'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {reportType === 'instructors' ? (
+              <div className="space-y-6">
+                {filteredMonthData.detailData.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">אין נתוני מדריכים</h3>
+                      <p className="text-gray-600">לא נמצאו נתונים עבור החודש והמדריך שנבחרו</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  filteredMonthData.detailData.map((instructor) => (
                     <Card key={instructor.id} className="overflow-hidden">
                       <CardHeader className="bg-gray-50">
                         <div className="flex justify-between items-start">
@@ -953,11 +970,21 @@ const Reports = () => {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {selectedMonthData.institutionData?.map((institution) => (
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {filteredMonthData.detailData.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">אין נתוני מוסדות</h3>
+                      <p className="text-gray-600">לא נמצאו נתונים עבור החודש והמוסד שנבחרו</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  filteredMonthData.detailData.map((institution) => (
                     <Card key={institution.id} className="overflow-hidden">
                       <CardHeader className="bg-gray-50">
                         <div className="flex justify-between items-start">
@@ -1015,7 +1042,7 @@ const Reports = () => {
                                       <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
                                       <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
                                       <th className="text-right py-3 px-4 font-medium">נוכחות</th>
-                                      <th className="text-right py-3 px-4 font-medium">מחיר לשיעור</th>
+                                      <th className="text-right py-3 px-4 font-medium">מחיר ללקוח</th>
                                       <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
                                       <th className="text-right py-3 px-4 font-medium">תאריך</th>
                                       <th className="text-right py-3 px-4 font-medium">פרטי נוכחות</th>
@@ -1126,22 +1153,12 @@ const Reports = () => {
                         ))}
                       </CardContent>
                     </Card>
-                  ))}
-                  
-                  {(!selectedMonthData.institutionData || selectedMonthData.institutionData.length === 0) && (
-                    <Card>
-                      <CardContent className="text-center py-12">
-                        <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">אין נתוני מוסדות</h3>
-                        <p className="text-gray-600">לא נמצאו נתונים עבור החודש שנבחר</p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                  ))
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   );
