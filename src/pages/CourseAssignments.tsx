@@ -29,6 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
+import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
 
 interface Task {
   id: string;
@@ -124,24 +125,44 @@ const CourseAssignments = () => {
 
       if (instancesError) throw instancesError;
 
+      console.log(`[DEBUG] Found ${coursesData?.length || 0} course instances for ${isInstructor ? 'instructor' : 'admin'}:`, coursesData);
+
       // Fetch lessons and tasks for assigned courses
       const courseIds = coursesData?.map((instance: any) => instance.course?.id).filter(Boolean) || [];
+      console.log(`[DEBUG] Course instances details:`, coursesData?.map(instance => ({
+        instanceId: instance.id,
+        courseId: instance.course?.id,
+        courseName: instance.course?.name,
+        instructorId: instance.instructor?.id
+      })));
       let lessonsData: any[] = [];
       let tasksData: any[] = [];
       let schedulesData: any[] = [];
 
       if (courseIds.length > 0) {
         // Fetch lessons
+        console.log(`[DEBUG] About to fetch lessons for course IDs:`, courseIds);
+        
+        // First, let's check if any lessons exist at all for these courses
+        const { data: allLessonsForCourse, error: allLessonsError } = await supabase
+          .from("lessons")
+          .select("id, title, course_id, instructor_id")
+          .in("course_id", courseIds);
+        
+        console.log(`[DEBUG] All lessons found for courses (before any filtering):`, allLessonsForCourse);
+        console.log(`[DEBUG] Current user role:`, userRole, `Current user ID:`, user?.id);
+        
         const { data: lessons, error: lessonsError } = await supabase
           .from("lessons")
           .select("*")
           .in("course_id", courseIds)
-          .order("created_at");
+          .order("order_index");
 
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
         } else {
           lessonsData = lessons || [];
+          console.log(`[DEBUG] Found ${lessonsData.length} lessons for course IDs:`, courseIds, lessonsData);
         }
 
         // Fetch tasks for all lessons
@@ -159,21 +180,23 @@ const CourseAssignments = () => {
             console.error("Error fetching tasks:", tasksError);
           } else {
             tasksData = tasks || [];
+            console.log(`[DEBUG] Found ${tasksData.length} tasks for ${lessonIds.length} lessons:`, tasksData);
           }
         }
 
-        // Fetch lesson schedules for assigned courses
+        // Fetch combined lesson schedules (legacy + new architecture)
         const courseInstanceIds = coursesData?.map((instance) => instance.id) || [];
         if (courseInstanceIds.length > 0) {
-          const { data: schedules, error: schedulesError } = await supabase
-            .from("lesson_schedules")
-            .select("*")
-            .in("course_instance_id", courseInstanceIds);
+          try {
+            const allSchedules = await fetchCombinedSchedules();
+            // Filter schedules for the relevant course instances
+            schedulesData = allSchedules.filter(schedule => 
+              courseInstanceIds.includes(schedule.course_instance_id)
+            );
 
-          if (schedulesError) {
-            console.error("Error fetching lesson schedules:", schedulesError);
-          } else {
-            schedulesData = schedules || [];
+          } catch (error) {
+            console.error("Error fetching combined schedules:", error);
+            schedulesData = [];
           }
         }
       }
@@ -195,6 +218,8 @@ const CourseAssignments = () => {
               schedule.lesson_id === lesson.id &&
               schedule.course_instance_id === instanceData.id
           );
+
+
 
           return lessonTasks.map((task) => ({
             ...task,
@@ -234,6 +259,11 @@ const CourseAssignments = () => {
       };
 
       const formattedAssignments = coursesData?.map(formatAssignmentData) || [];
+      console.log(`[DEBUG] Final formatted assignments:`, formattedAssignments.map(a => ({ 
+        name: a.name, 
+        tasks_count: a.tasks.length,
+        lesson_count: a.lesson_count 
+      })));
       setAssignments(formattedAssignments);
     } catch (error) {
       console.error("Error fetching assignments:", error);

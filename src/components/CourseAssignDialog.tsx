@@ -17,14 +17,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Trash2 } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,30 +38,24 @@ interface Instructor {
   full_name: string;
 }
 
-interface Lesson {
-  id: string;
-  title: string;
-  tasks?: any[];
-}
-
-interface DaySchedule {
+interface TimeSlot {
   day: number;
   start_time: string;
   end_time: string;
 }
 
-interface LessonSchedule {
-  lesson_id: string;
-  lesson_title: string;
-  scheduled_date: string;
-  start_time: string;
-  end_time: string;
-  // New fields for instances
-  create_instances: boolean;
-  days_of_week: number[]; // [0,3] for Sun,Wed
-  day_schedules: DaySchedule[]; // Per-day timing
-  total_instances: number;
-  instance_start_date: string;
+interface CourseInstanceSchedule {
+  days_of_week: number[];
+  time_slots: TimeSlot[];
+  total_lessons?: number;
+  lesson_duration_minutes?: number;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  order_index?: number;
+  tasks?: any[];
 }
 
 interface EditData {
@@ -123,7 +116,6 @@ const CourseAssignDialog = ({
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [lessonSchedules, setLessonSchedules] = useState<LessonSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -135,6 +127,14 @@ const CourseAssignDialog = ({
     max_participants: "",
     start_date: "",
     end_date: "",
+  });
+
+  // New schedule state
+  const [courseSchedule, setCourseSchedule] = useState<CourseInstanceSchedule>({
+    days_of_week: [],
+    time_slots: [],
+    total_lessons: 1,
+    lesson_duration_minutes: 60,
   });
 
   const dayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -159,8 +159,13 @@ const CourseAssignDialog = ({
       start_date: "",
       end_date: "",
     });
+    setCourseSchedule({
+      days_of_week: [],
+      time_slots: [],
+      total_lessons: 1,
+      lesson_duration_minutes: 60,
+    });
     setStep(1);
-    setLessonSchedules([]);
   };
 
   useEffect(() => {
@@ -174,58 +179,17 @@ const CourseAssignDialog = ({
           fetchCourseLessons();
         }
       } else if (mode === 'edit') {
-        // Reset to step 1 for editing
         setStep(1);
-        // Load existing lesson schedules instead of clearing them
-        fetchExistingLessonSchedules();
+        fetchExistingSchedule();
       }
     }
   }, [open, courseId, mode, editData]);
 
-  // Debug function to check if we can access the record
-  const debugCourseInstance = async () => {
-    if (mode === 'edit' && editData?.instance_id) {
-      try {
-        const { data, error } = await supabase
-          .from("course_instances")
-          .select("*")
-          .eq("id", editData.instance_id)
-          .single();
-
-        console.log('DEBUG - Can read record:', data);
-        console.log('DEBUG - Read error:', error);
-        
-        if (error) {
-          toast({
-            title: "שגיאה",
-            description: `לא ניתן לגשת לרשומה: ${error.message}`,
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error('DEBUG - Exception reading record:', error);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (open && mode === 'edit') {
-      debugCourseInstance();
-    }
-  }, [open, mode, editData]);
-
   // Populate form data when institutions/instructors are loaded and editData is available
   useEffect(() => {
     if (mode === 'edit' && editData && institutions.length > 0 && instructors.length > 0) {
-      console.log('Populating form data for edit mode:', editData);
-      console.log('Available institutions:', institutions);
-      console.log('Available instructors:', instructors);
-      
       const institutionId = findIdByName(institutions, editData.institution_name);
       const instructorId = findIdByName(instructors, editData.instructor_name);
-      
-      console.log('Found institution ID:', institutionId, 'for name:', editData.institution_name);
-      console.log('Found instructor ID:', instructorId, 'for name:', editData.instructor_name);
       
       const newFormData = {
         institution_id: institutionId,
@@ -238,7 +202,6 @@ const CourseAssignDialog = ({
         end_date: editData.approx_end_date || "",
       };
       
-      console.log('Setting form data:', newFormData);
       setFormData(newFormData);
     }
   }, [mode, editData, institutions, instructors]);
@@ -288,9 +251,9 @@ const CourseAssignDialog = ({
     try {
       const { data, error } = await supabase
         .from("lessons")
-        .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
+        .select("id, title, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
         .eq("course_id", courseId)
-        .order("created_at")
+        .order("order_index");
 
       if (error) throw error;
       
@@ -301,21 +264,12 @@ const CourseAssignDialog = ({
       }));
       
       setLessons(lessonsWithTasks);
-      const courseStartDate = formData.start_date || "";
-
-      const initialSchedules = (data || []).map((lesson) => ({
-        lesson_id: lesson.id,
-        lesson_title: lesson.title,
-        scheduled_date: courseStartDate,
-        start_time: "",
-        end_time: "",
-        create_instances: false,
-        days_of_week: [],
-        day_schedules: [],
-        total_instances: 1,
-        instance_start_date: courseStartDate,
+      
+      // Set default total_lessons to the number of lessons in the course
+      setCourseSchedule(prev => ({
+        ...prev,
+        total_lessons: lessonsWithTasks.length || 1
       }));
-      setLessonSchedules(initialSchedules);
     } catch (error) {
       console.error("Error fetching lessons:", error);
       toast({
@@ -326,11 +280,11 @@ const CourseAssignDialog = ({
     }
   };
 
-  const fetchExistingLessonSchedules = async () => {
+  const fetchExistingSchedule = async () => {
     if (!editData?.instance_id) return;
     
     try {
-      // First, get the course_id from the instance
+      // First, get the course_id from the instance to fetch lessons
       const { data: instanceData, error: instanceError } = await supabase
         .from("course_instances")
         .select("course_id")
@@ -339,110 +293,67 @@ const CourseAssignDialog = ({
 
       if (instanceError) throw instanceError;
 
-      // Fetch lessons for this course with their tasks
-      const { data: lessonsData, error: lessonsError } = await supabase
-        .from("lessons")
-        .select("id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
-        .eq("course_id", instanceData.course_id)
-        .order("created_at");
+      // Fetch lessons for this course
+      if (instanceData?.course_id) {
+        const { data: lessonsData, error: lessonsError } = await supabase
+          .from("lessons")
+          .select("id, title, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
+          .eq("course_id", instanceData.course_id)
+          .order("order_index");
 
-      if (lessonsError) throw lessonsError;
+        if (!lessonsError && lessonsData) {
+          const lessonsWithTasks = lessonsData.map(lesson => ({
+            ...lesson,
+            tasks: lesson.lesson_tasks || []
+          }));
+          setLessons(lessonsWithTasks);
+        }
+      }
 
-      // Ensure lessons have tasks property properly set
-      const lessonsWithTasks = (lessonsData || []).map(lesson => ({
-        ...lesson,
-        tasks: lesson.lesson_tasks || []
-      }));
-      
-      setLessons(lessonsWithTasks);
-
-      // Fetch existing lesson schedules for this instance
-      const { data: schedulesData, error: schedulesError } = await supabase
-        .from("lesson_schedules")
+      // Check if there's a course_instance_schedules entry
+      const { data: scheduleData, error: scheduleError } = await supabase
+        .from("course_instance_schedules")
         .select("*")
-        .eq("course_instance_id", editData.instance_id);
+        .eq("course_instance_id", editData.instance_id)
+        .single();
 
-      if (schedulesError) throw schedulesError;
+      if (scheduleData && !scheduleError) {
+        // Use new schedule format
+        setCourseSchedule({
+          days_of_week: scheduleData.days_of_week || [],
+          time_slots: (scheduleData.time_slots as TimeSlot[]) || [],
+          total_lessons: scheduleData.total_lessons || 1,
+          lesson_duration_minutes: scheduleData.lesson_duration_minutes || 60,
+        });
+      } else {
+        // Fallback: Try to extract from existing lesson_schedules (legacy)
+        const { data: legacySchedules, error: legacyError } = await supabase
+          .from("lesson_schedules")
+          .select("*")
+          .eq("course_instance_id", editData.instance_id);
 
-      // Group schedules by lesson_id to handle multiple instances
-      const schedulesByLesson = new Map();
-      
-      schedulesData?.forEach((schedule) => {
-        const lessonId = schedule.lesson_id;
-        if (!schedulesByLesson.has(lessonId)) {
-          schedulesByLesson.set(lessonId, []);
-        }
-        schedulesByLesson.get(lessonId).push(schedule);
-      });
-
-      // Create lesson schedules with existing data
-      const formattedSchedules = (lessonsData || []).map((lesson) => {
-        const existingSchedules = schedulesByLesson.get(lesson.id) || [];
-        
-        if (existingSchedules.length > 0) {
-          // If multiple schedules exist, it means this lesson has instances
-          if (existingSchedules.length > 1) {
-            // Extract days of week and timing from existing schedules
-            const daysOfWeek = [...new Set(existingSchedules.map(s => new Date(s.scheduled_start).getDay()))];
-            const daySchedules = daysOfWeek.map(day => {
-              const scheduleForDay = existingSchedules.find(s => new Date(s.scheduled_start).getDay() === day);
-              return {
-                day,
-                start_time: scheduleForDay ? new Date(scheduleForDay.scheduled_start).toTimeString().slice(0, 5) : "",
-                end_time: scheduleForDay ? new Date(scheduleForDay.scheduled_end).toTimeString().slice(0, 5) : "",
-              };
-            });
-
+        if (legacySchedules && !legacyError && legacySchedules.length > 0) {
+          // Convert legacy schedules to new format
+          const daysOfWeek = [...new Set(legacySchedules.map(s => new Date(s.scheduled_start!).getDay()))];
+          const timeSlots: TimeSlot[] = daysOfWeek.map(day => {
+            const scheduleForDay = legacySchedules.find(s => new Date(s.scheduled_start!).getDay() === day);
             return {
-              lesson_id: lesson.id,
-              lesson_title: lesson.title,
-              scheduled_date: new Date(existingSchedules[0].scheduled_start).toISOString().split('T')[0],
-              start_time: "",
-              end_time: "",
-              create_instances: true,
-              days_of_week: daysOfWeek,
-              day_schedules: daySchedules,
-              total_instances: existingSchedules.length,
-              instance_start_date: new Date(existingSchedules[0].scheduled_start).toISOString().split('T')[0],
+              day,
+              start_time: scheduleForDay ? new Date(scheduleForDay.scheduled_start!).toTimeString().slice(0, 5) : "",
+              end_time: scheduleForDay ? new Date(scheduleForDay.scheduled_end!).toTimeString().slice(0, 5) : "",
             };
-          } else {
-            // Single lesson schedule
-            const schedule = existingSchedules[0];
-            const scheduledDate = new Date(schedule.scheduled_start);
-            
-            return {
-              lesson_id: lesson.id,
-              lesson_title: lesson.title,
-              scheduled_date: scheduledDate.toISOString().split('T')[0],
-              start_time: scheduledDate.toTimeString().slice(0, 5),
-              end_time: new Date(schedule.scheduled_end).toTimeString().slice(0, 5),
-              create_instances: false,
-              days_of_week: [],
-              day_schedules: [],
-              total_instances: 1,
-              instance_start_date: scheduledDate.toISOString().split('T')[0],
-            };
-          }
-        } else {
-          // No existing schedule for this lesson
-          return {
-            lesson_id: lesson.id,
-            lesson_title: lesson.title,
-            scheduled_date: editData.start_date || "",
-            start_time: "",
-            end_time: "",
-            create_instances: false,
-            days_of_week: [],
-            day_schedules: [],
-            total_instances: 1,
-            instance_start_date: editData.start_date || "",
-          };
-        }
-      });
+          });
 
-      setLessonSchedules(formattedSchedules);
+          setCourseSchedule({
+            days_of_week: daysOfWeek,
+            time_slots: timeSlots,
+            total_lessons: legacySchedules.length,
+            lesson_duration_minutes: 60,
+          });
+        }
+      }
     } catch (error) {
-      console.error("Error fetching existing lesson schedules:", error);
+      console.error("Error fetching existing schedule:", error);
       toast({
         title: "שגיאה",
         description: "לא ניתן לטעון את לוח הזמנים הקיים",
@@ -452,19 +363,6 @@ const CourseAssignDialog = ({
   };
 
   const handleCourseAssignment = async (): Promise<string | null> => {
-    console.log('handleCourseAssignment called - mode:', mode, 'editData:', editData);
-    
-    // Validate that we have the necessary data for edit mode
-    if (mode === 'edit' && !editData?.instance_id) {
-      console.error('Edit mode called without valid editData:', editData);
-      toast({
-        title: "שגיאה",
-        description: "חסרים נתוני עריכה. אנא נסה לסגור ולפתוח מחדש את החלון.",
-        variant: "destructive",
-      });
-      return null;
-    }
-    
     try {
       if (mode === 'create') {
         // Create new course instance
@@ -481,6 +379,12 @@ const CourseAssignDialog = ({
               price_for_instructor: parseFloat(formData.price_for_instructor),
               start_date: formData.start_date,
               end_date: formData.end_date,
+              days_of_week: courseSchedule.days_of_week,
+              schedule_pattern: {
+                time_slots: courseSchedule.time_slots,
+                total_lessons: courseSchedule.total_lessons,
+                lesson_duration_minutes: courseSchedule.lesson_duration_minutes,
+              },
             },
           ])
           .select()
@@ -490,9 +394,6 @@ const CourseAssignDialog = ({
         return data.id;
       } else {
         // Edit mode - update existing instance
-        console.log('Edit mode - updating instance:', editData?.instance_id);
-        console.log('Edit mode - formData:', formData);
-        
         const updateData = {
           institution_id: formData.institution_id,
           instructor_id: formData.instructor_id,
@@ -502,9 +403,13 @@ const CourseAssignDialog = ({
           price_for_instructor: parseFloat(formData.price_for_instructor),
           start_date: formData.start_date,
           end_date: formData.end_date,
+          days_of_week: courseSchedule.days_of_week,
+          schedule_pattern: {
+            time_slots: courseSchedule.time_slots,
+            total_lessons: courseSchedule.total_lessons,
+            lesson_duration_minutes: courseSchedule.lesson_duration_minutes,
+          },
         };
-        
-        console.log('Edit mode - updateData:', updateData);
         
         const { data, error } = await supabase
           .from("course_instances")
@@ -513,12 +418,7 @@ const CourseAssignDialog = ({
           .select()
           .single();
 
-        if (error) {
-          console.error('Edit mode - update error:', error);
-          throw error;
-        }
-        
-        console.log('Edit mode - update successful:', data);
+        if (error) throw error;
         return editData?.instance_id || null;
       }
     } catch (error) {
@@ -534,571 +434,77 @@ const CourseAssignDialog = ({
     }
   };
 
-  // Function to generate multiple instances with per-day timing
-  const generateLessonInstances = (schedule: LessonSchedule) => {
-    console.log(`Generating instances for lesson: ${schedule.lesson_title}`);
-    console.log(`Days of week: ${schedule.days_of_week}, Total instances: ${schedule.total_instances}`);
-    console.log(`Instance start date: ${schedule.instance_start_date}`);
-    console.log(`Day schedules:`, schedule.day_schedules);
-    
-    const courseStart = new Date(formData.start_date);
-    const courseEnd = new Date(formData.end_date);
+  const saveCourseInstanceSchedule = async (instanceId: string) => {
+    try {
+      // Check if schedule already exists
+      const { data: existingSchedule } = await supabase
+        .from("course_instance_schedules")
+        .select("id")
+        .eq("course_instance_id", instanceId)
+        .single();
 
-    const instances = [];
-    const currentDate = new Date(schedule.instance_start_date);
-    let createdCount = 0;
-
-    let lastInstanceDate: Date | null = null;
-
-    while (createdCount < schedule.total_instances) {
-      const dayOfWeek = currentDate.getDay();
-
-      if (schedule.days_of_week.includes(dayOfWeek)) {
-        const dateStr = currentDate.toISOString().split("T")[0];
-
-        const daySchedule = schedule.day_schedules.find(
-          (ds) => ds.day === dayOfWeek
-        );
-
-        console.log(`Found matching day ${dayOfWeek} on ${dateStr}, daySchedule:`, daySchedule);
-
-        if (daySchedule?.start_time && daySchedule?.end_time) {
-          // Check range
-          if (currentDate < courseStart || currentDate > courseEnd) {
-            const attempted = currentDate.toISOString().split("T")[0];
-            const allowedEnd = courseEnd.toISOString().split("T")[0];
-
-            return {
-              success: false,
-              error: `תאריך המפגש האחרון שנוצר (${attempted}) חורג מתאריך סיום הקורס (${allowedEnd}). נסה לשנות את תאריך ההתחלה או להקטין את מספר המפגשים.`,
-              lastInstanceDate: attempted,
-            };
-          }
-
-          const newInstance = {
-            course_instance_id: "",
-            lesson_id: schedule.lesson_id,
-            scheduled_start: `${dateStr}T${daySchedule.start_time}:00`,
-            scheduled_end: `${dateStr}T${daySchedule.end_time}:00`,
-            instance_number: createdCount + 1,
-          };
-          
-          console.log(`Creating instance ${createdCount + 1}:`, newInstance);
-          instances.push(newInstance);
-
-          lastInstanceDate = new Date(currentDate);
-          createdCount++;
-        }
-      }
-
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    const lastDateStr = lastInstanceDate
-      ? lastInstanceDate.toISOString().split("T")[0]
-      : null;
-
-    console.log(`Generated ${instances.length} instances for lesson ${schedule.lesson_title}`);
-
-    return {
-      success: true,
-      instances,
-      finalDateMessage: `המפגש האחרון יתקיים בתאריך ${lastDateStr}`,
-    };
-  };
-
-  const validateLessonDates = () => {
-    if (!formData.start_date || !formData.end_date) {
-      return {
-        valid: false,
-        message: "נא להגדיר תאריכי התחלה וסיום לתוכנית לפני תזמון שיעורים.",
+      const scheduleData = {
+        course_instance_id: instanceId,
+        days_of_week: courseSchedule.days_of_week,
+        time_slots: courseSchedule.time_slots,
+        total_lessons: courseSchedule.total_lessons,
+        lesson_duration_minutes: courseSchedule.lesson_duration_minutes,
       };
-    }
-    const courseStart = new Date(formData.start_date);
-    const courseEnd = new Date(formData.end_date);
 
-    for (const schedule of lessonSchedules) {
-      if (schedule.create_instances) {
-        const instanceStart = new Date(schedule.instance_start_date);
-        if (instanceStart < courseStart || instanceStart > courseEnd) {
-          return {
-            valid: false,
-            message: `תאריך התחלה של שיעור "${schedule.lesson_title}" מחוץ לתחום התוכנית.`,
-          };
-        }
+      if (existingSchedule) {
+        // Update existing schedule
+        const { error } = await supabase
+          .from("course_instance_schedules")
+          .update(scheduleData)
+          .eq("id", existingSchedule.id);
+
+        if (error) throw error;
       } else {
-        if (!schedule.scheduled_date) continue;
-        const lessonDate = new Date(schedule.scheduled_date);
-        if (lessonDate < courseStart || lessonDate > courseEnd) {
-          return {
-            valid: false,
-            message: `תאריך השיעור "${schedule.lesson_title}" מחוץ לתחום התוכנית.`,
-          };
-        }
+        // Create new schedule
+        const { error } = await supabase
+          .from("course_instance_schedules")
+          .insert([scheduleData]);
+
+        if (error) throw error;
       }
-    }
 
-    return { valid: true };
-  };
-
-
-  // Enhanced TypeScript function with debugging
-async function deleteLessonSchedulesByCourseInstance(instanceId: string) {
-  try {
-    console.log('Attempting to delete with instanceId:', instanceId);
-    
-    // Verify the instanceId is a valid UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(instanceId)) {
-      console.error('Invalid UUID format:', instanceId);
-      return { success: false, error: 'Invalid UUID format' };
-    }
-
-    // Call the RPC function
-    const { data, error } = await supabase.rpc('delete_by_course_instance_id', {
-      p_uuid: instanceId
-    });
-
-    if (error) {
-      console.error('RPC error details:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      });
-      return { success: false, error };
-    }
-
-    console.log('RPC success - deleted rows:', data);
-    return { success: true, deletedCount: data };
-
-  } catch (err) {
-    console.error('Unexpected error:', err);
-    return { success: false, error: err };
-  }
-}
-
-// Alternative approach: Direct delete with RLS (if RPC doesn't work)
-async function deleteLessonSchedulesDirectly(instanceId: string) {
-  try {
-    const { data, error, count } = await supabase
-      .from('lesson_schedules')
-      .delete({ count: 'exact' })
-      .eq('course_instance_id', instanceId);
-
-    if (error) {
-      console.error('Direct delete error:', error);
-      return { success: false, error };
-    }
-
-    console.log('Direct delete success - deleted rows:', count);
-    return { success: true, deletedCount: count };
-
-  } catch (err) {
-    console.error('Direct delete unexpected error:', err);
-    return { success: false, error: err };
-  }
-}
-
-// Usage example with both approaches
-async function handleDelete(instanceId: string) {
-  // Try RPC first
-  let result = await deleteLessonSchedulesByCourseInstance(instanceId);
-  
-  if (!result.success) {
-    console.log('RPC failed, trying direct delete...');
-    // Fallback to direct delete
-    result = await deleteLessonSchedulesDirectly(instanceId);
-  }
-  
-  return result;
-}
-
-// Debug function to check what exists before deletion
-async function debugLessonSchedules(instanceId: string) {
-  const { data, error } = await supabase
-    .from('lesson_schedules')
-    .select('*')
-    .eq('course_instance_id', instanceId);
-    
-  console.log('Existing lesson_schedules for instanceId:', instanceId);
-  console.log('Data:', data);
-  console.log('Error:', error);
-  
-  return { data, error };
-}
-  const saveLessonSchedules = async (instanceId: string, allInstances: any[]) => {
-    try {
-      if (mode === 'edit') {
-        console.log('Edit mode: Updating schedules for course instance:', instanceId);
-        console.log('Edit mode: New instances to create:', allInstances.length);
-        console.log('INSTANCE  '+instanceId)
-        // For edit mode, delete ALL existing schedules for this course instance first
-        // This ensures we don't have orphaned schedules and properly handle the lesson_id instances
-const { error: deleteError, count } = await supabase
-          .from('lesson_schedules')
-          .delete({ count: 'exact' })
-          .eq('course_instance_id', instanceId);
-
-        if (deleteError) {
-          console.error('Delete failed:', deleteError);
-          throw new Error(`Failed to delete existing schedules: ${deleteError.message}`);
-        }
-
-
-
-        
-
-        console.log(`Edit mode: Successfully deleted all existing schedules - ${count} for course instance:`, instanceId );
-
-        // Now insert all new schedules
-        if (allInstances.length > 0) {
-          console.log('Edit mode: Inserting new schedules:', allInstances);
+      // Only clean up old lesson_schedules if we're updating schedule pattern in edit mode
+      if (mode === 'edit' && (courseSchedule.days_of_week.length > 0 || courseSchedule.time_slots.length > 0)) {
+        // Check if there are any existing course_instance_schedules
+        const { data: existingCourseSchedule } = await supabase
+          .from("course_instance_schedules")
+          .select("id")
+          .eq("course_instance_id", instanceId)
+          .single();
           
-          const { error: insertError } = await supabase
-            .from("lesson_schedules")
-            .insert(allInstances);
-
-          if (insertError) {
-            console.error('Error inserting new schedules:', insertError);
-            throw insertError;
-          }
-
-          console.log('Edit mode: Successfully inserted', allInstances.length, 'new schedules');
-        } else {
-          console.log('Edit mode: No new schedules to insert');
-        }
-      } else {
-        // Create mode - just insert new schedules
-        console.log('Create mode: Inserting schedules for new course instance:', instanceId);
-        console.log('Create mode: New instances to create:', allInstances.length);
-        
-        if (allInstances.length > 0) {
-          const { error } = await supabase
-            .from("lesson_schedules")
-            .insert(allInstances);
-
-          if (error) {
-            console.error('Error inserting schedules in create mode:', error);
-            throw error;
-          }
-          
-          console.log('Create mode: Successfully inserted', allInstances.length, 'schedules');
+        // Only delete legacy schedules if we're migrating to new schedule format
+        if (existingCourseSchedule) {
+          await supabase
+            .from('lesson_schedules')
+            .delete()
+            .eq('course_instance_id', instanceId);
         }
       }
     } catch (error) {
-      console.error("Error saving lesson schedules:", error);
+      console.error("Error saving course instance schedule:", error);
       throw error;
-    }
-  };
-
-  const updateLessonContent = async (courseId: string, lessons: Lesson[]) => {
-    try {
-      // Get existing lessons for this course
-      const { data: existingLessons } = await supabase
-        .from('lessons')
-        .select(`id, title, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)`)  
-        .eq('course_id', courseId);
-
-      // Create a map of existing lessons by ID for matching
-      const existingLessonsMap = new Map(existingLessons.map(lesson => [lesson.id, lesson]));
-      const processedLessonIds = new Set<string>();
-
-      for (const lesson of lessons) {
-        // Check if this lesson has a real database ID (not a temporary one)
-        const isExistingLesson = lesson.id && 
-          !lesson.id.startsWith('lesson-') && 
-          !lesson.id.startsWith('fallback-lesson-') && 
-          existingLessonsMap.has(lesson.id);
-        const existingLesson = isExistingLesson ? existingLessonsMap.get(lesson.id) : null;
-        
-        if (existingLesson) {
-          // Update existing lesson
-          processedLessonIds.add(existingLesson.id);
-          await supabase.from('lessons').update({ title: lesson.title }).eq('id', existingLesson.id);
-          await updateTasksForLesson(existingLesson.id, lesson.tasks || [], existingLesson.lesson_tasks);
-        } else {
-          // Create new lesson
-          const { data: savedLesson, error: lessonError } = await supabase
-            .from('lessons')
-            .insert({
-              course_id: courseId,
-              title: lesson.title,
-              scheduled_start: new Date().toISOString(),
-              scheduled_end: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-              status: 'scheduled',
-            })
-            .select('id')
-            .single();
-
-          if (lessonError) throw lessonError;
-
-          if (lesson.tasks && lesson.tasks.length > 0) {
-            const tasksToInsert = lesson.tasks.map(task => ({
-              lesson_id: savedLesson.id,
-              title: task.title,
-              description: task.description,
-              estimated_duration: task.estimated_duration,
-              is_mandatory: task.is_mandatory,
-              order_index: task.order_index,
-            }));
-            
-            const { error: tasksError } = await supabase.from('lesson_tasks').insert(tasksToInsert);
-            
-            if (tasksError) {
-              console.error('Error inserting tasks for new lesson:', tasksError);
-              throw tasksError;
-            }
-          }
-        }
-      }
-
-      // Check which lessons have schedules before deleting
-      const lessonsToDelete = existingLessons
-        .filter(lesson => !processedLessonIds.has(lesson.id))
-        .map(lesson => lesson.id);
-
-      if (lessonsToDelete.length > 0) {
-        // Check if any of these lessons have associated schedules
-        const { data: scheduledLessons, error: scheduleCheckError } = await supabase
-          .from('lesson_schedules')
-          .select('lesson_id')
-          .in('lesson_id', lessonsToDelete);
-
-        if (scheduleCheckError) {
-          console.error('Error checking lesson schedules:', scheduleCheckError);
-          throw scheduleCheckError;
-        }
-
-        const scheduledLessonIds = new Set(scheduledLessons?.map(s => s.lesson_id) || []);
-        
-        // Only delete lessons that don't have schedules
-        const lessonsToActuallyDelete = lessonsToDelete.filter(id => !scheduledLessonIds.has(id));
-        
-        if (lessonsToActuallyDelete.length > 0) {
-          await supabase.from('lesson_tasks').delete().in('lesson_id', lessonsToActuallyDelete);
-          await supabase.from('lessons').delete().in('id', lessonsToActuallyDelete);
-        }
-      }
-    } catch (error) {
-      console.error('Error updating lesson content:', error);
-      throw error;
-    }
-  };
-
-  const updateTasksForLesson = async (lessonId: string, newTasks: any[], existingTasks: any[]) => {
-    const existingTasksMap = new Map(existingTasks.map(task => [task.id, task]));
-    const processedTaskIds = new Set<string>();
-
-    for (const newTask of newTasks) {
-      // Check if this task has a real database ID (not a temporary one)
-      const isExistingTask = newTask.id && !newTask.id.startsWith('task-') && existingTasksMap.has(newTask.id);
-      const existingTask = isExistingTask ? existingTasksMap.get(newTask.id) : null;
-      
-      if (existingTask) {
-        // Update existing task
-        processedTaskIds.add(existingTask.id);
-        await supabase
-          .from('lesson_tasks')
-          .update({
-            title: newTask.title,
-            description: newTask.description,
-            estimated_duration: newTask.estimated_duration,
-            is_mandatory: newTask.is_mandatory,
-            order_index: newTask.order_index,
-          })
-          .eq('id', existingTask.id);
-      } else {
-        // Create new task
-        const { error: insertError } = await supabase.from('lesson_tasks').insert({
-          lesson_id: lessonId,
-          title: newTask.title,
-          description: newTask.description,
-          estimated_duration: newTask.estimated_duration,
-          is_mandatory: newTask.is_mandatory,
-          order_index: newTask.order_index,
-        });
-        
-        if (insertError) {
-          console.error('Error inserting new task:', insertError);
-          throw insertError;
-        }
-      }
-    }
-
-    // Delete tasks that are no longer in the updated list
-    const tasksToDelete = existingTasks
-      .filter(task => !processedTaskIds.has(task.id))
-      .map(task => task.id);
-
-    if (tasksToDelete.length > 0) {
-      await supabase.from('lesson_tasks').delete().in('id', tasksToDelete);
     }
   };
 
   const handleFinalSave = async () => {
     setLoading(true);
     try {
-              if (mode === 'edit') {
-          // For edit mode, update the course instance and lesson schedules
-          const result = await handleCourseAssignment();
-          if (result) {
-            // Get courseId from the instance data for edit mode
-            let currentCourseId = courseId;
-            if (!currentCourseId && editData?.instance_id) {
-              const { data: instanceData, error: instanceError } = await supabase
-                .from("course_instances")
-                .select("course_id")
-                .eq("id", editData.instance_id)
-                .single();
-              
-              if (!instanceError && instanceData) {
-                currentCourseId = instanceData.course_id;
-              }
-            }
-            
-            // Always update lesson content in edit mode
-            console.log('About to update lesson content - courseId:', currentCourseId, 'lessons count:', lessons.length);
-            if (currentCourseId && lessons.length > 0) {
-              await updateLessonContent(currentCourseId, lessons);
-              console.log('Lesson content updated successfully');
-            } else {
-              console.warn('Skipping lesson content update - courseId:', currentCourseId, 'lessons:', lessons.length);
-            }
-
-          // Process lesson schedules for edit mode
-          const allInstances = [];
-          
-          for (const schedule of lessonSchedules) {
-            console.log(`Processing lesson: ${schedule.lesson_title} (ID: ${schedule.lesson_id})`);
-            console.log(`Create instances: ${schedule.create_instances}, Total instances: ${schedule.total_instances}`);
-            
-            if (schedule.create_instances) {
-              const instanceResult = generateLessonInstances(schedule);
-
-              if (!instanceResult.success) {
-                toast({
-                  title: "שגיאה",
-                  variant: "destructive",
-                  description: instanceResult.error,
-                });
-                setLoading(false);
-                return;
-              }
-
-              console.log(`Generated ${instanceResult.instances.length} instances for lesson ${schedule.lesson_title}`);
-
-              instanceResult.instances.forEach((instance) => {
-                instance.course_instance_id = result;
-              });
-
-              allInstances.push(...instanceResult.instances);
-            } else {
-              // Single lesson schedule
-              if (schedule.scheduled_date && schedule.start_time && schedule.end_time) {
-                console.log(`Creating single instance for lesson ${schedule.lesson_title}`);
-                allInstances.push({
-                  course_instance_id: result,
-                  lesson_id: schedule.lesson_id,
-                  scheduled_start: `${schedule.scheduled_date}T${schedule.start_time}:00`,
-                  scheduled_end: `${schedule.scheduled_date}T${schedule.end_time}:00`,
-                });
-              }
-            }
-          }
-          
-          console.log(`Total instances to create: ${allInstances.length}`);
-          console.log('All instances details:', allInstances);
-
-          // Save updated lesson schedules
-          await saveLessonSchedules(result, allInstances);
-          
-          toast({
-            title: "הצלחה",
-            description: "התוכנית ולוח הזמנים עודכנו בהצלחה!",
-          });
-          onAssignmentComplete();
-          onOpenChange(false);
-        }
-        return;
-      }
-
-      // Create mode - proceed with full flow including lesson scheduling
-      const validation = validateLessonDates();
-      if (!validation.valid) {
-        toast({
-          title: "שגיאה בתאריכים",
-          description: validation.message,
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
       const instanceId = await handleCourseAssignment();
       if (!instanceId) return;
 
-      const allInstances = [];
-      let totalCount = 0;
-
-      for (const schedule of lessonSchedules) {
-        console.log(`Create mode: Processing lesson: ${schedule.lesson_title} (ID: ${schedule.lesson_id})`);
-        console.log(`Create mode: Create instances: ${schedule.create_instances}, Total instances: ${schedule.total_instances}`);
-        
-        if (schedule.create_instances) {
-          const result = generateLessonInstances(schedule);
-
-          if (!result.success) {
-            toast({
-              title: "שגיאה",
-              variant: "destructive",
-              description: result.error,
-            });
-            return;
-          }
-
-          console.log(`Create mode: Generated ${result.instances.length} instances for lesson ${schedule.lesson_title}`);
-
-          result.instances.forEach((instance) => {
-            instance.course_instance_id = instanceId;
-          });
-
-          allInstances.push(...result.instances);
-          totalCount += result.instances.length;
-
-          console.log(result.finalDateMessage);
-        } else {
-          // Single lesson schedule
-          if (schedule.scheduled_date && schedule.start_time && schedule.end_time) {
-            console.log(`Create mode: Creating single instance for lesson ${schedule.lesson_title}`);
-            allInstances.push({
-              course_instance_id: instanceId,
-              lesson_id: schedule.lesson_id,
-              scheduled_start: `${schedule.scheduled_date}T${schedule.start_time}:00`,
-              scheduled_end: `${schedule.scheduled_date}T${schedule.end_time}:00`,
-            });
-            totalCount++;
-          }
-        }
-      }
+      // Save the course instance schedule
+      await saveCourseInstanceSchedule(instanceId);
       
-      console.log(`Create mode: Total instances to create: ${allInstances.length}`);
-      console.log('Create mode: All instances details:', allInstances);
-
-      if (allInstances.length > 0) {
-        await saveLessonSchedules(instanceId, allInstances);
-      }
-
       toast({
         title: "הצלחה",
-        description: `התוכנית נשמרה עם ${totalCount} מופעי שיעורים!${
-          allInstances.length > 0
-            ? "\nהמפגש האחרון בתוכנית יתקיים בתאריך " +
-              allInstances[allInstances.length - 1].scheduled_start.split(
-                "T"
-              )[0]
-            : ""
-        }`,
+        description: mode === 'edit' 
+          ? "התוכנית ולוח הזמנים עודכנו בהצלחה!"
+          : "התוכנית נשמרה עם לוח הזמנים החדש!",
       });
       onAssignmentComplete();
       onOpenChange(false);
@@ -1121,71 +527,33 @@ const { error: deleteError, count } = await supabase
     }));
   };
 
-  const updateLessonSchedule = (
-    lessonId: string,
-    field: string,
-    value: any
-  ) => {
-    setLessonSchedules((prev) =>
-      prev.map((schedule) =>
-        schedule.lesson_id === lessonId
-          ? { ...schedule, [field]: value }
-          : schedule
-      )
-    );
+  const toggleDayOfWeek = (dayIndex: number) => {
+    const isSelected = courseSchedule.days_of_week.includes(dayIndex);
+    
+    if (isSelected) {
+      // Remove day
+      setCourseSchedule(prev => ({
+        ...prev,
+        days_of_week: prev.days_of_week.filter(d => d !== dayIndex),
+        time_slots: prev.time_slots.filter(ts => ts.day !== dayIndex),
+      }));
+    } else {
+      // Add day
+      setCourseSchedule(prev => ({
+        ...prev,
+        days_of_week: [...prev.days_of_week, dayIndex].sort(),
+        time_slots: [...prev.time_slots, { day: dayIndex, start_time: "", end_time: "" }],
+      }));
+    }
   };
 
-  const toggleDayOfWeek = (lessonId: string, dayIndex: number) => {
-    setLessonSchedules((prev) =>
-      prev.map((schedule) => {
-        if (schedule.lesson_id === lessonId) {
-          const isRemoving = schedule.days_of_week.includes(dayIndex);
-          const newDays = isRemoving
-            ? schedule.days_of_week.filter((d) => d !== dayIndex)
-            : [...schedule.days_of_week, dayIndex];
-
-          let newDaySchedules = [...schedule.day_schedules];
-
-          if (isRemoving) {
-            newDaySchedules = newDaySchedules.filter(
-              (ds) => ds.day !== dayIndex
-            );
-          } else {
-            newDaySchedules.push({
-              day: dayIndex,
-              start_time: "",
-              end_time: "",
-            });
-          }
-
-          return {
-            ...schedule,
-            days_of_week: newDays,
-            day_schedules: newDaySchedules,
-          };
-        }
-        return schedule;
-      })
-    );
-  };
-
-  const updateDaySchedule = (
-    lessonId: string,
-    dayIndex: number,
-    field: "start_time" | "end_time",
-    value: string
-  ) => {
-    setLessonSchedules((prev) =>
-      prev.map((schedule) => {
-        if (schedule.lesson_id === lessonId) {
-          const newDaySchedules = schedule.day_schedules.map((ds) =>
-            ds.day === dayIndex ? { ...ds, [field]: value } : ds
-          );
-          return { ...schedule, day_schedules: newDaySchedules };
-        }
-        return schedule;
-      })
-    );
+  const updateTimeSlot = (dayIndex: number, field: "start_time" | "end_time", value: string) => {
+    setCourseSchedule(prev => ({
+      ...prev,
+      time_slots: prev.time_slots.map(ts => 
+        ts.day === dayIndex ? { ...ts, [field]: value } : ts
+      ),
+    }));
   };
 
   const renderCourseAssignmentStep = () => (
@@ -1194,15 +562,12 @@ const { error: deleteError, count } = await supabase
         e.preventDefault();
         
         // Validation
-        console.log('Validating form data:', formData);
-        
         const missingFields = [];
         if (!formData.institution_id) missingFields.push("מוסד");
         if (!formData.instructor_id) missingFields.push("מדריך");
         if (!formData.grade_level.trim()) missingFields.push("כיתה");
         
         if (missingFields.length > 0) {
-          console.error('Form validation failed - missing fields:', missingFields);
           toast({
             title: "שגיאה בטופס",
             description: `חסרים שדות חובה: ${missingFields.join(", ")}`,
@@ -1211,30 +576,7 @@ const { error: deleteError, count } = await supabase
           return;
         }
 
-        // Additional validation for edit mode
-        if (mode === 'edit' && !editData?.instance_id) {
-          console.error('Edit mode validation failed - editData:', editData);
-          toast({
-            title: "שגיאה בטופס",
-            description: "חסר מזהה ההקצאה לעדכון.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        console.log('Form submission - Mode:', mode);
-        console.log('Form submission - Form Data:', formData);
-        console.log('Form submission - Edit Data:', editData);
-        console.log('Form submission - CourseId:', courseId);
-        console.log('Form submission - InstanceId:', instanceId);
-        
-        if (mode === 'edit') {
-          // In edit mode, go to lesson content step
-          setStep(2);
-        } else {
-          // In create mode, go directly to scheduling
-          setStep(3);
-        }
+        setStep(2); // Go to scheduling step
       }}
       className="space-y-4"
     >
@@ -1360,436 +702,179 @@ const { error: deleteError, count } = await supabase
         <Button type="submit" disabled={loading}>
           {loading 
             ? (mode === 'edit' ? "מעדכן..." : "משייך...") 
-            : (mode === 'edit' ? "עדכן" : "המשך לתזמון שיעורים")
+            : "המשך לתזמון"
           }
         </Button>
       </DialogFooter>
     </form>
   );
 
-  const renderLessonContentStep = () => (
+  const renderSchedulingStep = () => (
     <div className="space-y-4">
       <div className="text-sm text-gray-600 mb-4">
-        ערוך את תוכן השיעורים עבור התוכנית "{courseName}"
+        הגדר את לוח הזמנים הכללי עבור התוכנית "{courseName}"
       </div>
 
-      <div className="space-y-4 max-h-96 overflow-y-auto">
-        {lessons.map((lesson, lessonIndex) => (
-          <div
-            key={lesson.id}
-            className="border rounded-lg p-4 space-y-3"
-          >
-            <div className="space-y-2">
-              <Label>כותרת השיעור</Label>
-              <Input
-                value={lesson.title}
-                onChange={(e) => {
-                  const updatedLessons = [...lessons];
-                  updatedLessons[lessonIndex] = { ...lesson, title: e.target.value };
-                  setLessons(updatedLessons);
-                }}
-                placeholder="כותרת השיעור"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label>משימות השיעור</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const updatedLessons = [...lessons];
-                    const newTask = {
-                      id: `task-${Date.now()}-${Math.random()}`,
-                      title: '',
-                      description: '',
-                      estimated_duration: 30,
-                      is_mandatory: false,
-                      order_index: (lesson.tasks?.length || 0) + 1,
-                    };
-                    updatedLessons[lessonIndex] = {
-                      ...lesson,
-                      tasks: [...(lesson.tasks || []), newTask]
-                    };
-                    setLessons(updatedLessons);
-                  }}
-                >
-                  הוסף משימה
-                </Button>
+      {/* Course Lessons Overview with Tasks */}
+      {lessons.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 max-h-96 overflow-y-auto">
+          <h3 className="font-semibold text-blue-900 mb-3">שיעורים בתוכנית ({lessons.length})</h3>
+          <div className="space-y-4">
+            {lessons.map((lesson, index) => (
+              <div key={lesson.id} className="bg-white rounded-lg p-3 border border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm text-blue-800">
+                    <span className="font-medium">{index + 1}.</span> {lesson.title}
+                  </div>
+                  {lesson.tasks && lesson.tasks.length > 0 && (
+                    <span className="text-blue-600 text-xs bg-blue-100 px-2 py-1 rounded">
+                      {lesson.tasks.length} משימות
+                    </span>
+                  )}
+                </div>
+                
+                {/* Show tasks for this lesson */}
+                {lesson.tasks && lesson.tasks.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {lesson.tasks
+                      .sort((a: any, b: any) => a.order_index - b.order_index)
+                      .map((task: any) => (
+                        <div key={task.id} className="bg-gray-50 p-2 rounded text-xs">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-gray-700">{task.title}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">{task.estimated_duration} דק'</span>
+                              {task.is_mandatory ? (
+                                <span className="bg-red-100 text-red-600 px-1 py-0.5 rounded text-xs">חובה</span>
+                              ) : (
+                                <span className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-xs">רשות</span>
+                              )}
+                            </div>
+                          </div>
+                          {task.description && (
+                            <p className="text-gray-600 text-xs">{task.description}</p>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-              <div className="space-y-2">
-                {(lesson.tasks || []).map((task, taskIndex) => (
-                  <div key={task.id} className="border rounded p-3 space-y-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <Input
-                        value={task.title}
-                        onChange={(e) => {
-                          const updatedLessons = [...lessons];
-                          const updatedTasks = [...(lesson.tasks || [])];
-                          updatedTasks[taskIndex] = { ...task, title: e.target.value };
-                          updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
-                          setLessons(updatedLessons);
-                        }}
-                        placeholder="כותרת המשימה"
-                      />
-                      <div className="flex items-center space-x-2">
+              <div className="space-y-4">
+          {/* Course Date Info */}
+          {formData.start_date && formData.end_date && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">תקופת הקורס:</span> {" "}
+                {formData.start_date && formatDate(new Date(formData.start_date), "dd/MM/yyyy")} - {" "}
+                {formData.end_date && formatDate(new Date(formData.end_date), "dd/MM/yyyy")}
+              </div>
+            </div>
+          )}
+
+        {/* Days of week selection */}
+        <div className="space-y-2">
+          <Label>ימים בשבוע</Label>
+          <div className="flex flex-wrap gap-2">
+            {dayNames.map((day, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`day-${index}`}
+                  checked={courseSchedule.days_of_week.includes(index)}
+                  onCheckedChange={() => toggleDayOfWeek(index)}
+                />
+                <Label htmlFor={`day-${index}`} className="text-sm">
+                  {day}
+                </Label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Time slots for selected days */}
+        {courseSchedule.days_of_week.length > 0 && (
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">זמנים לכל יום:</Label>
+            {courseSchedule.days_of_week.sort().map((dayIndex) => {
+              const timeSlot = courseSchedule.time_slots.find(ts => ts.day === dayIndex);
+              return (
+                <div key={dayIndex} className="border rounded p-3 bg-gray-50">
+                  <div className="flex items-center gap-4">
+                    <span className="min-w-[60px] text-sm font-medium">
+                      {dayNames[dayIndex]}:
+                    </span>
+                    <div className="flex gap-2 flex-1">
+                      <div className="flex-1">
+                        <Label className="text-xs">התחלה</Label>
                         <Input
-                          type="number"
-                          value={task.estimated_duration}
-                          onChange={(e) => {
-                            const updatedLessons = [...lessons];
-                            const updatedTasks = [...(lesson.tasks || [])];
-                            updatedTasks[taskIndex] = { ...task, estimated_duration: parseInt(e.target.value) || 0 };
-                            updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
-                            setLessons(updatedLessons);
-                          }}
-                          placeholder="דקות"
-                          className="w-20"
-                        />
-                        <Checkbox
-                          checked={task.is_mandatory}
-                          onCheckedChange={(checked) => {
-                            const updatedLessons = [...lessons];
-                            const updatedTasks = [...(lesson.tasks || [])];
-                            updatedTasks[taskIndex] = { ...task, is_mandatory: checked as boolean };
-                            updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
-                            setLessons(updatedLessons);
-                          }}
-                        />
-                        <Label className="text-sm">חובה</Label>
-                      </div>
-                    </div>
-                    <Textarea
-                      value={task.description}
-                      onChange={(e) => {
-                        const updatedLessons = [...lessons];
-                        const updatedTasks = [...(lesson.tasks || [])];
-                        updatedTasks[taskIndex] = { ...task, description: e.target.value };
-                        updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
-                        setLessons(updatedLessons);
-                      }}
-                      placeholder="תיאור המשימה"
-                      rows={2}
-                    />
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center space-x-2">
-                        <Label className="text-sm">סדר:</Label>
-                        <Input
-                          type="number"
-                          value={task.order_index}
-                          onChange={(e) => {
-                            const updatedLessons = [...lessons];
-                            const updatedTasks = [...(lesson.tasks || [])];
-                            updatedTasks[taskIndex] = { ...task, order_index: parseInt(e.target.value) || 0 };
-                            updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
-                            setLessons(updatedLessons);
-                          }}
-                          className="w-16"
+                          type="time"
+                          value={timeSlot?.start_time || ""}
+                          onChange={(e) => updateTimeSlot(dayIndex, "start_time", e.target.value)}
+                          className="text-sm"
                         />
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const updatedLessons = [...lessons];
-                          const updatedTasks = (lesson.tasks || []).filter((_, index) => index !== taskIndex);
-                          updatedLessons[lessonIndex] = { ...lesson, tasks: updatedTasks };
-                          setLessons(updatedLessons);
-                        }}
-                      >
-                        מחק
-                      </Button>
+                      <div className="flex-1">
+                        <Label className="text-xs">סיום</Label>
+                        <Input
+                          type="time"
+                          value={timeSlot?.end_time || ""}
+                          onChange={(e) => updateTimeSlot(dayIndex, "end_time", e.target.value)}
+                          className="text-sm"
+                        />
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
+        )}
+
+        {/* Additional schedule parameters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="total_lessons">מספר שיעורים כולל</Label>
+            <Input
+              id="total_lessons"
+              type="number"
+              min="1"
+              value={courseSchedule.total_lessons || ""}
+              onChange={(e) =>
+                setCourseSchedule(prev => ({
+                  ...prev,
+                  total_lessons: parseInt(e.target.value) || 1
+                }))
+              }
+              placeholder="מספר שיעורים"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="lesson_duration">משך שיעור (דקות)</Label>
+            <Input
+              id="lesson_duration"
+              type="number"
+              min="15"
+              step="15"
+              value={courseSchedule.lesson_duration_minutes || ""}
+              onChange={(e) =>
+                setCourseSchedule(prev => ({
+                  ...prev,
+                  lesson_duration_minutes: parseInt(e.target.value) || 60
+                }))
+              }
+              placeholder="60"
+            />
+          </div>
+        </div>
       </div>
 
       <DialogFooter className="flex justify-between">
         <Button type="button" variant="outline" onClick={() => setStep(1)}>
-          חזור
-        </Button>
-        <Button type="button" onClick={() => setStep(3)}>
-          המשך לתזמון
-        </Button>
-      </DialogFooter>
-    </div>
-  );
-
-  const renderLessonSchedulingStep = () => (
-    <div className="space-y-4">
-      <div className="text-sm text-gray-600 mb-4">
-        כעת ניתן לתזמן את השיעורים עבור התוכנית "{courseName}"
-      </div>
-
-      <div className="space-y-4 max-h-96 overflow-y-auto">
-        {lessonSchedules.map((schedule) => (
-          <div
-            key={schedule.lesson_id}
-            className="border rounded-lg p-4 space-y-3"
-          >
-            <h4 className="font-medium text-right">{schedule.lesson_title}</h4>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id={`instances-${schedule.lesson_id}`}
-                checked={schedule.create_instances}
-                onCheckedChange={(checked) =>
-                  updateLessonSchedule(
-                    schedule.lesson_id,
-                    "create_instances",
-                    checked
-                  )
-                }
-              />
-              <Label htmlFor={`instances-${schedule.lesson_id}`}>
-                צור מופעים מרובים (חזרות קבועות)
-              </Label>
-            </div>
-
-            {!schedule.create_instances ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-2">
-                  <Label>תאריך</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !schedule.scheduled_date && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {schedule.scheduled_date
-                          ? formatDate(
-                              new Date(schedule.scheduled_date),
-                              "dd/MM/yyyy"
-                            )
-                          : "בחר תאריך"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={
-                          schedule.scheduled_date
-                            ? new Date(schedule.scheduled_date)
-                            : undefined
-                        }
-                        onSelect={(date) =>
-                          updateLessonSchedule(
-                            schedule.lesson_id,
-                            "scheduled_date",
-                            date ? date.toISOString().split("T")[0] : ""
-                          )
-                        }
-                        disabled={(date) => {
-                          const courseStart = new Date(formData.start_date);
-                          courseStart.setDate(courseStart.getDate() - 1);
-                          const courseEnd = new Date(formData.end_date);
-                          return date < courseStart || date > courseEnd;
-                        }}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>שעת התחלה</Label>
-                  <Input
-                    type="time"
-                    value={schedule.start_time}
-                    onChange={(e) =>
-                      updateLessonSchedule(
-                        schedule.lesson_id,
-                        "start_time",
-                        e.target.value
-                      )
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>שעת סיום</Label>
-                  <Input
-                    type="time"
-                    value={schedule.end_time}
-                    onChange={(e) =>
-                      updateLessonSchedule(
-                        schedule.lesson_id,
-                        "end_time",
-                        e.target.value
-                      )
-                    }
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>ימים בשבוע</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {dayNames.map((day, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`day-${schedule.lesson_id}-${index}`}
-                          checked={schedule.days_of_week.includes(index)}
-                          onCheckedChange={() =>
-                            toggleDayOfWeek(schedule.lesson_id, index)
-                          }
-                        />
-                        <Label
-                          htmlFor={`day-${schedule.lesson_id}-${index}`}
-                          className="text-sm"
-                        >
-                          {day}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {schedule.days_of_week.length > 0 && (
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">
-                      זמנים לכל יום:
-                    </Label>
-                    {schedule.days_of_week.sort().map((dayIndex) => {
-                      const daySchedule = schedule.day_schedules.find(
-                        (ds) => ds.day === dayIndex
-                      );
-                      return (
-                        <div
-                          key={dayIndex}
-                          className="border rounded p-3 bg-gray-50"
-                        >
-                          <div className="flex items-center gap-4">
-                            <span className="min-w-[60px] text-sm font-medium">
-                              {dayNames[dayIndex]}:
-                            </span>
-                            <div className="flex gap-2 flex-1">
-                              <div className="flex-1">
-                                <Label className="text-xs">התחלה</Label>
-                                <Input
-                                  type="time"
-                                  value={daySchedule?.start_time || ""}
-                                  onChange={(e) =>
-                                    updateDaySchedule(
-                                      schedule.lesson_id,
-                                      dayIndex,
-                                      "start_time",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="text-sm"
-                                />
-                              </div>
-                              <div className="flex-1">
-                                <Label className="text-xs">סיום</Label>
-                                <Input
-                                  type="time"
-                                  value={daySchedule?.end_time || ""}
-                                  onChange={(e) =>
-                                    updateDaySchedule(
-                                      schedule.lesson_id,
-                                      dayIndex,
-                                      "end_time",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="text-sm"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {/* Start date for instances */}
-                  <div className="space-y-2">
-                    <Label>תאריך התחלה</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !schedule.instance_start_date &&
-                              "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {schedule.instance_start_date
-                            ? formatDate(
-                                new Date(schedule.instance_start_date),
-                                "dd/MM"
-                              )
-                            : "תאריך"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={
-                            schedule.instance_start_date
-                              ? new Date(schedule.instance_start_date)
-                              : undefined
-                          }
-                          onSelect={(date) =>
-                            updateLessonSchedule(
-                              schedule.lesson_id,
-                              "instance_start_date",
-                              date ? date.toISOString().split("T")[0] : ""
-                            )
-                          }
-                          disabled={(date) => {
-                            const courseStart = new Date(formData.start_date);
-                            courseStart.setDate(courseStart.getDate() - 1);
-                            const courseEnd = new Date(formData.end_date);
-                            return date < courseStart || date > courseEnd;
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>מספר מופעים</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={schedule.total_instances}
-                      onChange={(e) =>
-                        updateLessonSchedule(
-                          schedule.lesson_id,
-                          "total_instances",
-                          parseInt(e.target.value)
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <DialogFooter className="flex justify-between">
-        <Button type="button" variant="outline" onClick={() => setStep(mode === 'edit' ? 2 : 1)}>
           חזור
         </Button>
         <Button onClick={handleFinalSave} disabled={loading}>
@@ -1806,9 +891,7 @@ const { error: deleteError, count } = await supabase
           <DialogTitle>
             {step === 1 
               ? (mode === 'edit' ? "עריכת הקצאת תוכנית" : "שיוך תוכנית לימוד") 
-              : step === 2
-              ? "עריכת תוכן שיעורים"
-              : "תזמון שיעורים"
+              : "הגדרת לוח זמנים"
             }
           </DialogTitle>
           <DialogDescription>
@@ -1817,17 +900,11 @@ const { error: deleteError, count } = await supabase
                   ? `עריכת הקצאת התוכנית "${editData?.name || courseName}"` 
                   : `שיוך התוכנית "${courseName}" למדריך, כיתה ומוסד לימודים`
                 )
-              : step === 2
-              ? `עריכת תוכן השיעורים עבור התוכנית "${courseName}"`
-              : `תזמון השיעורים עבור התוכנית "${courseName}"`}
+              : `הגדרת לוח הזמנים הכללי עבור התוכנית "${courseName}"`}
           </DialogDescription>
         </DialogHeader>
 
-        {step === 1
-          ? renderCourseAssignmentStep()
-          : step === 2
-          ? renderLessonContentStep()
-          : renderLessonSchedulingStep()}
+        {step === 1 ? renderCourseAssignmentStep() : renderSchedulingStep()}
       </DialogContent>
     </Dialog>
   );

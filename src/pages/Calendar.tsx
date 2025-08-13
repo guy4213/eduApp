@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { WeeklyCalendar } from "@/components/ui/WeeklyCalendar";
+import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
 
 const Calendar = () => {
   const { user } = useAuth();
@@ -20,30 +21,9 @@ const Calendar = () => {
       if (!user) return;
 
       try {
-        const { data: lessons } = await supabase
-          .from("lesson_schedules")
-          .select(`
-            id,
-            scheduled_start,
-            scheduled_end,
-            lesson:lesson_id(
-              id,
-              title
-            ),
-            course_instances:course_instance_id(
-              id,
-              institution:institution_id(
-                id,
-                name
-              ),
-              instructor:instructor_id(
-                id,
-                full_name
-              )
-            )
-          `);
-
-        setLessons(lessons || []);
+        // Use the new combined schedules function that handles both legacy and new formats
+        const combinedSchedules = await fetchCombinedSchedules();
+        setLessons(combinedSchedules);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       }

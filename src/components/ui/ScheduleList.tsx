@@ -34,19 +34,28 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
   useEffect(() => {
     const fetchReportedSchedules = async () => {
       const { data, error } = await supabase
-        .from("lesson_reports")
-        .select("lesson_schedule_id");
+        .from("reported_lesson_instances")
+        .select("lesson_schedule_id, course_instance_id, lesson_id, scheduled_date");
 
       if (error) {
-        console.error("Error fetching reported schedules:", error.message);
+        console.error("Error fetching reported lesson instances:", error.message);
         return;
       }
 
-      const idsSet = new Set(
-        data?.map((r: { lesson_schedule_id: string }) => r.lesson_schedule_id)
-      );
+      // Create a set of reported lesson instance IDs
+      const reportedIds = new Set<string>();
+      
+      data?.forEach((instance: { lesson_schedule_id: string | null, course_instance_id: string | null, lesson_id: string, scheduled_date: string }) => {
+        if (instance.lesson_schedule_id) {
+          // Legacy architecture: use lesson_schedule_id
+          reportedIds.add(instance.lesson_schedule_id);
+        } else if (instance.course_instance_id && instance.lesson_id) {
+          // New architecture: create a composite key for course_instance_id + lesson_id
+          reportedIds.add(`${instance.course_instance_id}_${instance.lesson_id}`);
+        }
+      });
 
-      setReportedScheduleIds(idsSet);
+      setReportedScheduleIds(reportedIds);
     };
 
     fetchReportedSchedules();
@@ -74,7 +83,10 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
         const startTime = formatTime(item.scheduled_start);
         const endTime = formatTime(item.scheduled_end);
 
-        const isReported = reportedScheduleIds.has(item.id);
+        // Check if lesson is reported - handle both old and new architecture
+        const isReported = reportedScheduleIds.has(item.id) || 
+                          (item.course_instance_id && item.lesson?.id && 
+                           reportedScheduleIds.has(`${item.course_instance_id}_${item.lesson.id}`));
 
         return (
           <div
@@ -117,7 +129,7 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
               user.user_metadata.role === "instructor" && (
                 <button
                   onClick={() =>
-                    nav(`/lesson-report/${item?.lesson?.id}?scheduleId=${item.id}`)
+                    nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
                   }
                   className="schedule-list-button bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full font-semibold shadow-sm transition-colors"
                 >

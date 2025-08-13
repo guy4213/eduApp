@@ -72,16 +72,28 @@ export const DailyLessonsCard: React.FC<any> = ({
 useEffect(() => {
   async function fetchReportedSchedules() {
     const { data, error } = await supabase
-      .from('lesson_reports')
-      .select('lesson_schedule_id'); // Adjust column name to your schema
+      .from('reported_lesson_instances')
+      .select('lesson_schedule_id, course_instance_id, lesson_id, scheduled_date');
 
     if (error) {
-      console.error('Failed to fetch reported schedules:', error);
+      console.error('Failed to fetch reported lesson instances:', error);
       return;
     }
 
-    const ids = new Set(data.map((r: { lesson_schedule_id: string }) => r.lesson_schedule_id));
-    setReportedScheduleIds(ids);
+    // Create a set of reported lesson instance IDs
+    const reportedIds = new Set<string>();
+    
+    data?.forEach((instance: { lesson_schedule_id: string | null, course_instance_id: string | null, lesson_id: string, scheduled_date: string }) => {
+      if (instance.lesson_schedule_id) {
+        // Legacy architecture: use lesson_schedule_id
+        reportedIds.add(instance.lesson_schedule_id);
+      } else if (instance.course_instance_id && instance.lesson_id) {
+        // New architecture: create a composite key for course_instance_id + lesson_id
+        reportedIds.add(`${instance.course_instance_id}_${instance.lesson_id}`);
+      }
+    });
+    
+    setReportedScheduleIds(reportedIds);
   }
 
   fetchReportedSchedules();
@@ -167,7 +179,10 @@ const instructorMap = useMemo(() => {
           const instructorName = lesson.instructor_id
           ? instructorMap.get(lesson.instructor_id) || "שם לא נמצא"
           : null;
-   const isReported = reportedScheduleIds.has(lesson.id);
+   // Check if lesson is reported - handle both old and new architecture
+   const isReported = reportedScheduleIds.has(lesson.id) || 
+                     (lesson.course_instance_id && lesson.lesson_id && 
+                      reportedScheduleIds.has(`${lesson.course_instance_id}_${lesson.lesson_id}`));
             return (
             <div
               key={lesson.lesson_id}
@@ -214,7 +229,7 @@ const instructorMap = useMemo(() => {
                  
 
                    :( user.user_metadata?.role === "instructor" &&   <button
-                        onClick={() => nav(`/lesson-report/${lesson.lesson_id}?scheduleId=${lesson.id}`)}
+                        onClick={() => nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}`)}
                         className="bg-green-300 rounded-full p-2 items-center font-bold"
                       >
                         דיווח שיעור

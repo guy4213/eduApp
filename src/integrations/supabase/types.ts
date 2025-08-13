@@ -14,10 +14,52 @@ export type Database = {
   }
   public: {
     Tables: {
+      course_instance_schedules: {
+        Row: {
+          course_instance_id: string | null
+          created_at: string | null
+          days_of_week: number[]
+          id: string
+          lesson_duration_minutes: number | null
+          time_slots: Json
+          total_lessons: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          course_instance_id?: string | null
+          created_at?: string | null
+          days_of_week: number[]
+          id?: string
+          lesson_duration_minutes?: number | null
+          time_slots: Json
+          total_lessons?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          course_instance_id?: string | null
+          created_at?: string | null
+          days_of_week?: number[]
+          id?: string
+          lesson_duration_minutes?: number | null
+          time_slots?: Json
+          total_lessons?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_instance_schedules_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_instances: {
         Row: {
           course_id: string | null
           created_at: string | null
+          days_of_week: number[] | null
           end_date: string | null
           grade_level: string | null
           id: string
@@ -26,11 +68,13 @@ export type Database = {
           max_participants: number | null
           price_for_customer: number | null
           price_for_instructor: number | null
+          schedule_pattern: Json | null
           start_date: string | null
         }
         Insert: {
           course_id?: string | null
           created_at?: string | null
+          days_of_week?: number[] | null
           end_date?: string | null
           grade_level?: string | null
           id?: string
@@ -39,11 +83,13 @@ export type Database = {
           max_participants?: number | null
           price_for_customer?: number | null
           price_for_instructor?: number | null
+          schedule_pattern?: Json | null
           start_date?: string | null
         }
         Update: {
           course_id?: string | null
           created_at?: string | null
+          days_of_week?: number[] | null
           end_date?: string | null
           grade_level?: string | null
           id?: string
@@ -52,6 +98,7 @@ export type Database = {
           max_participants?: number | null
           price_for_customer?: number | null
           price_for_instructor?: number | null
+          schedule_pattern?: Json | null
           start_date?: string | null
         }
         Relationships: [
@@ -133,6 +180,45 @@ export type Database = {
         }
         Relationships: []
       }
+      lesson_attendance: {
+        Row: {
+          attended: boolean | null
+          created_at: string | null
+          id: string
+          lesson_report_id: string | null
+          student_id: string | null
+        }
+        Insert: {
+          attended?: boolean | null
+          created_at?: string | null
+          id?: string
+          lesson_report_id?: string | null
+          student_id?: string | null
+        }
+        Update: {
+          attended?: boolean | null
+          created_at?: string | null
+          id?: string
+          lesson_report_id?: string | null
+          student_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_attendance_lesson_report_id_fkey"
+            columns: ["lesson_report_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_attendance_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_files: {
         Row: {
           file_name: string
@@ -180,6 +266,7 @@ export type Database = {
       lesson_reports: {
         Row: {
           completed_task_ids: string[] | null
+          course_instance_id: string | null
           created_at: string
           feedback: string | null
           id: string
@@ -195,6 +282,7 @@ export type Database = {
         }
         Insert: {
           completed_task_ids?: string[] | null
+          course_instance_id?: string | null
           created_at?: string
           feedback?: string | null
           id?: string
@@ -210,6 +298,7 @@ export type Database = {
         }
         Update: {
           completed_task_ids?: string[] | null
+          course_instance_id?: string | null
           created_at?: string
           feedback?: string | null
           id?: string
@@ -224,6 +313,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lesson_reports_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lesson_reports_instructor_id_fkey"
             columns: ["instructor_id"]
@@ -380,6 +476,7 @@ export type Database = {
           id: string
           instructor_id: string | null
           notes: string | null
+          order_index: number | null
           participants_count: number | null
           scheduled_end: string
           scheduled_start: string
@@ -395,6 +492,7 @@ export type Database = {
           id?: string
           instructor_id?: string | null
           notes?: string | null
+          order_index?: number | null
           participants_count?: number | null
           scheduled_end: string
           scheduled_start: string
@@ -410,6 +508,7 @@ export type Database = {
           id?: string
           instructor_id?: string | null
           notes?: string | null
+          order_index?: number | null
           participants_count?: number | null
           scheduled_end?: string
           scheduled_start?: string
@@ -484,6 +583,68 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      reported_lesson_instances: {
+        Row: {
+          course_instance_id: string | null
+          created_at: string | null
+          id: string
+          lesson_id: string | null
+          lesson_number: number | null
+          lesson_report_id: string | null
+          lesson_schedule_id: string | null
+          scheduled_date: string | null
+        }
+        Insert: {
+          course_instance_id?: string | null
+          created_at?: string | null
+          id?: string
+          lesson_id?: string | null
+          lesson_number?: number | null
+          lesson_report_id?: string | null
+          lesson_schedule_id?: string | null
+          scheduled_date?: string | null
+        }
+        Update: {
+          course_instance_id?: string | null
+          created_at?: string | null
+          id?: string
+          lesson_id?: string | null
+          lesson_number?: number | null
+          lesson_report_id?: string | null
+          lesson_schedule_id?: string | null
+          scheduled_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reported_lesson_instances_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reported_lesson_instances_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reported_lesson_instances_lesson_report_id_fkey"
+            columns: ["lesson_report_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reported_lesson_instances_lesson_schedule_id_fkey"
+            columns: ["lesson_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sales_leads: {
         Row: {
