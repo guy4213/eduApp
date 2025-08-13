@@ -467,7 +467,6 @@ const Reports = () => {
                       <div>
                         <CardTitle className="text-xl">{instructor.full_name}</CardTitle>
                         <CardDescription>
-                          שכר שעתי: ₪{instructor.hourly_rate || 0} | 
                           סה"כ דיווחים: {instructor.total_reports} | 
                           סה"כ שעות: {instructor.total_hours} | 
                           סה"כ שכר: ₪{instructor.total_salary.toLocaleString()}
