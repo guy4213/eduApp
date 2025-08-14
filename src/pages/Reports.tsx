@@ -500,7 +500,9 @@ const Reports = () => {
     try {
       // Get all scheduled lessons for the month
       const allSchedules = await fetchCombinedSchedules();
+      console.log('📅 All schedules fetched:', allSchedules.length);
       const monthSchedules = filterSchedulesByDateRange(allSchedules, startDate, endDate);
+      console.log('📅 Month schedules filtered:', monthSchedules.length, 'for period:', startDate.toISOString(), 'to', endDate.toISOString());
 
       // Create a map of reported schedule IDs
       const reportedScheduleIds = new Set();
@@ -514,11 +516,18 @@ const Reports = () => {
 
       // Find unreported scheduled lessons
       const unreportedSchedules = monthSchedules.filter(schedule => !reportedScheduleIds.has(schedule.id));
+      console.log('⚠️ Reported schedule IDs:', Array.from(reportedScheduleIds));
+      console.log('⚠️ Unreported schedules found:', unreportedSchedules.length);
 
       // Add unreported lessons to instructor data
       for (const schedule of unreportedSchedules) {
+        console.log('📋 Processing schedule:', schedule.id, 'scheduled_start:', schedule.scheduled_start, 'course_instances:', !!schedule.course_instances);
+        console.log('📋 Full schedule object:', JSON.stringify(schedule, null, 2));
         const courseInstance = schedule.course_instances;
-        if (!courseInstance?.instructor_id) continue;
+        if (!courseInstance?.instructor_id) {
+          console.log('⚠️ Skipping schedule due to missing course instance or instructor:', schedule.id, 'courseInstance:', courseInstance);
+          continue;
+        }
 
         const instructorId = courseInstance.instructor_id;
         
@@ -551,10 +560,10 @@ const Reports = () => {
           total_students: courseInstance.students?.length || 0,
           is_lesson_ok: false,
           hourly_rate: courseInstance.price_for_instructor || instructor.hourly_rate || 0,
-          created_at: schedule.scheduled_date,
+          created_at: schedule.scheduled_start || schedule.scheduled_date,
           attendanceData: [],
           course_instance_id: courseInstance.id,
-          scheduled_date: schedule.scheduled_date,
+          scheduled_date: schedule.scheduled_start || schedule.scheduled_date,
           lesson_status: 'not_reported',
           schedule_id: schedule.id,
         };
@@ -570,7 +579,9 @@ const Reports = () => {
     try {
       // Get all scheduled lessons for the month
       const allSchedules = await fetchCombinedSchedules();
+      console.log('🏛️ All schedules for institutions:', allSchedules.length);
       const monthSchedules = filterSchedulesByDateRange(allSchedules, startDate, endDate);
+      console.log('🏛️ Month schedules for institutions:', monthSchedules.length);
 
       // Create a map of reported schedule IDs
       const reportedScheduleIds = new Set();
@@ -635,10 +646,10 @@ const Reports = () => {
           total_students: courseInstance.students?.length || 0,
           is_lesson_ok: false,
           hourly_rate: courseInstance.price_for_customer || 0,
-          created_at: schedule.scheduled_date,
+          created_at: schedule.scheduled_start || schedule.scheduled_date,
           attendanceData: [],
           course_instance_id: courseInstance.id,
-          scheduled_date: schedule.scheduled_date,
+          scheduled_date: schedule.scheduled_start || schedule.scheduled_date,
           lesson_status: 'not_reported',
           schedule_id: schedule.id,
         };

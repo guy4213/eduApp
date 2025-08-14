@@ -112,13 +112,25 @@ export const fetchAndGenerateSchedules = async (
           course_id,
           start_date,
           end_date,
-          institution:institution_id (
+          price_for_instructor,
+          price_for_customer,
+          instructor_id,
+          students (
+            id,
+            full_name
+          ),
+          educational_institutions:institution_id (
             id,
             name
           ),
           instructor:instructor_id (
             id,
-            full_name
+            full_name,
+            hourly_rate
+          ),
+          courses:course_id (
+            id,
+            name
           )
         )
       `);
@@ -207,17 +219,30 @@ export const fetchCombinedSchedules = async (
         scheduled_end,
         lesson:lesson_id (
           id,
-          title
+          title,
+          order_index
         ),
         course_instances:course_instance_id (
           id,
-          institution:institution_id (
+          price_for_instructor,
+          price_for_customer,
+          instructor_id,
+          students (
+            id,
+            full_name
+          ),
+          educational_institutions:institution_id (
             id,
             name
           ),
           instructor:instructor_id (
             id,
-            full_name
+            full_name,
+            hourly_rate
+          ),
+          courses:course_id (
+            id,
+            name
           )
         )
       `);
