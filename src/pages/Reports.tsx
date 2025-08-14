@@ -20,6 +20,7 @@ interface MonthlyReport {
   monthKey: string;
   date: Date;
   totalLessons: number;
+  totalScheduledLessons: number;
   totalHours: number;
   totalEarnings: number;
   completedLessons: number;
@@ -52,6 +53,10 @@ interface LessonReportDetail {
   created_at: string;
   attendanceData: AttendanceRecord[];
   course_instance_id?: string;
+  // Enhanced fields for complete tracking
+  scheduled_date?: string;
+  lesson_status: 'completed' | 'reported_issues' | 'not_reported';
+  schedule_id?: string;
 }
 
 interface AttendanceRecord {
@@ -139,6 +144,7 @@ const Reports = () => {
       return {
         totalEarnings: 0,
         totalLessons: 0,
+        totalScheduledLessons: 0,
         completionRate: 0,
         totalStudents: 0,
         detailData: []
@@ -154,14 +160,20 @@ const Reports = () => {
       const totalEarnings = filteredInstructors.reduce((sum, instructor) => sum + instructor.total_salary, 0);
       const totalLessons = filteredInstructors.reduce((sum, instructor) => sum + instructor.total_reports, 0);
       const completedLessons = filteredInstructors.reduce((sum, instructor) => 
-        sum + instructor.reports.filter(report => report.is_lesson_ok).length, 0);
+        sum + instructor.reports.filter(report => report.lesson_status === 'completed').length, 0);
       const totalStudents = filteredInstructors.reduce((sum, instructor) => 
         sum + instructor.reports.reduce((reportSum, report) => reportSum + report.total_students, 0), 0);
+
+      // For filtered data, we need to recalculate the completion rate based on filtered data
+      const totalScheduledLessons = selectedInstructor === 'all' 
+        ? selectedMonthData.totalScheduledLessons 
+        : selectedMonthData.totalScheduledLessons; // This could be refined further if needed per instructor
 
       return {
         totalEarnings,
         totalLessons,
-        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        totalScheduledLessons,
+        completionRate: totalScheduledLessons > 0 ? (totalLessons / totalScheduledLessons) * 100 : 0,
         totalStudents,
         detailData: filteredInstructors
       };
@@ -179,12 +191,17 @@ const Reports = () => {
       const allLessonDetails = filteredInstitutions.flatMap(inst => 
         inst.courses.flatMap(course => course.lesson_details)
       );
-      const completedLessons = allLessonDetails.filter(lesson => lesson.is_lesson_ok).length;
+      const completedLessons = allLessonDetails.filter(lesson => lesson.lesson_status === 'completed').length;
+
+      const totalScheduledLessons = selectedInstitution === 'all' 
+        ? selectedMonthData.totalScheduledLessons 
+        : selectedMonthData.totalScheduledLessons; // This could be refined further if needed per institution
 
       return {
         totalEarnings,
         totalLessons,
-        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        totalScheduledLessons,
+        completionRate: totalScheduledLessons > 0 ? (totalLessons / totalScheduledLessons) * 100 : 0,
         totalStudents,
         detailData: filteredInstitutions
       };
@@ -253,16 +270,25 @@ const Reports = () => {
     };
 
     fetchAllMonthlyReports();
-  }, [user, monthsList]); // Removed filter dependencies
+  }, [user, monthsList]);
 
   const fetchMonthData = async (startDate: Date, endDate: Date, monthKey: string) => {
     try {
       // Fetch scheduled lessons for the month (grouped by course instance)
       const scheduledCountByInstance = await fetchScheduledCountByInstance(startDate, endDate);
+      
+      // Calculate total scheduled lessons across all instances
+      const totalScheduledLessons = Array.from(scheduledCountByInstance.values()).reduce((a, b) => a + b, 0);
 
-      // Fetch ALL data without filtering - we'll filter in the frontend
+      // Fetch data using original working approach, then enhance with unreported lessons
       const instructorData = await fetchInstructorDataForMonth(startDate, endDate);
       const institutionData = await fetchInstitutionDataForMonth(startDate, endDate);
+
+      // Add unreported lessons to instructor data
+      await addUnreportedLessonsToInstructors(instructorData, startDate, endDate);
+      
+      // Add unreported lessons to institution data  
+      await addUnreportedLessonsToInstitutions(institutionData, startDate, endDate);
 
       // Attach per-course-instance completion info for institutions
       for (const inst of institutionData) {
@@ -274,17 +300,20 @@ const Reports = () => {
       }
 
       const totalReportedLessons = instructorData.reduce((sum, instructor) => sum + instructor.total_reports, 0);
-      const totalScheduledLessons = Array.from(scheduledCountByInstance.values()).reduce((a, b) => a + b, 0);
       const completedLessons = instructorData.reduce((sum, instructor) => 
-        sum + instructor.reports.filter(report => report.is_lesson_ok).length, 0);
+        sum + instructor.reports.filter(report => report.lesson_status === 'completed').length, 0);
+
+      // Calculate completion rate as (reported lessons / total scheduled lessons) * 100
+      const completionRate = totalScheduledLessons > 0 ? (totalReportedLessons / totalScheduledLessons) * 100 : 0;
 
       return {
         totalLessons: totalReportedLessons,
-        totalHours: totalReportedLessons * 1.5, // Assuming 1.5 hours per lesson
+        totalScheduledLessons,
+        totalHours: totalReportedLessons * 1.5,
         totalEarnings: instructorData.reduce((sum, instructor) => sum + instructor.total_salary, 0),
         completedLessons,
-        cancelledLessons: totalReportedLessons - completedLessons,
-        completionRate: totalScheduledLessons > 0 ? (totalReportedLessons / totalScheduledLessons) * 100 : 0,
+        cancelledLessons: totalScheduledLessons - totalReportedLessons,
+        completionRate,
         instructorData,
         institutionData
       };
@@ -292,6 +321,7 @@ const Reports = () => {
       console.error('Error fetching month data:', error);
       return {
         totalLessons: 0,
+        totalScheduledLessons: 0,
         totalHours: 0,
         totalEarnings: 0,
         completedLessons: 0,
@@ -305,7 +335,7 @@ const Reports = () => {
 
   const fetchInstructorDataForMonth = async (startDate: Date, endDate: Date) => {
     try {
-      // Get ALL lesson reports without instructor filtering
+      // Get ALL lesson reports without instructor filtering (ORIGINAL WORKING CODE)
       let query = supabase
         .from('lesson_reports')
         .select(`
@@ -348,7 +378,7 @@ const Reports = () => {
       const { data: reports, error } = await query;
       if (error) throw error;
 
-      // Process reports and get institution info
+      // Process reports and get institution info (ORIGINAL WORKING CODE)
       const instructorMap = new Map<string, InstructorReport>();
 
       for (const report of reports || []) {
@@ -419,6 +449,10 @@ const Reports = () => {
           }
         }
 
+        // Determine lesson status based on report
+        const lessonStatus: 'completed' | 'reported_issues' | 'not_reported' = 
+          report.is_lesson_ok ? 'completed' : 'reported_issues';
+
         const lessonDetail: LessonReportDetail = {
           id: report.id,
           lesson_title: report.lesson_title,
@@ -432,6 +466,8 @@ const Reports = () => {
           created_at: report.created_at,
           attendanceData,
           course_instance_id: courseInstanceId,
+          lesson_status: lessonStatus,
+          schedule_id: report.lesson_schedule_id,
         };
 
         if (!instructorMap.has(instructorId)) {
@@ -460,9 +496,172 @@ const Reports = () => {
     }
   };
 
+  const addUnreportedLessonsToInstructors = async (instructorData: InstructorReport[], startDate: Date, endDate: Date) => {
+    try {
+      // Get all scheduled lessons for the month
+      const allSchedules = await fetchCombinedSchedules();
+      const monthSchedules = filterSchedulesByDateRange(allSchedules, startDate, endDate);
+
+      // Create a map of reported schedule IDs
+      const reportedScheduleIds = new Set();
+      instructorData.forEach(instructor => {
+        instructor.reports.forEach(report => {
+          if (report.schedule_id) {
+            reportedScheduleIds.add(report.schedule_id);
+          }
+        });
+      });
+
+      // Find unreported scheduled lessons
+      const unreportedSchedules = monthSchedules.filter(schedule => !reportedScheduleIds.has(schedule.id));
+
+      // Add unreported lessons to instructor data
+      for (const schedule of unreportedSchedules) {
+        const courseInstance = schedule.course_instances;
+        if (!courseInstance?.instructor_id) continue;
+
+        const instructorId = courseInstance.instructor_id;
+        
+        // Find or create instructor in the map
+        let instructor = instructorData.find(inst => inst.id === instructorId);
+        if (!instructor) {
+          const instructorDetails = await getInstructorDetails(instructorId);
+          if (!instructorDetails) continue;
+          
+          instructor = {
+            id: instructorId,
+            full_name: instructorDetails.full_name,
+            hourly_rate: instructorDetails.hourly_rate,
+            total_reports: 0,
+            total_hours: 0,
+            total_salary: 0,
+            reports: []
+          };
+          instructorData.push(instructor);
+        }
+
+        // Create unreported lesson detail
+        const unreportedLesson: LessonReportDetail = {
+          id: `schedule-${schedule.id}`,
+          lesson_title: schedule.lesson?.title || 'שיעור מתוכנן',
+          course_name: courseInstance.courses?.name || 'לא זמין',
+          institution_name: courseInstance.educational_institutions?.name || 'לא זמין',
+          lesson_number: schedule.lesson?.order_index ? schedule.lesson.order_index + 1 : 1,
+          participants_count: 0,
+          total_students: courseInstance.students?.length || 0,
+          is_lesson_ok: false,
+          hourly_rate: courseInstance.price_for_instructor || instructor.hourly_rate || 0,
+          created_at: schedule.scheduled_date,
+          attendanceData: [],
+          course_instance_id: courseInstance.id,
+          scheduled_date: schedule.scheduled_date,
+          lesson_status: 'not_reported',
+          schedule_id: schedule.id,
+        };
+
+        instructor.reports.push(unreportedLesson);
+      }
+    } catch (error) {
+      console.error('Error adding unreported lessons to instructors:', error);
+    }
+  };
+
+  const addUnreportedLessonsToInstitutions = async (institutionData: InstitutionReport[], startDate: Date, endDate: Date) => {
+    try {
+      // Get all scheduled lessons for the month
+      const allSchedules = await fetchCombinedSchedules();
+      const monthSchedules = filterSchedulesByDateRange(allSchedules, startDate, endDate);
+
+      // Create a map of reported schedule IDs
+      const reportedScheduleIds = new Set();
+      institutionData.forEach(institution => {
+        institution.courses.forEach(course => {
+          course.lesson_details.forEach(lesson => {
+            if (lesson.schedule_id) {
+              reportedScheduleIds.add(lesson.schedule_id);
+            }
+          });
+        });
+      });
+
+      // Find unreported scheduled lessons
+      const unreportedSchedules = monthSchedules.filter(schedule => !reportedScheduleIds.has(schedule.id));
+
+      // Add unreported lessons to institution data
+      for (const schedule of unreportedSchedules) {
+        const courseInstance = schedule.course_instances;
+        if (!courseInstance?.educational_institutions) continue;
+
+        const institutionId = courseInstance.educational_institutions.id;
+        const institutionName = courseInstance.educational_institutions.name;
+
+        // Find or create institution
+        let institution = institutionData.find(inst => inst.id === institutionId);
+        if (!institution) {
+          institution = {
+            id: institutionId,
+            name: institutionName,
+            total_lessons: 0,
+            total_revenue: 0,
+            total_students: 0,
+            courses: []
+          };
+          institutionData.push(institution);
+        }
+
+        // Find or create course
+        let course = institution.courses.find(c => c.id === courseInstance.id);
+        if (!course) {
+          course = {
+            id: courseInstance.id,
+            course_name: courseInstance.courses?.name || 'לא זמין',
+            instructor_name: courseInstance.instructor?.full_name || 'לא זמין',
+            lesson_count: 0,
+            student_count: courseInstance.students?.length || 0,
+            price_per_lesson: courseInstance.price_for_customer || 0,
+            lesson_details: []
+          };
+          institution.courses.push(course);
+        }
+
+        // Create unreported lesson detail
+        const unreportedLesson: LessonReportDetail = {
+          id: `schedule-${schedule.id}`,
+          lesson_title: schedule.lesson?.title || 'שיעור מתוכנן',
+          course_name: courseInstance.courses?.name || 'לא זמין',
+          institution_name: institutionName,
+          lesson_number: schedule.lesson?.order_index ? schedule.lesson.order_index + 1 : 1,
+          participants_count: 0,
+          total_students: courseInstance.students?.length || 0,
+          is_lesson_ok: false,
+          hourly_rate: courseInstance.price_for_customer || 0,
+          created_at: schedule.scheduled_date,
+          attendanceData: [],
+          course_instance_id: courseInstance.id,
+          scheduled_date: schedule.scheduled_date,
+          lesson_status: 'not_reported',
+          schedule_id: schedule.id,
+        };
+
+        course.lesson_details.push(unreportedLesson);
+      }
+    } catch (error) {
+      console.error('Error adding unreported lessons to institutions:', error);
+    }
+  };
+
+  const getInstructorDetails = async (instructorId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, hourly_rate')
+      .eq('id', instructorId)
+      .single();
+    return data;
+  };
+
   const fetchInstitutionDataForMonth = async (startDate: Date, endDate: Date) => {
     try {
-      // Get ALL course instances without institution filtering
+      // Get ALL course instances without institution filtering (ORIGINAL WORKING CODE)
       let query = supabase
         .from('course_instances')
         .select(`
@@ -491,6 +690,7 @@ const Reports = () => {
             participants_count,
             is_lesson_ok,
             created_at,
+            lesson_schedule_id,
             lesson_attendance (
               student_id,
               attended,
@@ -510,7 +710,7 @@ const Reports = () => {
       const { data: courseInstances, error } = await query;
       if (error) throw error;
 
-      // Process institution data
+      // Process institution data (ORIGINAL WORKING CODE)
       const institutionMap = new Map<string, InstitutionReport>();
 
       for (const instance of courseInstances || []) {
@@ -547,6 +747,10 @@ const Reports = () => {
             }
           }
 
+          // Determine lesson status
+          const lessonStatus: 'completed' | 'reported_issues' | 'not_reported' = 
+            report.is_lesson_ok ? 'completed' : 'reported_issues';
+
           return {
             id: report.id,
             lesson_title: report.lesson_title,
@@ -558,7 +762,9 @@ const Reports = () => {
             is_lesson_ok: report.is_lesson_ok || false,
             hourly_rate: instance.price_for_customer || 0,
             created_at: report.created_at,
-            attendanceData
+            attendanceData,
+            lesson_status: lessonStatus,
+            schedule_id: report.lesson_schedule_id,
           };
         });
 
@@ -693,8 +899,11 @@ const Reports = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold text-blue-600">{filteredMonthData.totalLessons}</p>
-                  <p className="text-gray-600 font-medium">שיעורים החודש</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {filteredMonthData.totalLessons}
+                    <span className="text-sm text-gray-500">/{filteredMonthData.totalScheduledLessons}</span>
+                  </p>
+                  <p className="text-gray-600 font-medium">דווחו / מתוכננים</p>
                 </div>
                 <div className="p-3 rounded-full bg-blue-500">
                   <Calendar className="h-6 w-6 text-white" />
@@ -708,11 +917,17 @@ const Reports = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-2xl font-bold text-purple-600">{filteredMonthData.completionRate.toFixed(1)}%</p>
-                  <p className="text-gray-600 font-medium">אחוז השלמה</p>
+                  <p className="text-gray-600 font-medium">אחוז דיווח</p>
                 </div>
                 <div className="p-3 rounded-full bg-purple-500">
                   <TrendingUp className="h-6 w-6 text-white" />
                 </div>
+              </div>
+              <div className="mt-2">
+                <Progress 
+                  value={filteredMonthData.completionRate} 
+                  className="w-full h-2" 
+                />
               </div>
             </CardContent>
           </Card>
@@ -832,12 +1047,13 @@ const Reports = () => {
                 <thead>
                   <tr className="border-b text-right">
                     <th className="py-3 px-4 font-medium text-gray-900">חודש</th>
-                    <th className="py-3 px-4 font-medium text-gray-900">שיעורים</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">דווחו</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">מתוכננים</th>
                     <th className="py-3 px-4 font-medium text-gray-900">שעות</th>
                     <th className="py-3 px-4 font-medium text-gray-900">הושלמו</th>
                     <th className="py-3 px-4 font-medium text-gray-900">לא הושלמו</th>
                     <th className="py-3 px-4 font-medium text-gray-900">הכנסות</th>
-                    <th className="py-3 px-4 font-medium text-gray-900">סטטוס</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">אחוז דיווח</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -853,7 +1069,8 @@ const Reports = () => {
                         onClick={() => setSelectedMonth(report.monthKey)}
                       >
                         <td className="py-3 px-4 font-medium">{report.month}</td>
-                        <td className="py-3 px-4">{report.totalLessons}</td>
+                        <td className="py-3 px-4 font-bold text-blue-600">{report.totalLessons}</td>
+                        <td className="py-3 px-4 text-gray-600">{report.totalScheduledLessons}</td>
                         <td className="py-3 px-4">{report.totalHours.toFixed(1)}</td>
                         <td className="py-3 px-4">
                           <span className="text-green-600 font-medium">{report.completedLessons}</span>
@@ -863,12 +1080,18 @@ const Reports = () => {
                         </td>
                         <td className="py-3 px-4 font-bold">₪{monthEarnings.toLocaleString()}</td>
                         <td className="py-3 px-4">
-                          {report.totalLessons > 0 ? (
-                            <Badge variant={report.completionRate > 80 ? "default" : "secondary"}>
-                              {report.completionRate.toFixed(0)}% הושלם
-                            </Badge>
+                          {report.totalScheduledLessons > 0 ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant={report.completionRate > 80 ? "default" : report.completionRate > 50 ? "secondary" : "destructive"}>
+                                {report.completionRate.toFixed(0)}%
+                              </Badge>
+                              <Progress 
+                                value={report.completionRate} 
+                                className="w-16 h-2" 
+                              />
+                            </div>
                           ) : (
-                            <Badge variant="outline">אין פעילות</Badge>
+                            <Badge variant="outline">אין מתוכננים</Badge>
                           )}
                         </td>
                       </tr>
@@ -885,7 +1108,7 @@ const Reports = () => {
           <CardHeader>
             <CardTitle>פירוט נתונים - {monthsList.find(m => m.key === selectedMonth)?.label}</CardTitle>
             <CardDescription>
-              נתונים מפורטים על {reportType === 'instructors' ? 'מדריכים' : 'מוסדות'} בחודש שנבחר
+              נתונים מפורטים על {reportType === 'instructors' ? 'מדריכים' : 'מוסדות'} בחודש שנבחר - כולל כל השיעורים המתוכננים והמדווחים
               {(selectedInstructor !== 'all' || selectedInstitution !== 'all') && ' (מסונן)'}
             </CardDescription>
           </CardHeader>
@@ -908,14 +1131,20 @@ const Reports = () => {
                           <div>
                             <CardTitle className="text-xl">{instructor.full_name}</CardTitle>
                             <CardDescription>
-                              סה"כ דיווחים: {instructor.total_reports} | 
-                              סה"כ שעות: {instructor.total_hours} | 
-                              סה"כ שכר: ₪{instructor.total_salary.toLocaleString()}
+                              דיווחים: {instructor.total_reports}/{instructor.reports.length} | 
+                              שעות: {instructor.total_hours} | 
+                              שכר: ₪{instructor.total_salary.toLocaleString()} |
+                              אחוז דיווח: {instructor.reports.length > 0 ? Math.round((instructor.total_reports / instructor.reports.length) * 100) : 0}%
                             </CardDescription>
                           </div>
-                          <Badge variant="outline" className="text-lg font-bold">
-                            ₪{instructor.total_salary.toLocaleString()}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-2">
+                            <Badge variant="outline" className="text-lg font-bold">
+                              ₪{instructor.total_salary.toLocaleString()}
+                            </Badge>
+                            <Badge variant={instructor.reports.length > 0 && (instructor.total_reports / instructor.reports.length) > 0.8 ? "default" : "secondary"}>
+                              {instructor.total_reports}/{instructor.reports.length} שיעורים
+                            </Badge>
+                          </div>
                         </div>
                       </CardHeader>
                       
@@ -930,18 +1159,33 @@ const Reports = () => {
                                 <th className="text-right py-3 px-4 font-medium">מוסד</th>
                                 <th className="text-right py-3 px-4 font-medium">נוכחות</th>
                                 <th className="text-right py-3 px-4 font-medium">שכר לשיעור</th>
-                                <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
+                                <th className="text-right py-3 px-4 font-medium">סטטוס השיעור</th>
                                 <th className="text-right py-3 px-4 font-medium">תאריך</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                              {instructor.reports.map((report) => (
+                              {/* Sort lessons: reported first, then unreported */}
+                              {instructor.reports
+                                .sort((a, b) => {
+                                  // Sort by status: reported lessons first, then unreported
+                                  if (a.lesson_status === 'not_reported' && b.lesson_status !== 'not_reported') return 1;
+                                  if (a.lesson_status !== 'not_reported' && b.lesson_status === 'not_reported') return -1;
+                                  return a.lesson_number - b.lesson_number;
+                                })
+                                .map((report) => (
                                 <React.Fragment key={report.id}>
-                                  <tr className="hover:bg-gray-50">
+                                  <tr className={`hover:bg-gray-50 ${report.lesson_status === 'not_reported' ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''}`}>
                                     <td className="py-3 px-4 font-medium text-blue-600">
                                       שיעור {report.lesson_number}
                                     </td>
-                                    <td className="py-3 px-4 font-medium">{report.lesson_title}</td>
+                                    <td className="py-3 px-4 font-medium">
+                                      <div className="flex items-center gap-2">
+                                        {report.lesson_status === 'not_reported' && (
+                                          <span className="text-yellow-600 text-xs font-medium">⚠️ טרם דווח</span>
+                                        )}
+                                        {report.lesson_title}
+                                      </div>
+                                    </td>
                                     <td className="py-3 px-4">
                                       <Badge variant="outline">{report.course_name}</Badge>
                                     </td>
@@ -955,10 +1199,13 @@ const Reports = () => {
                                         <div className="flex items-center gap-2">
                                           <Users className="h-4 w-4 text-gray-500" />
                                           <span className="font-medium">
-                                            {report.participants_count} מתוך {report.total_students}
+                                            {report.lesson_status === 'not_reported' 
+                                              ? `0 מתוך ${report.total_students} (מתוכנן)`
+                                              : `${report.participants_count} מתוך ${report.total_students}`
+                                            }
                                           </span>
                                         </div>
-                                        {report.attendanceData.length > 0 && (
+                                        {report.attendanceData.length > 0 && report.lesson_status !== 'not_reported' && (
                                           <Button
                                             variant="ghost"
                                             size="sm"
@@ -972,26 +1219,46 @@ const Reports = () => {
                                             }
                                           </Button>
                                         )}
+                                        {report.lesson_status === 'not_reported' && (
+                                          <span className="text-xs text-yellow-600 font-medium">טרם דווח</span>
+                                        )}
                                       </div>
                                     </td>
-                                    <td className="py-3 px-4 font-bold text-green-600">
-                                      ₪{report.hourly_rate.toLocaleString()}
+                                    <td className="py-3 px-4 font-bold">
+                                      {report.lesson_status === 'not_reported' ? (
+                                        <span className="text-yellow-600 font-medium">טרם דווח - ₪{report.hourly_rate.toLocaleString()}</span>
+                                      ) : (
+                                        <span className="text-green-600">₪{report.hourly_rate.toLocaleString()}</span>
+                                      )}
                                     </td>
                                     <td className="py-3 px-4">
-                                      {report.is_lesson_ok ? (
+                                      {report.lesson_status === 'completed' ? (
                                         <Badge className="bg-green-100 text-green-800">
                                           <CheckCircle className="h-3 w-3 ml-1" />
-                                          כן
+                                          הושלם בהצלחה
                                         </Badge>
-                                      ) : (
+                                      ) : report.lesson_status === 'reported_issues' ? (
                                         <Badge variant="destructive">
                                           <X className="h-3 w-3 ml-1" />
-                                          לא
+                                          דווח עם בעיות
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                                          <Calendar className="h-3 w-3 ml-1" />
+                                          טרם דווח - דרוש דיווח!
                                         </Badge>
                                       )}
                                     </td>
                                     <td className="py-3 px-4 text-gray-600">
-                                      {new Date(report.created_at).toLocaleDateString('he-IL')}
+                                      {report.lesson_status === 'not_reported' 
+                                        ? (
+                                          <div className="flex flex-col">
+                                            <span className="text-yellow-600 font-medium">מתוכנן ל:</span>
+                                            <span>{new Date(report.scheduled_date || '').toLocaleDateString('he-IL')}</span>
+                                          </div>
+                                        )
+                                        : new Date(report.created_at).toLocaleDateString('he-IL')
+                                      }
                                     </td>
                                   </tr>
                                   {/* Expandable attendance row */}
@@ -1068,14 +1335,20 @@ const Reports = () => {
                               {institution.name}
                             </CardTitle>
                             <CardDescription>
-                              סה"כ שיעורים: {institution.total_lessons} | 
-                              סה"כ תלמידים: {institution.total_students} | 
-                              סה"כ הכנסות: ₪{institution.total_revenue.toLocaleString()}
+                              שיעורים דווחו: {institution.total_lessons}/{institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)} | 
+                              תלמידים: {institution.total_students} | 
+                              הכנסות: ₪{institution.total_revenue.toLocaleString()} |
+                              אחוז דיווח: {institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0) > 0 ? Math.round((institution.total_lessons / institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)) * 100) : 0}%
                             </CardDescription>
                           </div>
-                          <Badge variant="outline" className="text-lg font-bold">
-                            ₪{institution.total_revenue.toLocaleString()}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-2">
+                            <Badge variant="outline" className="text-lg font-bold">
+                              ₪{institution.total_revenue.toLocaleString()}
+                            </Badge>
+                            <Badge variant={institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0) > 0 && (institution.total_lessons / institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)) > 0.8 ? "default" : "secondary"}>
+                              {institution.total_lessons}/{institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)} שיעורים
+                            </Badge>
+                          </div>
                         </div>
                       </CardHeader>
                       
@@ -1092,20 +1365,21 @@ const Reports = () => {
                                   <h4 className="font-semibold text-gray-900">{course.course_name}</h4>
                                   <p className="text-sm text-gray-600">
                                     מדריך: {course.instructor_name} | 
-                                    {course.lesson_count} שיעורים | 
+                                    {course.lesson_details.length} שיעורים מתוכננים | 
+                                    {course.lesson_details.filter(l => l.lesson_status !== 'not_reported').length} דווחו | 
                                     {course.student_count} תלמידים
                                   </p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                {typeof course.scheduled_in_month === 'number' && (
+                                <div className="flex flex-col gap-1">
                                   <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                    השלמה {course.completion_percentage?.toFixed(0) || 0}% ({course.lesson_count}/{course.scheduled_in_month})
+                                    {course.lesson_details.filter(l => l.lesson_status !== 'not_reported').length}/{course.lesson_details.length} דווחו
                                   </Badge>
-                                )}
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  ₪{(course.price_per_lesson * course.lesson_count).toLocaleString()}
-                                </Badge>
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                    ₪{(course.price_per_lesson * course.lesson_count).toLocaleString()}
+                                  </Badge>
+                                </div>
                                 {expandedRows.has(course.id) ? 
                                   <ChevronUp className="h-4 w-4 text-gray-500" /> : 
                                   <ChevronDown className="h-4 w-4 text-gray-500" />
@@ -1122,7 +1396,7 @@ const Reports = () => {
                                       <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
                                       <th className="text-right py-3 px-4 font-medium">נוכחות</th>
                                       <th className="text-right py-3 px-4 font-medium">מחיר ללקוח</th>
-                                      <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
+                                      <th className="text-right py-3 px-4 font-medium">סטטוס השיעור</th>
                                       <th className="text-right py-3 px-4 font-medium">תאריך</th>
                                       <th className="text-right py-3 px-4 font-medium">פרטי נוכחות</th>
                                     </tr>
@@ -1144,26 +1418,38 @@ const Reports = () => {
                                             </div>
                                           </td>
                                           <td className="py-3 px-4 font-bold text-green-600">
-                                            ₪{lesson.hourly_rate.toLocaleString()}
+                                            {lesson.lesson_status === 'not_reported' ? (
+                                              <span className="text-gray-400">לא דווח</span>
+                                            ) : (
+                                              `₪${lesson.hourly_rate.toLocaleString()}`
+                                            )}
                                           </td>
                                           <td className="py-3 px-4">
-                                            {lesson.is_lesson_ok ? (
+                                            {lesson.lesson_status === 'completed' ? (
                                               <Badge className="bg-green-100 text-green-800">
                                                 <CheckCircle className="h-3 w-3 ml-1" />
-                                                כן
+                                                הושלם בהצלחה
                                               </Badge>
-                                            ) : (
+                                            ) : lesson.lesson_status === 'reported_issues' ? (
                                               <Badge variant="destructive">
                                                 <X className="h-3 w-3 ml-1" />
-                                                לא
+                                                דווח עם בעיות
+                                              </Badge>
+                                            ) : (
+                                              <Badge variant="outline" className="bg-gray-50 text-gray-600">
+                                                <Calendar className="h-3 w-3 ml-1" />
+                                                לא דווח
                                               </Badge>
                                             )}
                                           </td>
                                           <td className="py-3 px-4 text-gray-600">
-                                            {new Date(lesson.created_at).toLocaleDateString('he-IL')}
+                                            {lesson.lesson_status === 'not_reported' 
+                                              ? `מתוכנן ל: ${new Date(lesson.scheduled_date || '').toLocaleDateString('he-IL')}`
+                                              : new Date(lesson.created_at).toLocaleDateString('he-IL')
+                                            }
                                           </td>
                                           <td className="py-3 px-4">
-                                            {lesson.attendanceData.length > 0 && (
+                                            {lesson.attendanceData.length > 0 && lesson.lesson_status !== 'not_reported' && (
                                               <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -1176,6 +1462,9 @@ const Reports = () => {
                                                   <ChevronDown className="h-3 w-3" />
                                                 }
                                               </Button>
+                                            )}
+                                            {lesson.lesson_status === 'not_reported' && (
+                                              <span className="text-xs text-gray-500">לא זמין</span>
                                             )}
                                           </td>
                                         </tr>
@@ -1244,4 +1533,3 @@ const Reports = () => {
 };
 
 export default Reports;
-
