@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
-import { format, addMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { format, addMonths, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { he } from 'date-fns/locale';
 
 interface MonthlyReport {
@@ -83,27 +83,57 @@ const Reports = () => {
   const [reportType, setReportType] = useState<'instructors' | 'institutions'>('instructors');
   const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>('current');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedInstructor, setSelectedInstructor] = useState<string>('all');
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
   const [instructorsList, setInstructorsList] = useState<any[]>([]);
   const [institutionsList, setInstitutionsList] = useState<any[]>([]);
   const [expandedRows, setExpandedRows] = useState(new Set());
 
-  // Generate months list (current month + 12 months forward)
+  // Generate years list (current year - 5 to current year + 5)
+  const yearsList = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+      years.push(year);
+    }
+    return years;
+  }, []);
+
+  // Generate months list for selected year (January to December)
   const monthsList = useMemo(() => {
     const months = [];
-    for (let i = 0; i <= 12; i++) {
-      const monthDate = addMonths(new Date(), i);
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    
+    for (let i = 0; i < 12; i++) {
+      const monthDate = new Date(selectedYear, i, 1);
+      const isCurrentMonth = selectedYear === currentYear && i === currentMonth;
+      
       months.push({
-        key: i === 0 ? 'current' : `month-${i}`,
-        label: i === 0 ? 'החודש הנוכחי' : format(monthDate, 'MMMM yyyy', { locale: he }),
+        key: isCurrentMonth ? 'current' : `${selectedYear}-${i}`,
+        label: isCurrentMonth ? 'החודש הנוכחי' : format(monthDate, 'MMMM yyyy', { locale: he }),
         date: monthDate,
         startDate: startOfMonth(monthDate),
-        endDate: endOfMonth(monthDate)
+        endDate: endOfMonth(monthDate),
+        monthIndex: i
       });
     }
     return months;
-  }, []);
+  }, [selectedYear]);
+
+  // Reset selected month when year changes
+  useEffect(() => {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    
+    if (selectedYear === currentYear) {
+      setSelectedMonth('current');
+    } else {
+      // Default to January for non-current years
+      setSelectedMonth(`${selectedYear}-0`);
+    }
+  }, [selectedYear]);
 
   // Get filtered data for selected month
   const filteredMonthData = useMemo(() => {
@@ -201,7 +231,7 @@ const Reports = () => {
     fetchLists();
   }, []);
 
-  // Fetch reports data for all months (only once on load, no dependency on filters)
+  // Fetch reports data for all months of selected year
   useEffect(() => {
     const fetchAllMonthlyReports = async () => {
       if (!user) return;
@@ -229,7 +259,7 @@ const Reports = () => {
     };
 
     fetchAllMonthlyReports();
-  }, [user, monthsList]); // Removed filter dependencies
+  }, [user, monthsList, selectedYear]);
 
   const fetchMonthData = async (startDate: Date, endDate: Date, monthKey: string) => {
     try {
@@ -554,6 +584,7 @@ const Reports = () => {
   const clearFilters = () => {
     setSelectedInstructor('all');
     setSelectedInstitution('all');
+    setSelectedYear(new Date().getFullYear());
     setSelectedMonth('current');
   };
 
@@ -612,6 +643,8 @@ const Reports = () => {
             </Select>
           </CardContent>
         </Card>
+
+
 
         {/* Current Month Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -685,7 +718,23 @@ const Reports = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div>
+                <Label>שנה</Label>
+                <Select value={selectedYear.toString()} onValueChange={(value: string) => setSelectedYear(Number(value))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {yearsList.map(year => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <div>
                 <Label>חודש</Label>
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
