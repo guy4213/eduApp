@@ -3,7 +3,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { BarChart3, Calendar, DollarSign, TrendingUp, Download, FileText, Users, BookOpen, CheckCircle, X, Filter, CalendarDays, ChevronDown, ChevronUp, Building2 } from 'lucide-react';
+import { BarChart3, Calendar, DollarSign, TrendingUp, Download, FileText, Users, BookOpen, CheckCircle, X, Filter, CalendarDays, ChevronDown, ChevronUp, Building2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -842,6 +842,46 @@ const Reports = () => {
             <div className="flex items-center">
               <BarChart3 className="h-8 w-8 text-primary ml-3" />
               <h1 className="text-xl font-semibold text-gray-900">דוחות ושכר</h1>
+              {(() => {
+                const selectedMonthData = monthlyReports.find(report => 
+                  selectedMonth === 'current' ? report.monthKey === 'current' : report.monthKey === selectedMonth
+                );
+                let unreportedCount = 0;
+                
+                if (selectedMonthData) {
+                  if (reportType === 'instructors') {
+                    const filteredInstructors = selectedInstructor === 'all' 
+                      ? selectedMonthData.instructorData || []
+                      : (selectedMonthData.instructorData || []).filter(instructor => instructor.id === selectedInstructor);
+                    
+                    unreportedCount = filteredInstructors.reduce((sum, instructor) => 
+                      sum + instructor.reports.filter(report => report.lesson_status === 'not_reported').length, 0
+                    );
+                  } else {
+                    const filteredInstitutions = selectedInstitution === 'all' 
+                      ? selectedMonthData.institutionData || []
+                      : (selectedMonthData.institutionData || []).filter(institution => institution.id === selectedInstitution);
+                    
+                    unreportedCount = filteredInstitutions.reduce((sum, institution) => 
+                      sum + institution.courses.reduce((courseSum, course) => 
+                        courseSum + course.lesson_details.filter(lesson => lesson.lesson_status === 'not_reported').length, 0
+                      ), 0
+                    );
+                  }
+                }
+                
+                if (unreportedCount > 0) {
+                  return (
+                    <div className="flex items-center mr-4">
+                      <Badge variant="destructive" className="flex items-center animate-pulse">
+                        <AlertTriangle className="h-3 w-3 ml-1" />
+                        {unreportedCount} שיעורים טרם דווחו
+                      </Badge>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
             <Button className="flex items-center space-x-2">
               <Download className="h-4 w-4" />
@@ -1103,6 +1143,242 @@ const Reports = () => {
           </CardContent>
         </Card>
 
+        {/* Unreported Lessons Summary */}
+        {(() => {
+          const unreportedLessons = [];
+          const selectedMonthData = monthlyReports.find(report => 
+            selectedMonth === 'current' ? report.monthKey === 'current' : report.monthKey === selectedMonth
+          );
+
+          if (selectedMonthData) {
+            if (reportType === 'instructors') {
+              const filteredInstructors = selectedInstructor === 'all' 
+                ? selectedMonthData.instructorData || []
+                : (selectedMonthData.instructorData || []).filter(instructor => instructor.id === selectedInstructor);
+              
+              filteredInstructors.forEach(instructor => {
+                instructor.reports.forEach(report => {
+                  if (report.lesson_status === 'not_reported') {
+                    unreportedLessons.push({
+                      type: 'instructor',
+                      instructor: instructor.full_name,
+                      institutionName: report.institution_name,
+                      courseName: report.course_name,
+                      lessonTitle: report.lesson_title,
+                      lessonNumber: report.lesson_number,
+                      scheduledDate: report.scheduled_date,
+                      expectedSalary: report.hourly_rate,
+                      totalStudents: report.total_students,
+                      courseInstanceId: report.course_instance_id
+                    });
+                  }
+                });
+              });
+            } else {
+              const filteredInstitutions = selectedInstitution === 'all' 
+                ? selectedMonthData.institutionData || []
+                : (selectedMonthData.institutionData || []).filter(institution => institution.id === selectedInstitution);
+              
+              filteredInstitutions.forEach(institution => {
+                institution.courses.forEach(course => {
+                  course.lesson_details.forEach(lesson => {
+                    if (lesson.lesson_status === 'not_reported') {
+                      unreportedLessons.push({
+                        type: 'institution',
+                        instructor: course.instructor_name,
+                        institutionName: institution.name,
+                        courseName: course.course_name,
+                        lessonTitle: lesson.lesson_title,
+                        lessonNumber: lesson.lesson_number,
+                        scheduledDate: lesson.scheduled_date,
+                        expectedRevenue: lesson.hourly_rate,
+                        totalStudents: lesson.total_students,
+                        courseInstanceId: lesson.course_instance_id
+                      });
+                    }
+                  });
+                });
+              });
+            }
+          }
+
+          if (unreportedLessons.length > 0) {
+            // Group unreported lessons by institution and course
+            const groupedLessons = unreportedLessons.reduce((acc, lesson) => {
+              const institutionKey = lesson.institutionName;
+              const courseKey = `${lesson.courseName} - ${lesson.instructor}`;
+              
+              if (!acc[institutionKey]) {
+                acc[institutionKey] = {};
+              }
+              if (!acc[institutionKey][courseKey]) {
+                acc[institutionKey][courseKey] = [];
+              }
+              acc[institutionKey][courseKey].push(lesson);
+              return acc;
+            }, {});
+
+            const totalUnreportedValue = unreportedLessons.reduce((sum, lesson) => 
+              sum + (reportType === 'instructors' ? lesson.expectedSalary || 0 : lesson.expectedRevenue || 0), 0
+            );
+
+            return (
+              <Card className="mb-8 border-red-200 bg-red-50">
+                <CardHeader className="bg-red-100">
+                  <CardTitle className="flex items-center text-red-800">
+                    <Calendar className="h-5 w-5 ml-2" />
+                    שיעורים שטרם דווחו - {monthsList.find(m => m.key === selectedMonth)?.label}
+                    <Badge variant="destructive" className="mr-2">
+                      {unreportedLessons.length} שיעורים
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-red-700">
+                    רשימת כל השיעורים המתוכננים שטרם דווחו - דרוש דיווח דחוף!
+                    <br />
+                    <strong>סה"כ ערך כספי של שיעורים שטרם דווחו: ₪{totalUnreportedValue.toLocaleString()}</strong>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="space-y-6">
+                    {Object.entries(groupedLessons).map(([institutionName, courses]) => (
+                      <div key={institutionName} className="border border-red-300 rounded-lg p-4 bg-white">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold text-red-800 flex items-center">
+                            <Building2 className="h-5 w-5 ml-2" />
+                            {institutionName}
+                          </h3>
+                          <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300">
+                            {Object.values(courses).flat().length} שיעורים שטרם דווחו
+                          </Badge>
+                        </div>
+                        
+                        {Object.entries(courses).map(([courseKey, lessons]) => (
+                          <div key={courseKey} className="mb-4 p-3 bg-gray-50 rounded border">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-medium text-gray-900 flex items-center">
+                                <BookOpen className="h-4 w-4 ml-2" />
+                                {courseKey}
+                              </h4>
+                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                {lessons.length} שיעורים
+                              </Badge>
+                            </div>
+                            
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-100">
+                                  <tr>
+                                    <th className="text-right py-2 px-3 font-medium">שיעור</th>
+                                    <th className="text-right py-2 px-3 font-medium">נושא</th>
+                                    <th className="text-right py-2 px-3 font-medium">תאריך מתוכנן</th>
+                                    <th className="text-right py-2 px-3 font-medium">תלמידים</th>
+                                    <th className="text-right py-2 px-3 font-medium">
+                                      {reportType === 'instructors' ? 'שכר צפוי' : 'הכנסה צפויה'}
+                                    </th>
+                                    <th className="text-right py-2 px-3 font-medium">ימים שעברו</th>
+                                  </tr>
+                                </thead>
+                                                                 <tbody className="divide-y divide-gray-200">
+                                   {lessons
+                                     .sort((a, b) => {
+                                       // Sort by overdue status first, then by scheduled date
+                                       const aDate = new Date(a.scheduledDate || '');
+                                       const bDate = new Date(b.scheduledDate || '');
+                                       const today = new Date();
+                                       const aOverdue = aDate < today;
+                                       const bOverdue = bDate < today;
+                                       
+                                       if (aOverdue && !bOverdue) return -1;
+                                       if (!aOverdue && bOverdue) return 1;
+                                       return aDate.getTime() - bDate.getTime();
+                                     })
+                                     .map((lesson, index) => {
+                                     const scheduledDate = new Date(lesson.scheduledDate || '');
+                                     const today = new Date();
+                                     const daysOverdue = Math.floor((today.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60 * 24));
+                                     const isOverdue = daysOverdue > 0;
+                                    
+                                    return (
+                                      <tr key={index} className={`hover:bg-gray-50 ${isOverdue ? 'bg-red-50' : ''}`}>
+                                        <td className="py-2 px-3 font-medium text-blue-600">
+                                          שיעור {lesson.lessonNumber}
+                                        </td>
+                                        <td className="py-2 px-3">{lesson.lessonTitle}</td>
+                                        <td className="py-2 px-3">
+                                          <div className="flex flex-col">
+                                            <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                                              {scheduledDate.toLocaleDateString('he-IL')}
+                                            </span>
+                                            {isOverdue && (
+                                              <span className="text-xs text-red-500">עבר התאריך!</span>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          <Badge variant="outline">{lesson.totalStudents} תלמידים</Badge>
+                                        </td>
+                                        <td className="py-2 px-3 font-bold">
+                                          <span className={isOverdue ? 'text-red-600' : 'text-green-600'}>
+                                            ₪{(reportType === 'instructors' ? lesson.expectedSalary : lesson.expectedRevenue || 0).toLocaleString()}
+                                          </span>
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          {isOverdue ? (
+                                            <Badge variant="destructive">
+                                              +{daysOverdue} ימים
+                                            </Badge>
+                                          ) : daysOverdue === 0 ? (
+                                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
+                                              היום
+                                            </Badge>
+                                          ) : (
+                                            <Badge variant="secondary">
+                                              בעוד {Math.abs(daysOverdue)} ימים
+                                            </Badge>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Summary stats */}
+                  <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-red-100 rounded-lg">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-700">{unreportedLessons.length}</div>
+                      <div className="text-sm text-red-600">שיעורים שטרם דווחו</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-700">
+                        {unreportedLessons.filter(l => {
+                          const scheduledDate = new Date(l.scheduledDate || '');
+                          const today = new Date();
+                          return scheduledDate < today;
+                        }).length}
+                      </div>
+                      <div className="text-sm text-red-600">שיעורים שעבר תאריכם</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-700">₪{totalUnreportedValue.toLocaleString()}</div>
+                      <div className="text-sm text-red-600">
+                        סה"כ ערך כספי {reportType === 'instructors' ? '(שכר)' : '(הכנסות)'}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }
+          return null;
+        })()}
+
         {/* Selected Month Detailed Data */}
         <Card>
           <CardHeader>
@@ -1243,9 +1519,9 @@ const Reports = () => {
                                           דווח עם בעיות
                                         </Badge>
                                       ) : (
-                                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                                        <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-400 animate-pulse">
                                           <Calendar className="h-3 w-3 ml-1" />
-                                          טרם דווח - דרוש דיווח!
+                                          טרם דווח - דרוש דיווח דחוף!
                                         </Badge>
                                       )}
                                     </td>
@@ -1436,9 +1712,9 @@ const Reports = () => {
                                                 דווח עם בעיות
                                               </Badge>
                                             ) : (
-                                              <Badge variant="outline" className="bg-gray-50 text-gray-600">
+                                              <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-400 animate-pulse">
                                                 <Calendar className="h-3 w-3 ml-1" />
-                                                לא דווח
+                                                טרם דווח - דחוף!
                                               </Badge>
                                             )}
                                           </td>
