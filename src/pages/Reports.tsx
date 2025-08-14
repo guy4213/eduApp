@@ -23,6 +23,7 @@ interface MonthlyReport {
   totalEarnings: number;
   completedLessons: number;
   cancelledLessons: number;
+  scheduledLessons: number;
   completionRate: number;
   instructorData?: InstructorReport[];
   institutionData?: InstitutionReport[];
@@ -112,7 +113,7 @@ const Reports = () => {
       
       months.push({
         key: isCurrentMonth ? 'current' : `${selectedYear}-${i}`,
-        label: isCurrentMonth ? 'החודש הנוכחי' : format(monthDate, 'MMMM yyyy', { locale: he }),
+        label: isCurrentMonth ? format(monthDate, 'MMMM yyyy', { locale: he }) + ' - נוכחי' : format(monthDate, 'MMMM yyyy', { locale: he }),
         date: monthDate,
         startDate: startOfMonth(monthDate),
         endDate: endOfMonth(monthDate),
@@ -145,6 +146,7 @@ const Reports = () => {
       return {
         totalEarnings: 0,
         totalLessons: 0,
+        scheduledLessons: 0,
         completionRate: 0,
         totalStudents: 0,
         detailData: []
@@ -167,7 +169,8 @@ const Reports = () => {
       return {
         totalEarnings,
         totalLessons,
-        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        scheduledLessons: selectedMonthData.scheduledLessons || 0,
+        completionRate: selectedMonthData.scheduledLessons > 0 ? (completedLessons / selectedMonthData.scheduledLessons) * 100 : 0,
         totalStudents,
         detailData: filteredInstructors
       };
@@ -190,7 +193,8 @@ const Reports = () => {
       return {
         totalEarnings,
         totalLessons,
-        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        scheduledLessons: selectedMonthData.scheduledLessons || 0,
+        completionRate: selectedMonthData.scheduledLessons > 0 ? (completedLessons / selectedMonthData.scheduledLessons) * 100 : 0,
         totalStudents,
         detailData: filteredInstitutions
       };
@@ -261,16 +265,97 @@ const Reports = () => {
     fetchAllMonthlyReports();
   }, [user, monthsList, selectedYear]);
 
+  const fetchScheduledLessonsForMonth = async (startDate: Date, endDate: Date) => {
+    try {
+      // Fetch all scheduled lessons from lesson_schedules table for the given month
+      const { data: legacySchedules, error: legacyError } = await supabase
+        .from('lesson_schedules')
+        .select(`
+          id,
+          scheduled_start,
+          scheduled_end,
+          course_instance_id,
+          lesson_id
+        `)
+        .gte('scheduled_start', startDate.toISOString())
+        .lte('scheduled_start', endDate.toISOString());
+
+      if (legacyError) {
+        console.error('Error fetching legacy schedules:', legacyError);
+        return [];
+      }
+
+      // Also fetch course instances that might have generated schedules
+      const { data: courseInstances, error: instanceError } = await supabase
+        .from('course_instances')
+        .select(`
+          id,
+          start_date,
+          end_date,
+          schedule_pattern,
+          days_of_week,
+          courses (
+            lessons (
+              id,
+              title,
+              order_index
+            )
+          )
+        `)
+        .not('schedule_pattern', 'is', null)
+        .lte('start_date', endDate.toISOString())
+        .gte('end_date', startDate.toISOString());
+
+      if (instanceError) {
+        console.error('Error fetching course instances:', instanceError);
+      }
+
+      let totalScheduledLessons = legacySchedules?.length || 0;
+
+      // Calculate lessons from course instances with schedule patterns
+      if (courseInstances) {
+        for (const instance of courseInstances) {
+          if (instance.schedule_pattern && instance.courses?.lessons) {
+            // This is a simplified calculation - in reality you'd need to generate the actual schedule
+            // For now, we'll estimate based on the date range and lessons count
+            const instanceStart = new Date(instance.start_date);
+            const instanceEnd = new Date(instance.end_date);
+            const monthOverlapStart = new Date(Math.max(startDate.getTime(), instanceStart.getTime()));
+            const monthOverlapEnd = new Date(Math.min(endDate.getTime(), instanceEnd.getTime()));
+            
+            if (monthOverlapStart <= monthOverlapEnd) {
+              // Estimate lessons in this month based on course duration and lessons count
+              const totalCourseDays = Math.ceil((instanceEnd.getTime() - instanceStart.getTime()) / (1000 * 60 * 60 * 24));
+              const monthDays = Math.ceil((monthOverlapEnd.getTime() - monthOverlapStart.getTime()) / (1000 * 60 * 60 * 24));
+              const lessonsCount = instance.courses.lessons.length;
+              const estimatedLessonsInMonth = Math.round((monthDays / totalCourseDays) * lessonsCount);
+              totalScheduledLessons += estimatedLessonsInMonth;
+            }
+          }
+        }
+      }
+
+      return totalScheduledLessons;
+    } catch (error) {
+      console.error('Error fetching scheduled lessons:', error);
+      return 0;
+    }
+  };
+
   const fetchMonthData = async (startDate: Date, endDate: Date, monthKey: string) => {
     try {
       // Fetch ALL data without filtering - we'll filter in the frontend
       const instructorData = await fetchInstructorDataForMonth(startDate, endDate);
       const institutionData = await fetchInstitutionDataForMonth(startDate, endDate);
+      const scheduledLessonsCount = await fetchScheduledLessonsForMonth(startDate, endDate);
 
       const totalLessons = instructorData.reduce((sum, instructor) => sum + instructor.total_reports, 0);
       const totalEarnings = instructorData.reduce((sum, instructor) => sum + instructor.total_salary, 0);
       const completedLessons = instructorData.reduce((sum, instructor) => 
         sum + instructor.reports.filter(report => report.is_lesson_ok).length, 0);
+
+      // Calculate completion rate based on scheduled vs actual completed lessons
+      const completionRate = scheduledLessonsCount > 0 ? (completedLessons / scheduledLessonsCount) * 100 : 0;
 
       return {
         totalLessons,
@@ -278,7 +363,8 @@ const Reports = () => {
         totalEarnings,
         completedLessons,
         cancelledLessons: totalLessons - completedLessons,
-        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        scheduledLessons: scheduledLessonsCount,
+        completionRate,
         instructorData,
         institutionData
       };
@@ -290,6 +376,7 @@ const Reports = () => {
         totalEarnings: 0,
         completedLessons: 0,
         cancelledLessons: 0,
+        scheduledLessons: 0,
         completionRate: 0,
         instructorData: [],
         institutionData: []
@@ -669,7 +756,8 @@ const Reports = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-2xl font-bold text-blue-600">{filteredMonthData.totalLessons}</p>
-                  <p className="text-gray-600 font-medium">שיעורים החודש</p>
+                  <p className="text-gray-600 font-medium">דוחות שנמסרו</p>
+                  <p className="text-sm text-gray-500">מתוך {filteredMonthData.scheduledLessons || 0} צפויים</p>
                 </div>
                 <div className="p-3 rounded-full bg-blue-500">
                   <Calendar className="h-6 w-6 text-white" />
@@ -799,7 +887,10 @@ const Reports = () => {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>דוח חודשי מפורט</CardTitle>
-            <CardDescription>סיכום פעילות ורווחים לכל החודשים - לחץ על חודש לצפייה מפורטת</CardDescription>
+            <CardDescription>
+              סיכום פעילות ורווחים לכל החודשים - אחוז ההשלמה מחושב לפי שיעורים שהושלמו מתוך השיעורים הצפויים
+              <br />לחץ על חודש לצפייה מפורטת
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -807,12 +898,12 @@ const Reports = () => {
                 <thead>
                   <tr className="border-b text-right">
                     <th className="py-3 px-4 font-medium text-gray-900">חודש</th>
-                    <th className="py-3 px-4 font-medium text-gray-900">שיעורים</th>
-                    <th className="py-3 px-4 font-medium text-gray-900">שעות</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">שיעורים צפויים</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">דוחות שנמסרו</th>
                     <th className="py-3 px-4 font-medium text-gray-900">הושלמו</th>
                     <th className="py-3 px-4 font-medium text-gray-900">לא הושלמו</th>
                     <th className="py-3 px-4 font-medium text-gray-900">הכנסות</th>
-                    <th className="py-3 px-4 font-medium text-gray-900">סטטוס</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">אחוז השלמה</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -828,8 +919,10 @@ const Reports = () => {
                         onClick={() => setSelectedMonth(report.monthKey)}
                       >
                         <td className="py-3 px-4 font-medium">{report.month}</td>
+                        <td className="py-3 px-4">
+                          <span className="text-blue-600 font-medium">{report.scheduledLessons}</span>
+                        </td>
                         <td className="py-3 px-4">{report.totalLessons}</td>
-                        <td className="py-3 px-4">{report.totalHours.toFixed(1)}</td>
                         <td className="py-3 px-4">
                           <span className="text-green-600 font-medium">{report.completedLessons}</span>
                         </td>
@@ -838,12 +931,12 @@ const Reports = () => {
                         </td>
                         <td className="py-3 px-4 font-bold">₪{monthEarnings.toLocaleString()}</td>
                         <td className="py-3 px-4">
-                          {report.totalLessons > 0 ? (
-                            <Badge variant={report.completionRate > 80 ? "default" : "secondary"}>
-                              {report.completionRate.toFixed(0)}% הושלם
+                          {report.scheduledLessons > 0 ? (
+                            <Badge variant={report.completionRate > 80 ? "default" : report.completionRate > 50 ? "secondary" : "destructive"}>
+                              {report.completionRate.toFixed(1)}%
                             </Badge>
                           ) : (
-                            <Badge variant="outline">אין פעילות</Badge>
+                            <Badge variant="outline">אין שיעורים צפויים</Badge>
                           )}
                         </td>
                       </tr>
