@@ -58,6 +58,9 @@ interface LessonReportDetail {
   scheduled_date?: string;
   lesson_status: 'completed' | 'reported_issues' | 'not_reported';
   schedule_id?: string;
+  scheduled_start?: string;
+  scheduled_end?: string;
+  actual_hours?: number;
 }
 
 interface AttendanceRecord {
@@ -103,6 +106,20 @@ const Reports = () => {
 
   // Cache for schedules data
   const [schedulesCache, setSchedulesCache] = useState<any>(null);
+
+  // Helper function to calculate hours between two timestamps
+  const calculateLessonHours = (scheduledStart: string, scheduledEnd: string): number => {
+    try {
+      const start = new Date(scheduledStart);
+      const end = new Date(scheduledEnd);
+      const diffMs = end.getTime() - start.getTime();
+      const diffHours = diffMs / (1000 * 60 * 60); // Convert milliseconds to hours
+      return Math.max(0, diffHours); // Ensure non-negative
+    } catch (error) {
+      console.error('Error calculating lesson hours:', error);
+      return 1.5; // Default fallback
+    }
+  };
 
   // Generate months list (current month + 12 months forward)
   const monthsList = useMemo(() => {
@@ -412,6 +429,7 @@ const Reports = () => {
       }
 
       const totalReportedLessons = instructorData.reduce((sum, instructor) => sum + instructor.total_reports, 0);
+      const totalActualHours = instructorData.reduce((sum, instructor) => sum + instructor.total_hours, 0);
       const completedLessons = instructorData.reduce((sum, instructor) => 
         sum + instructor.reports.filter(report => report.lesson_status === 'completed').length, 0);
 
@@ -420,7 +438,7 @@ const Reports = () => {
       return {
         totalLessons: totalReportedLessons,
         totalScheduledLessons,
-        totalHours: totalReportedLessons * 1.5,
+        totalHours: totalActualHours,
         totalEarnings: instructorData.reduce((sum, instructor) => sum + instructor.total_salary, 0),
         completedLessons,
         cancelledLessons: totalScheduledLessons - totalReportedLessons,
@@ -488,6 +506,9 @@ const Reports = () => {
             educational_institutions (name)
           ),
           lesson_schedules (
+            id,
+            scheduled_start,
+            scheduled_end,
             course_instances (
               id,
               price_for_instructor,
@@ -515,6 +536,9 @@ const Reports = () => {
         let totalStudents = 0;
         let hourlyRate = instructor.hourly_rate || 0;
         let courseInstanceId: string | undefined = report.course_instance_id || undefined;
+        let scheduledStart: string | undefined;
+        let scheduledEnd: string | undefined;
+        let actualHours = 1; // Default fallback
 
         if (report.course_instances) {
           totalStudents = report.course_instances.students?.length || 0;
@@ -526,6 +550,16 @@ const Reports = () => {
           hourlyRate = courseInstance.price_for_instructor || instructor.hourly_rate || 0;
           institutionName = courseInstance.educational_institutions?.name || 'לא זמין';
           courseInstanceId = courseInstance.id;
+        }
+
+        // Get scheduled times and calculate actual hours
+        if (report.lesson_schedules) {
+          scheduledStart = report.lesson_schedules.scheduled_start;
+          scheduledEnd = report.lesson_schedules.scheduled_end;
+          
+          if (scheduledStart && scheduledEnd) {
+            actualHours = calculateLessonHours(scheduledStart, scheduledEnd);
+          }
         }
 
         // Process attendance data
@@ -560,6 +594,9 @@ const Reports = () => {
           course_instance_id: courseInstanceId,
           lesson_status: lessonStatus,
           schedule_id: report.lesson_schedule_id,
+          scheduled_start: scheduledStart,
+          scheduled_end: scheduledEnd,
+          actual_hours: actualHours,
         };
 
         if (!instructorMap.has(instructorId)) {
@@ -577,7 +614,7 @@ const Reports = () => {
         const instructorReport = instructorMap.get(instructorId)!;
         instructorReport.reports.push(lessonDetail);
         instructorReport.total_reports += 1;
-        instructorReport.total_hours += 1;
+        instructorReport.total_hours += actualHours; // Use actual calculated hours
         instructorReport.total_salary += hourlyRate;
       }
 
@@ -797,6 +834,11 @@ const Reports = () => {
             data.push(instructor);
           }
 
+          // Calculate actual hours for unreported lesson
+          const actualHours = schedule.scheduled_start && schedule.scheduled_end 
+            ? calculateLessonHours(schedule.scheduled_start, schedule.scheduled_end)
+            : 1; // Default fallback
+
           const unreportedLesson: LessonReportDetail = {
             id: `schedule-${schedule.id}`,
             lesson_title: schedule.lesson?.title || 'שיעור מתוכנן',
@@ -813,9 +855,13 @@ const Reports = () => {
             scheduled_date: schedule.scheduled_date,
             lesson_status: 'not_reported',
             schedule_id: schedule.id,
+            scheduled_start: schedule.scheduled_start,
+            scheduled_end: schedule.scheduled_end,
+            actual_hours: actualHours,
           };
 
           instructor.reports.push(unreportedLesson);
+          instructor.total_hours += actualHours; // Add actual hours to instructor total
         } else {
           // Institution processing
           const institutionId = courseInstance.educational_institutions?.id;
@@ -848,6 +894,11 @@ const Reports = () => {
             institution.courses.push(course);
           }
 
+          // Calculate actual hours for unreported lesson
+          const actualHours = schedule.scheduled_start && schedule.scheduled_end 
+            ? calculateLessonHours(schedule.scheduled_start, schedule.scheduled_end)
+            : 1; // Default fallback
+
           const unreportedLesson: LessonReportDetail = {
             id: `schedule-${schedule.id}`,
             lesson_title: schedule.lesson?.title || 'שיעור מתוכנן',
@@ -864,6 +915,9 @@ const Reports = () => {
             scheduled_date: schedule.scheduled_date,
             lesson_status: 'not_reported',
             schedule_id: schedule.id,
+            scheduled_start: schedule.scheduled_start,
+            scheduled_end: schedule.scheduled_end,
+            actual_hours: actualHours,
           };
 
           course.lesson_details.push(unreportedLesson);
@@ -1245,7 +1299,7 @@ const Reports = () => {
                             <CardTitle className="text-xl">{instructor.full_name}</CardTitle>
                             <CardDescription>
                               דיווחים: {instructor.total_reports}/{instructor.reports.length} | 
-                              שעות: {instructor.total_hours} | 
+                              שעות: {instructor.total_hours.toFixed(1)} | 
                               שכר: ₪{instructor.total_salary.toLocaleString()} |
                               אחוז דיווח: {instructor.reports.length > 0 ? Math.round((instructor.total_reports / instructor.reports.length) * 100) : 0}%
                             </CardDescription>
@@ -1271,6 +1325,7 @@ const Reports = () => {
                                 <th className="text-right py-3 px-4 font-medium">קורס</th>
                                 <th className="text-right py-3 px-4 font-medium">מוסד</th>
                                 <th className="text-right py-3 px-4 font-medium">נוכחות</th>
+                                <th className="text-right py-3 px-4 font-medium">שעות</th>
                                 <th className="text-right py-3 px-4 font-medium">שכר לשיעור</th>
                                 <th className="text-right py-3 px-4 font-medium">סטטוס השיעור</th>
                                 <th className="text-right py-3 px-4 font-medium">תאריך</th>
@@ -1332,6 +1387,20 @@ const Reports = () => {
                                         )}
                                         {report.lesson_status === 'not_reported' && (
                                           <span className="text-xs text-yellow-600 font-medium">טרם דווח</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-4 font-medium">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 font-bold">
+                                          {report.actual_hours?.toFixed(1) || '1'} ש'
+                                        </span>
+                                        {report.scheduled_start && report.scheduled_end && (
+                                          <span className="text-xs text-gray-500">
+                                            {new Date(report.scheduled_start).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                                            -
+                                            {new Date(report.scheduled_end).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                                          </span>
                                         )}
                                       </div>
                                     </td>
