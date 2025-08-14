@@ -264,15 +264,6 @@ const Reports = () => {
       const instructorData = await fetchInstructorDataForMonth(startDate, endDate);
       const institutionData = await fetchInstitutionDataForMonth(startDate, endDate);
 
-      // Attach per-course-instance completion info for institutions
-      for (const inst of institutionData) {
-        for (const course of inst.courses) {
-          const scheduledInMonth = scheduledCountByInstance.get(course.id) || 0;
-          course.scheduled_in_month = scheduledInMonth;
-          course.completion_percentage = scheduledInMonth > 0 ? (course.lesson_count / scheduledInMonth) * 100 : 0;
-        }
-      }
-
       const totalReportedLessons = instructorData.reduce((sum, instructor) => sum + instructor.total_reports, 0);
       const totalScheduledLessons = Array.from(scheduledCountByInstance.values()).reduce((a, b) => a + b, 0);
       const completedLessons = instructorData.reduce((sum, instructor) => 
@@ -462,8 +453,8 @@ const Reports = () => {
 
   const fetchInstitutionDataForMonth = async (startDate: Date, endDate: Date) => {
     try {
-      // Get ALL course instances without institution filtering
-      let query = supabase
+      // First, get ALL course instances for the month (not just those with reports)
+      const { data: allCourseInstances, error: instancesError } = await supabase
         .from('course_instances')
         .select(`
           id,
@@ -484,36 +475,56 @@ const Reports = () => {
           students (
             id,
             full_name
-          ),
-          lesson_reports!inner (
-            id,
-            lesson_title,
-            participants_count,
-            is_lesson_ok,
-            created_at,
-            lesson_attendance (
-              student_id,
-              attended,
-              students (
-                id,
-                full_name
-              )
-            ),
-            reported_lesson_instances (
-              lesson_number
+          )
+        `);
+
+      if (instancesError) throw instancesError;
+
+      // Get scheduled lessons count for each course instance in the month
+      const scheduledCountByInstance = await fetchScheduledCountByInstance(startDate, endDate);
+
+      // Get lesson reports for the month
+      const { data: lessonReports, error: reportsError } = await supabase
+        .from('lesson_reports')
+        .select(`
+          id,
+          lesson_title,
+          participants_count,
+          is_lesson_ok,
+          created_at,
+          course_instance_id,
+          lesson_attendance (
+            student_id,
+            attended,
+            students (
+              id,
+              full_name
             )
+          ),
+          reported_lesson_instances (
+            lesson_number
           )
         `)
-        .gte('lesson_reports.created_at', startDate.toISOString())
-        .lte('lesson_reports.created_at', endDate.toISOString());
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString());
 
-      const { data: courseInstances, error } = await query;
-      if (error) throw error;
+      if (reportsError) throw reportsError;
+
+      // Group reports by course instance
+      const reportsByInstance = new Map<string, any[]>();
+      for (const report of lessonReports || []) {
+        if (report.course_instance_id) {
+          if (!reportsByInstance.has(report.course_instance_id)) {
+            reportsByInstance.set(report.course_instance_id, []);
+          }
+          reportsByInstance.get(report.course_instance_id)!.push(report);
+        }
+      }
 
       // Process institution data
       const institutionMap = new Map<string, InstitutionReport>();
 
-      for (const instance of courseInstances || []) {
+      for (const instance of allCourseInstances || []) {
         if (!instance.educational_institutions) continue;
 
         const institutionId = instance.educational_institutions.id;
@@ -532,8 +543,15 @@ const Reports = () => {
 
         const institutionReport = institutionMap.get(institutionId)!;
 
+        // Get scheduled lessons count for this instance
+        const scheduledLessons = scheduledCountByInstance.get(instance.id) || 0;
+        
+        // Get reported lessons for this instance
+        const instanceReports = reportsByInstance.get(instance.id) || [];
+        const reportedLessons = instanceReports.length;
+
         // Process lessons with attendance
-        const lessonsWithAttendance = (instance.lesson_reports || []).map(report => {
+        const lessonsWithAttendance = instanceReports.map(report => {
           const attendanceData: AttendanceRecord[] = [];
           if (report.lesson_attendance) {
             for (const attendance of report.lesson_attendance) {
@@ -562,26 +580,27 @@ const Reports = () => {
           };
         });
 
-        if (lessonsWithAttendance.length > 0) {
-          const courseDetail: CourseDetail = {
-            id: instance.id,
-            course_name: instance.courses?.name || 'לא זמין',
-            instructor_name: instance.instructor?.full_name || 'לא זמין',
-            lesson_count: lessonsWithAttendance.length,
-            student_count: instance.students?.length || 0,
-            price_per_lesson: instance.price_for_customer || 0,
-            lesson_details: lessonsWithAttendance
-          };
+        // Create course detail with proper completion calculation
+        const courseDetail: CourseDetail = {
+          id: instance.id,
+          course_name: instance.courses?.name || 'לא זמין',
+          instructor_name: instance.instructor?.full_name || 'לא זמין',
+          lesson_count: reportedLessons, // Number of reported lessons
+          student_count: instance.students?.length || 0,
+          price_per_lesson: instance.price_for_customer || 0,
+          lesson_details: lessonsWithAttendance,
+          scheduled_in_month: scheduledLessons, // Total scheduled lessons
+          completion_percentage: scheduledLessons > 0 ? (reportedLessons / scheduledLessons) * 100 : 0
+        };
 
-          institutionReport.courses.push(courseDetail);
-          institutionReport.total_lessons += lessonsWithAttendance.length;
-          institutionReport.total_revenue += (instance.price_for_customer || 0) * lessonsWithAttendance.length;
-          
-          // Add unique students
-          const uniqueStudents = new Set();
-          (instance.students || []).forEach(student => uniqueStudents.add(student.id));
-          institutionReport.total_students = Math.max(institutionReport.total_students, uniqueStudents.size);
-        }
+        institutionReport.courses.push(courseDetail);
+        institutionReport.total_lessons += reportedLessons;
+        institutionReport.total_revenue += (instance.price_for_customer || 0) * reportedLessons;
+        
+        // Add unique students
+        const uniqueStudents = new Set();
+        (instance.students || []).forEach(student => uniqueStudents.add(student.id));
+        institutionReport.total_students = Math.max(institutionReport.total_students, uniqueStudents.size);
       }
 
       return Array.from(institutionMap.values());
@@ -672,7 +691,7 @@ const Reports = () => {
         </Card>
 
         {/* Current Month Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -712,6 +731,29 @@ const Reports = () => {
                 </div>
                 <div className="p-3 rounded-full bg-purple-500">
                   <TrendingUp className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-indigo-600">
+                    {(() => {
+                      const totalScheduled = filteredMonthData.detailData.reduce((sum, inst) => 
+                        sum + inst.courses.reduce((courseSum, course) => courseSum + (course.scheduled_in_month || 0), 0), 0);
+                      return totalScheduled;
+                    })()}
+                  </p>
+                  <p className="text-gray-600 font-medium">שיעורים מתוכננים</p>
+                  <p className="text-xs text-gray-500">
+                    מתוכם {filteredMonthData.totalLessons} הועברו
+                  </p>
+                </div>
+                <div className="p-3 rounded-full bg-indigo-500">
+                  <CalendarDays className="h-6 w-6 text-white" />
                 </div>
               </div>
             </CardContent>
@@ -1049,6 +1091,24 @@ const Reports = () => {
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Explanation of completion percentage */}
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-blue-100 rounded-full">
+                        <TrendingUp className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-blue-900 mb-1">הסבר על אחוז השלמה</h4>
+                        <p className="text-sm text-blue-700">
+                          אחוז ההשלמה מחושב לפי היחס בין מספר השיעורים שהועברו בפועל לבין מספר השיעורים המתוכננים לחודש. 
+                          לדוגמה: אם מתוכננים 8 שיעורים והועברו 6, אחוז ההשלמה הוא 75%.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {filteredMonthData.detailData.length === 0 ? (
                   <Card>
                     <CardContent className="text-center py-12">
@@ -1076,6 +1136,34 @@ const Reports = () => {
                           <Badge variant="outline" className="text-lg font-bold">
                             ₪{institution.total_revenue.toLocaleString()}
                           </Badge>
+                        </div>
+                        
+                        {/* Overall completion summary */}
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="flex items-center gap-4 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-600">סה"כ שיעורים מתוכננים:</span>
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                {institution.courses.reduce((sum, course) => sum + (course.scheduled_in_month || 0), 0)}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-600">סה"כ שיעורים שהועברו:</span>
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                {institution.total_lessons}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-600">אחוז השלמה כללי:</span>
+                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                {(() => {
+                                  const totalScheduled = institution.courses.reduce((sum, course) => sum + (course.scheduled_in_month || 0), 0);
+                                  const totalReported = institution.total_lessons;
+                                  return totalScheduled > 0 ? Math.round((totalReported / totalScheduled) * 100) : 0;
+                                })()}%
+                              </Badge>
+                            </div>
+                          </div>
                         </div>
                       </CardHeader>
                       
