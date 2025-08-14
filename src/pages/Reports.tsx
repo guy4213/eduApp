@@ -13,6 +13,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { format, addMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { fetchCombinedSchedules, filterSchedulesByDateRange } from '@/utils/scheduleUtils';
 
 interface MonthlyReport {
   month: string;
@@ -50,6 +51,7 @@ interface LessonReportDetail {
   hourly_rate: number;
   created_at: string;
   attendanceData: AttendanceRecord[];
+  course_instance_id?: string;
 }
 
 interface AttendanceRecord {
@@ -75,6 +77,8 @@ interface CourseDetail {
   student_count: number;
   price_per_lesson: number;
   lesson_details: LessonReportDetail[];
+  scheduled_in_month?: number;
+  completion_percentage?: number;
 }
 
 const Reports = () => {
@@ -88,6 +92,7 @@ const Reports = () => {
   const [instructorsList, setInstructorsList] = useState<any[]>([]);
   const [institutionsList, setInstitutionsList] = useState<any[]>([]);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [selectedYear, setSelectedYear] = useState<string>('all');
 
   // Generate months list (current month + 12 months forward)
   const monthsList = useMemo(() => {
@@ -104,6 +109,25 @@ const Reports = () => {
     }
     return months;
   }, []);
+
+  const yearsList = useMemo(() => {
+    const uniqueYears = Array.from(new Set(monthsList.map(m => m.date.getFullYear())));
+    return uniqueYears.map(y => ({ key: String(y), label: String(y) }));
+  }, [monthsList]);
+
+  const filteredMonthsByYear = useMemo(() => {
+    return monthsList.filter(m => selectedYear === 'all' || m.date.getFullYear() === parseInt(selectedYear));
+  }, [monthsList, selectedYear]);
+
+  // Ensure selected month belongs to selected year
+  useEffect(() => {
+    const allowed = monthsList.filter(m => selectedYear === 'all' || m.date.getFullYear() === parseInt(selectedYear));
+    if (!allowed.some(m => m.key === selectedMonth)) {
+      if (allowed.length > 0) {
+        setSelectedMonth(allowed[0].key);
+      }
+    }
+  }, [selectedYear, monthsList]);
 
   // Get filtered data for selected month
   const filteredMonthData = useMemo(() => {
@@ -233,22 +257,34 @@ const Reports = () => {
 
   const fetchMonthData = async (startDate: Date, endDate: Date, monthKey: string) => {
     try {
+      // Fetch scheduled lessons for the month (grouped by course instance)
+      const scheduledCountByInstance = await fetchScheduledCountByInstance(startDate, endDate);
+
       // Fetch ALL data without filtering - we'll filter in the frontend
       const instructorData = await fetchInstructorDataForMonth(startDate, endDate);
       const institutionData = await fetchInstitutionDataForMonth(startDate, endDate);
 
-      const totalLessons = instructorData.reduce((sum, instructor) => sum + instructor.total_reports, 0);
-      const totalEarnings = instructorData.reduce((sum, instructor) => sum + instructor.total_salary, 0);
+      // Attach per-course-instance completion info for institutions
+      for (const inst of institutionData) {
+        for (const course of inst.courses) {
+          const scheduledInMonth = scheduledCountByInstance.get(course.id) || 0;
+          course.scheduled_in_month = scheduledInMonth;
+          course.completion_percentage = scheduledInMonth > 0 ? (course.lesson_count / scheduledInMonth) * 100 : 0;
+        }
+      }
+
+      const totalReportedLessons = instructorData.reduce((sum, instructor) => sum + instructor.total_reports, 0);
+      const totalScheduledLessons = Array.from(scheduledCountByInstance.values()).reduce((a, b) => a + b, 0);
       const completedLessons = instructorData.reduce((sum, instructor) => 
         sum + instructor.reports.filter(report => report.is_lesson_ok).length, 0);
 
       return {
-        totalLessons,
-        totalHours: totalLessons * 1.5, // Assuming 1.5 hours per lesson
-        totalEarnings,
+        totalLessons: totalReportedLessons,
+        totalHours: totalReportedLessons * 1.5, // Assuming 1.5 hours per lesson
+        totalEarnings: instructorData.reduce((sum, instructor) => sum + instructor.total_salary, 0),
         completedLessons,
-        cancelledLessons: totalLessons - completedLessons,
-        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        cancelledLessons: totalReportedLessons - completedLessons,
+        completionRate: totalScheduledLessons > 0 ? (totalReportedLessons / totalScheduledLessons) * 100 : 0,
         instructorData,
         institutionData
       };
@@ -325,6 +361,7 @@ const Reports = () => {
         let institutionName = 'לא זמין';
         let totalStudents = 0;
         let hourlyRate = instructor.hourly_rate || 0;
+        let courseInstanceId: string | undefined = report.course_instance_id || undefined;
 
         if (report.course_instance_id) {
           const { data: courseInstanceData } = await supabase
@@ -349,6 +386,7 @@ const Reports = () => {
             .from('lesson_schedules')
             .select(`
               course_instances (
+                id,
                 price_for_instructor,
                 students (id),
                 educational_institutions (
@@ -363,6 +401,7 @@ const Reports = () => {
             totalStudents = scheduleData.course_instances.students?.length || 0;
             hourlyRate = scheduleData.course_instances.price_for_instructor || instructor.hourly_rate || 0;
             institutionName = scheduleData.course_instances.educational_institutions?.name || 'לא זמין';
+            courseInstanceId = scheduleData.course_instances.id;
           }
         }
 
@@ -391,7 +430,8 @@ const Reports = () => {
           is_lesson_ok: report.is_lesson_ok || false,
           hourly_rate: hourlyRate,
           created_at: report.created_at,
-          attendanceData
+          attendanceData,
+          course_instance_id: courseInstanceId,
         };
 
         if (!instructorMap.has(instructorId)) {
@@ -551,10 +591,28 @@ const Reports = () => {
     }
   };
 
+  const fetchScheduledCountByInstance = async (startDate: Date, endDate: Date): Promise<Map<string, number>> => {
+    try {
+      const allSchedules = await fetchCombinedSchedules();
+      const monthSchedules = filterSchedulesByDateRange(allSchedules, startDate, endDate);
+      const map = new Map<string, number>();
+      for (const s of monthSchedules) {
+        const instanceId = s?.course_instances?.id || s?.course_instance_id;
+        if (!instanceId) continue;
+        map.set(instanceId, (map.get(instanceId) || 0) + 1);
+      }
+      return map;
+    } catch (e) {
+      console.error('Error fetching scheduled lessons:', e);
+      return new Map();
+    }
+  };
+
   const clearFilters = () => {
     setSelectedInstructor('all');
     setSelectedInstitution('all');
     setSelectedMonth('current');
+    setSelectedYear('all');
   };
 
   if (loading) {
@@ -687,13 +745,29 @@ const Reports = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
+                <Label>שנה</Label>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">כל השנים</SelectItem>
+                    {yearsList.map((y) => (
+                      <SelectItem key={y.key} value={y.key}>
+                        {y.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>חודש</Label>
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {monthsList.map((month) => (
+                    {filteredMonthsByYear.map((month) => (
                       <SelectItem key={month.key} value={month.key}>
                         {month.label}
                       </SelectItem>
@@ -767,13 +841,13 @@ const Reports = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {monthlyReports.map((report, index) => {
+                  {monthlyReports.filter(r => selectedYear === 'all' || r.date.getFullYear() === parseInt(selectedYear)).map((report, index) => {
                     const monthEarnings = reportType === 'instructors' 
                       ? report.totalEarnings
                       : report.institutionData?.reduce((sum, inst) => sum + inst.total_revenue, 0) || 0;
                     
                     return (
-                                              <tr 
+                      <tr 
                         key={index} 
                         className={`hover:bg-gray-50 cursor-pointer ${selectedMonth === report.monthKey ? 'bg-blue-50' : ''}`}
                         onClick={() => setSelectedMonth(report.monthKey)}
@@ -1024,6 +1098,11 @@ const Reports = () => {
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
+                                {typeof course.scheduled_in_month === 'number' && (
+                                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                    השלמה {course.completion_percentage?.toFixed(0) || 0}% ({course.lesson_count}/{course.scheduled_in_month})
+                                  </Badge>
+                                )}
                                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                                   ₪{(course.price_per_lesson * course.lesson_count).toLocaleString()}
                                 </Badge>
@@ -1165,3 +1244,4 @@ const Reports = () => {
 };
 
 export default Reports;
+
