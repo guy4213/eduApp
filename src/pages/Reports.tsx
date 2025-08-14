@@ -691,90 +691,92 @@ const Reports = () => {
         </Card>
 
         {/* Current Month Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-green-600">₪{filteredMonthData.totalEarnings.toLocaleString()}</p>
-                  <p className="text-gray-600 font-medium">
-                    {reportType === 'instructors' ? 'משכורות ' : 'הכנסות '}
-                  </p>
+        {!loading && (
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-green-600">₪{filteredMonthData.totalEarnings.toLocaleString()}</p>
+                    <p className="text-gray-600 font-medium">
+                      {reportType === 'instructors' ? 'משכורות ' : 'הכנסות '}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-green-500">
+                    <DollarSign className="h-6 w-6 text-white" />
+                  </div>
                 </div>
-                <div className="p-3 rounded-full bg-green-500">
-                  <DollarSign className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-blue-600">{filteredMonthData.totalLessons}</p>
-                  <p className="text-gray-600 font-medium">שיעורים החודש</p>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-blue-600">{filteredMonthData.totalLessons}</p>
+                    <p className="text-gray-600 font-medium">שיעורים החודש</p>
+                  </div>
+                  <div className="p-3 rounded-full bg-blue-500">
+                    <Calendar className="h-6 w-6 text-white" />
+                  </div>
                 </div>
-                <div className="p-3 rounded-full bg-blue-500">
-                  <Calendar className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-purple-600">{filteredMonthData.completionRate.toFixed(1)}%</p>
-                  <p className="text-gray-600 font-medium">אחוז השלמה</p>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-purple-600">{filteredMonthData.completionRate.toFixed(1)}%</p>
+                    <p className="text-gray-600 font-medium">אחוז השלמה</p>
+                  </div>
+                  <div className="p-3 rounded-full bg-purple-500">
+                    <TrendingUp className="h-6 w-6 text-white" />
+                  </div>
                 </div>
-                <div className="p-3 rounded-full bg-purple-500">
-                  <TrendingUp className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-indigo-600">
-                    {(() => {
-                      const totalScheduled = filteredMonthData.detailData.reduce((sum, inst) => 
-                        sum + inst.courses.reduce((courseSum, course) => courseSum + (course.scheduled_in_month || 0), 0), 0);
-                      return totalScheduled;
-                    })()}
-                  </p>
-                  <p className="text-gray-600 font-medium">שיעורים מתוכננים</p>
-                  <p className="text-xs text-gray-500">
-                    מתוכם {filteredMonthData.totalLessons} הועברו
-                  </p>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-indigo-600">
+                      {(() => {
+                        const totalScheduled = (filteredMonthData.detailData || []).reduce((sum, inst) => 
+                          sum + (inst.courses || []).reduce((courseSum, course) => courseSum + (course.scheduled_in_month || 0), 0), 0);
+                        return totalScheduled;
+                      })()}
+                    </p>
+                    <p className="text-gray-600 font-medium">שיעורים מתוכננים</p>
+                    <p className="text-xs text-gray-500">
+                      מתוכם {filteredMonthData.totalLessons} הועברו
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-indigo-500">
+                    <CalendarDays className="h-6 w-6 text-white" />
+                  </div>
                 </div>
-                <div className="p-3 rounded-full bg-indigo-500">
-                  <CalendarDays className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-orange-600">{filteredMonthData.totalStudents}</p>
-                  <p className="text-gray-600 font-medium">
-                    {reportType === 'instructors' ? 'תלמידים פעילים' : 'סה"כ תלמידים'}
-                  </p>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-orange-600">{filteredMonthData.totalStudents}</p>
+                    <p className="text-gray-600 font-medium">
+                      {reportType === 'instructors' ? 'תלמידים פעילים' : 'סה"כ תלמידים'}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-orange-500">
+                    <Users className="h-6 w-6 text-white" />
+                  </div>
                 </div>
-                <div className="p-3 rounded-full bg-orange-500">
-                  <Users className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Filters */}
         <Card className="mb-8">
@@ -923,409 +925,411 @@ const Reports = () => {
         </Card>
 
         {/* Selected Month Detailed Data */}
-        <Card>
-          <CardHeader>
-            <CardTitle>פירוט נתונים - {monthsList.find(m => m.key === selectedMonth)?.label}</CardTitle>
-            <CardDescription>
-              נתונים מפורטים על {reportType === 'instructors' ? 'מדריכים' : 'מוסדות'} בחודש שנבחר
-              {(selectedInstructor !== 'all' || selectedInstitution !== 'all') && ' (מסונן)'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {reportType === 'instructors' ? (
-              <div className="space-y-6">
-                {filteredMonthData.detailData.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-12">
-                      <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">אין נתוני מדריכים</h3>
-                      <p className="text-gray-600">לא נמצאו נתונים עבור החודש והמדריך שנבחרו</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  filteredMonthData.detailData.map((instructor) => (
-                    <Card key={instructor.id} className="overflow-hidden">
-                      <CardHeader className="bg-gray-50">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-xl">{instructor.full_name}</CardTitle>
-                            <CardDescription>
-                              סה"כ דיווחים: {instructor.total_reports} | 
-                              סה"כ שעות: {instructor.total_hours} | 
-                              סה"כ שכר: ₪{instructor.total_salary.toLocaleString()}
-                            </CardDescription>
+        {!loading && (
+          <Card>
+            <CardHeader>
+              <CardTitle>פירוט נתונים - {monthsList.find(m => m.key === selectedMonth)?.label}</CardTitle>
+              <CardDescription>
+                נתונים מפורטים על {reportType === 'instructors' ? 'מדריכים' : 'מוסדות'} בחודש שנבחר
+                {(selectedInstructor !== 'all' || selectedInstitution !== 'all') && ' (מסונן)'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {reportType === 'instructors' ? (
+                <div className="space-y-6">
+                  {filteredMonthData.detailData && filteredMonthData.detailData.length === 0 ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">אין נתוני מדריכים</h3>
+                        <p className="text-gray-600">לא נמצאו נתונים עבור החודש והמדריך שנבחרו</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    (filteredMonthData.detailData || []).map((instructor) => (
+                      <Card key={instructor.id} className="overflow-hidden">
+                        <CardHeader className="bg-gray-50">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="text-xl">{instructor.full_name}</CardTitle>
+                              <CardDescription>
+                                סה"כ דיווחים: {instructor.total_reports} | 
+                                סה"כ שעות: {instructor.total_hours} | 
+                                סה"כ שכר: ₪{instructor.total_salary.toLocaleString()}
+                              </CardDescription>
+                            </div>
+                            <Badge variant="outline" className="text-lg font-bold">
+                              ₪{instructor.total_salary.toLocaleString()}
+                            </Badge>
                           </div>
-                          <Badge variant="outline" className="text-lg font-bold">
-                            ₪{instructor.total_salary.toLocaleString()}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      
-                      <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                          <table className="w-full">
-                            <thead className="bg-gray-100">
-                              <tr>
-                                <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
-                                <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
-                                <th className="text-right py-3 px-4 font-medium">קורס</th>
-                                <th className="text-right py-3 px-4 font-medium">מוסד</th>
-                                <th className="text-right py-3 px-4 font-medium">נוכחות</th>
-                                <th className="text-right py-3 px-4 font-medium">שכר לשיעור</th>
-                                <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
-                                <th className="text-right py-3 px-4 font-medium">תאריך</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                              {instructor.reports.map((report) => (
-                                <React.Fragment key={report.id}>
-                                  <tr className="hover:bg-gray-50">
-                                    <td className="py-3 px-4 font-medium text-blue-600">
-                                      שיעור {report.lesson_number}
-                                    </td>
-                                    <td className="py-3 px-4 font-medium">{report.lesson_title}</td>
-                                    <td className="py-3 px-4">
-                                      <Badge variant="outline">{report.course_name}</Badge>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                      <Badge variant="secondary" className="bg-blue-50 text-blue-700">
-                                        {report.institution_name}
-                                      </Badge>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                          <Users className="h-4 w-4 text-gray-500" />
-                                          <span className="font-medium">
-                                            {report.participants_count} מתוך {report.total_students}
-                                          </span>
-                                        </div>
-                                        {report.attendanceData.length > 0 && (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => toggleRowExpansion(report.id)}
-                                            className="flex items-center gap-1"
-                                          >
-                                            <span className="text-xs">רשימת נוכחות</span>
-                                            {expandedRows.has(report.id) ? 
-                                              <ChevronUp className="h-3 w-3" /> : 
-                                              <ChevronDown className="h-3 w-3" />
-                                            }
-                                          </Button>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="py-3 px-4 font-bold text-green-600">
-                                      ₪{report.hourly_rate.toLocaleString()}
-                                    </td>
-                                    <td className="py-3 px-4">
-                                      {report.is_lesson_ok ? (
-                                        <Badge className="bg-green-100 text-green-800">
-                                          <CheckCircle className="h-3 w-3 ml-1" />
-                                          כן
+                        </CardHeader>
+                        
+                        <CardContent className="p-0">
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead className="bg-gray-100">
+                                <tr>
+                                  <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
+                                  <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
+                                  <th className="text-right py-3 px-4 font-medium">קורס</th>
+                                  <th className="text-right py-3 px-4 font-medium">מוסד</th>
+                                  <th className="text-right py-3 px-4 font-medium">נוכחות</th>
+                                  <th className="text-right py-3 px-4 font-medium">שכר לשיעור</th>
+                                  <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
+                                  <th className="text-right py-3 px-4 font-medium">תאריך</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200">
+                                {instructor.reports.map((report) => (
+                                  <React.Fragment key={report.id}>
+                                    <tr className="hover:bg-gray-50">
+                                      <td className="py-3 px-4 font-medium text-blue-600">
+                                        שיעור {report.lesson_number}
+                                      </td>
+                                      <td className="py-3 px-4 font-medium">{report.lesson_title}</td>
+                                      <td className="py-3 px-4">
+                                        <Badge variant="outline">{report.course_name}</Badge>
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                                          {report.institution_name}
                                         </Badge>
-                                      ) : (
-                                        <Badge variant="destructive">
-                                          <X className="h-3 w-3 ml-1" />
-                                          לא
-                                        </Badge>
-                                      )}
-                                    </td>
-                                    <td className="py-3 px-4 text-gray-600">
-                                      {new Date(report.created_at).toLocaleDateString('he-IL')}
-                                    </td>
-                                  </tr>
-                                  {/* Expandable attendance row */}
-                                  {expandedRows.has(report.id) && (
-                                    <tr>
-                                      <td colSpan={8} className="bg-gray-50 p-4">
-                                        <div className="grid grid-cols-2 gap-6">
-                                          <div>
-                                            <h4 className="font-semibold text-green-700 mb-2 flex items-center">
-                                              <CheckCircle className="h-4 w-4 ml-1" />
-                                              נוכחים ({report.attendanceData.filter(s => s.attended).length})
-                                            </h4>
-                                            <div className="space-y-1">
-                                              {report.attendanceData.filter(s => s.attended).map(student => (
-                                                <div key={student.id} className="text-sm text-gray-700 flex items-center">
-                                                  <span className="w-2 h-2 bg-green-500 rounded-full ml-2"></span>
-                                                  {student.name}
-                                                </div>
-                                              ))}
-                                              {report.attendanceData.filter(s => s.attended).length === 0 && (
-                                                <span className="text-gray-500 text-sm">אין תלמידים נוכחים</span>
-                                              )}
-                                            </div>
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            <Users className="h-4 w-4 text-gray-500" />
+                                            <span className="font-medium">
+                                              {report.participants_count} מתוך {report.total_students}
+                                            </span>
                                           </div>
-                                          <div>
-                                            <h4 className="font-semibold text-red-700 mb-2 flex items-center">
-                                              <X className="h-4 w-4 ml-1" />
-                                              נעדרים ({report.attendanceData.filter(s => !s.attended).length})
-                                            </h4>
-                                            <div className="space-y-1">
-                                              {report.attendanceData.filter(s => !s.attended).map(student => (
-                                                <div key={student.id} className="text-sm text-gray-700 flex items-center">
-                                                  <span className="w-2 h-2 bg-red-500 rounded-full ml-2"></span>
-                                                  {student.name}
-                                                </div>
-                                              ))}
-                                              {report.attendanceData.filter(s => !s.attended).length === 0 && (
-                                                <span className="text-gray-500 text-sm">כל התלמידים נוכחים</span>
-                                              )}
-                                            </div>
-                                          </div>
+                                          {report.attendanceData.length > 0 && (
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => toggleRowExpansion(report.id)}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <span className="text-xs">רשימת נוכחות</span>
+                                              {expandedRows.has(report.id) ? 
+                                                <ChevronUp className="h-3 w-3" /> : 
+                                                <ChevronDown className="h-3 w-3" />
+                                              }
+                                            </Button>
+                                          )}
                                         </div>
                                       </td>
+                                      <td className="py-3 px-4 font-bold text-green-600">
+                                        ₪{report.hourly_rate.toLocaleString()}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        {report.is_lesson_ok ? (
+                                          <Badge className="bg-green-100 text-green-800">
+                                            <CheckCircle className="h-3 w-3 ml-1" />
+                                            כן
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="destructive">
+                                            <X className="h-3 w-3 ml-1" />
+                                            לא
+                                          </Badge>
+                                        )}
+                                      </td>
+                                      <td className="py-3 px-4 text-gray-600">
+                                        {new Date(report.created_at).toLocaleDateString('he-IL')}
+                                      </td>
                                     </tr>
-                                  )}
-                                </React.Fragment>
-                              ))}
-                            </tbody>
-                          </table>
+                                    {/* Expandable attendance row */}
+                                    {expandedRows.has(report.id) && (
+                                      <tr>
+                                        <td colSpan={8} className="bg-gray-50 p-4">
+                                          <div className="grid grid-cols-2 gap-6">
+                                            <div>
+                                              <h4 className="font-semibold text-green-700 mb-2 flex items-center">
+                                                <CheckCircle className="h-4 w-4 ml-1" />
+                                                נוכחים ({report.attendanceData.filter(s => s.attended).length})
+                                              </h4>
+                                              <div className="space-y-1">
+                                                {report.attendanceData.filter(s => s.attended).map(student => (
+                                                  <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                    <span className="w-2 h-2 bg-green-500 rounded-full ml-2"></span>
+                                                    {student.name}
+                                                  </div>
+                                                ))}
+                                                {report.attendanceData.filter(s => s.attended).length === 0 && (
+                                                  <span className="text-gray-500 text-sm">אין תלמידים נוכחים</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <h4 className="font-semibold text-red-700 mb-2 flex items-center">
+                                                <X className="h-4 w-4 ml-1" />
+                                                נעדרים ({report.attendanceData.filter(s => !s.attended).length})
+                                              </h4>
+                                              <div className="space-y-1">
+                                                {report.attendanceData.filter(s => !s.attended).map(student => (
+                                                  <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                    <span className="w-2 h-2 bg-red-500 rounded-full ml-2"></span>
+                                                    {student.name}
+                                                  </div>
+                                                ))}
+                                                {report.attendanceData.filter(s => !s.attended).length === 0 && (
+                                                  <span className="text-gray-500 text-sm">כל התלמידים נוכחים</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Explanation of completion percentage */}
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-blue-100 rounded-full">
+                          <TrendingUp className="h-5 w-5 text-blue-600" />
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Explanation of completion percentage */}
-                <Card className="bg-blue-50 border-blue-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-blue-100 rounded-full">
-                        <TrendingUp className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <h4 className="font-semibold text-blue-900 mb-1">הסבר על אחוז השלמה</h4>
+                          <p className="text-sm text-blue-700">
+                            אחוז ההשלמה מחושב לפי היחס בין מספר השיעורים שהועברו בפועל לבין מספר השיעורים המתוכננים לחודש. 
+                            לדוגמה: אם מתוכננים 8 שיעורים והועברו 6, אחוז ההשלמה הוא 75%.
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-blue-900 mb-1">הסבר על אחוז השלמה</h4>
-                        <p className="text-sm text-blue-700">
-                          אחוז ההשלמה מחושב לפי היחס בין מספר השיעורים שהועברו בפועל לבין מספר השיעורים המתוכננים לחודש. 
-                          לדוגמה: אם מתוכננים 8 שיעורים והועברו 6, אחוז ההשלמה הוא 75%.
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {filteredMonthData.detailData.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-12">
-                      <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">אין נתוני מוסדות</h3>
-                      <p className="text-gray-600">לא נמצאו נתונים עבור החודש והמוסד שנבחרו</p>
                     </CardContent>
                   </Card>
-                ) : (
-                  filteredMonthData.detailData.map((institution) => (
-                    <Card key={institution.id} className="overflow-hidden">
-                      <CardHeader className="bg-gray-50">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-xl flex items-center">
-                              <Building2 className="h-5 w-5 ml-2" />
-                              {institution.name}
-                            </CardTitle>
-                            <CardDescription>
-                              סה"כ שיעורים: {institution.total_lessons} | 
-                              סה"כ תלמידים: {institution.total_students} | 
-                              סה"כ הכנסות: ₪{institution.total_revenue.toLocaleString()}
-                            </CardDescription>
-                          </div>
-                          <Badge variant="outline" className="text-lg font-bold">
-                            ₪{institution.total_revenue.toLocaleString()}
-                          </Badge>
-                        </div>
-                        
-                        {/* Overall completion summary */}
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <div className="flex items-center gap-4 text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-600">סה"כ שיעורים מתוכננים:</span>
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                {institution.courses.reduce((sum, course) => sum + (course.scheduled_in_month || 0), 0)}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-600">סה"כ שיעורים שהועברו:</span>
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                {institution.total_lessons}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-600">אחוז השלמה כללי:</span>
-                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                {(() => {
-                                  const totalScheduled = institution.courses.reduce((sum, course) => sum + (course.scheduled_in_month || 0), 0);
-                                  const totalReported = institution.total_lessons;
-                                  return totalScheduled > 0 ? Math.round((totalReported / totalScheduled) * 100) : 0;
-                                })()}%
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      
-                      <CardContent className="p-0">
-                        {institution.courses.map((course) => (
-                          <div key={course.id} className="border-b border-gray-200 last:border-b-0">
-                            <div className="bg-gray-100 px-4 py-3 flex justify-between items-center cursor-pointer"
-                                 onClick={() => toggleRowExpansion(course.id)}>
-                              <div className="flex items-center gap-4">
-                                <div className="p-2 bg-blue-100 rounded-full">
-                                  <BookOpen className="h-4 w-4 text-blue-600" />
-                                </div>
-                                <div>
-                                  <h4 className="font-semibold text-gray-900">{course.course_name}</h4>
-                                  <p className="text-sm text-gray-600">
-                                    מדריך: {course.instructor_name} | 
-                                    {course.lesson_count} שיעורים | 
-                                    {course.student_count} תלמידים
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                {typeof course.scheduled_in_month === 'number' && (
-                                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                    השלמה {course.completion_percentage?.toFixed(0) || 0}% ({course.lesson_count}/{course.scheduled_in_month})
-                                  </Badge>
-                                )}
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  ₪{(course.price_per_lesson * course.lesson_count).toLocaleString()}
-                                </Badge>
-                                {expandedRows.has(course.id) ? 
-                                  <ChevronUp className="h-4 w-4 text-gray-500" /> : 
-                                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                                }
-                              </div>
-                            </div>
-                            
-                            {expandedRows.has(course.id) && (
-                              <div className="overflow-x-auto">
-                                <table className="w-full">
-                                  <thead className="bg-gray-50">
-                                    <tr>
-                                      <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
-                                      <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
-                                      <th className="text-right py-3 px-4 font-medium">נוכחות</th>
-                                      <th className="text-right py-3 px-4 font-medium">מחיר ללקוח</th>
-                                      <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
-                                      <th className="text-right py-3 px-4 font-medium">תאריך</th>
-                                      <th className="text-right py-3 px-4 font-medium">פרטי נוכחות</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-gray-200">
-                                    {course.lesson_details.map((lesson) => (
-                                      <React.Fragment key={lesson.id}>
-                                        <tr className="hover:bg-gray-50">
-                                          <td className="py-3 px-4 font-medium text-blue-600">
-                                            שיעור {lesson.lesson_number}
-                                          </td>
-                                          <td className="py-3 px-4 font-medium">{lesson.lesson_title}</td>
-                                          <td className="py-3 px-4">
-                                            <div className="flex items-center gap-2">
-                                              <Users className="h-4 w-4 text-gray-500" />
-                                              <span className="font-medium">
-                                                {lesson.participants_count} מתוך {lesson.total_students}
-                                              </span>
-                                            </div>
-                                          </td>
-                                          <td className="py-3 px-4 font-bold text-green-600">
-                                            ₪{lesson.hourly_rate.toLocaleString()}
-                                          </td>
-                                          <td className="py-3 px-4">
-                                            {lesson.is_lesson_ok ? (
-                                              <Badge className="bg-green-100 text-green-800">
-                                                <CheckCircle className="h-3 w-3 ml-1" />
-                                                כן
-                                              </Badge>
-                                            ) : (
-                                              <Badge variant="destructive">
-                                                <X className="h-3 w-3 ml-1" />
-                                                לא
-                                              </Badge>
-                                            )}
-                                          </td>
-                                          <td className="py-3 px-4 text-gray-600">
-                                            {new Date(lesson.created_at).toLocaleDateString('he-IL')}
-                                          </td>
-                                          <td className="py-3 px-4">
-                                            {lesson.attendanceData.length > 0 && (
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => toggleRowExpansion(lesson.id)}
-                                                className="flex items-center gap-1"
-                                              >
-                                                <span className="text-xs">הצג נוכחות</span>
-                                                {expandedRows.has(lesson.id) ? 
-                                                  <ChevronUp className="h-3 w-3" /> : 
-                                                  <ChevronDown className="h-3 w-3" />
-                                                }
-                                              </Button>
-                                            )}
-                                          </td>
-                                        </tr>
-                                        {/* Attendance details */}
-                                        {expandedRows.has(lesson.id) && (
-                                          <tr>
-                                            <td colSpan={7} className="bg-gray-50 p-4">
-                                              <div className="grid grid-cols-2 gap-6">
-                                                <div>
-                                                  <h4 className="font-semibold text-green-700 mb-2 flex items-center">
-                                                    <CheckCircle className="h-4 w-4 ml-1" />
-                                                    נוכחים ({lesson.attendanceData.filter(s => s.attended).length})
-                                                  </h4>
-                                                  <div className="space-y-1">
-                                                    {lesson.attendanceData.filter(s => s.attended).map(student => (
-                                                      <div key={student.id} className="text-sm text-gray-700 flex items-center">
-                                                        <span className="w-2 h-2 bg-green-500 rounded-full ml-2"></span>
-                                                        {student.name}
-                                                      </div>
-                                                    ))}
-                                                    {lesson.attendanceData.filter(s => s.attended).length === 0 && (
-                                                      <span className="text-gray-500 text-sm">אין תלמידים נוכחים</span>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                                <div>
-                                                  <h4 className="font-semibold text-red-700 mb-2 flex items-center">
-                                                    <X className="h-4 w-4 ml-1" />
-                                                    נעדרים ({lesson.attendanceData.filter(s => !s.attended).length})
-                                                  </h4>
-                                                  <div className="space-y-1">
-                                                    {lesson.attendanceData.filter(s => !s.attended).map(student => (
-                                                      <div key={student.id} className="text-sm text-gray-700 flex items-center">
-                                                        <span className="w-2 h-2 bg-red-500 rounded-full ml-2"></span>
-                                                        {student.name}
-                                                      </div>
-                                                    ))}
-                                                    {lesson.attendanceData.filter(s => !s.attended).length === 0 && (
-                                                      <span className="text-gray-500 text-sm">כל התלמידים נוכחים</span>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        )}
-                                      </React.Fragment>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+
+                  {filteredMonthData.detailData && filteredMonthData.detailData.length === 0 ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">אין נתוני מוסדות</h3>
+                        <p className="text-gray-600">לא נמצאו נתונים עבור החודש והמוסד שנבחרו</p>
                       </CardContent>
                     </Card>
-                  ))
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ) : (
+                    (filteredMonthData.detailData || []).map((institution) => (
+                      <Card key={institution.id} className="overflow-hidden">
+                        <CardHeader className="bg-gray-50">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="text-xl flex items-center">
+                                <Building2 className="h-5 w-5 ml-2" />
+                                {institution.name}
+                              </CardTitle>
+                              <CardDescription>
+                                סה"כ שיעורים: {institution.total_lessons} | 
+                                סה"כ תלמידים: {institution.total_students} | 
+                                סה"כ הכנסות: ₪{institution.total_revenue.toLocaleString()}
+                              </CardDescription>
+                            </div>
+                            <Badge variant="outline" className="text-lg font-bold">
+                              ₪{institution.total_revenue.toLocaleString()}
+                            </Badge>
+                          </div>
+                          
+                          {/* Overall completion summary */}
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="flex items-center gap-4 text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600">סה"כ שיעורים מתוכננים:</span>
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                  {(institution.courses || []).reduce((sum, course) => sum + (course.scheduled_in_month || 0), 0)}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600">סה"כ שיעורים שהועברו:</span>
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                  {institution.total_lessons}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600">אחוז השלמה כללי:</span>
+                                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                  {(() => {
+                                    const totalScheduled = (institution.courses || []).reduce((sum, course) => sum + (course.scheduled_in_month || 0), 0);
+                                    const totalReported = institution.total_lessons;
+                                    return totalScheduled > 0 ? Math.round((totalReported / totalScheduled) * 100) : 0;
+                                  })()}%
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        
+                        <CardContent className="p-0">
+                          {institution.courses.map((course) => (
+                            <div key={course.id} className="border-b border-gray-200 last:border-b-0">
+                              <div className="bg-gray-100 px-4 py-3 flex justify-between items-center cursor-pointer"
+                                   onClick={() => toggleRowExpansion(course.id)}>
+                                <div className="flex items-center gap-4">
+                                  <div className="p-2 bg-blue-100 rounded-full">
+                                    <BookOpen className="h-4 w-4 text-blue-600" />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold text-gray-900">{course.course_name}</h4>
+                                    <p className="text-sm text-gray-600">
+                                      מדריך: {course.instructor_name} | 
+                                      {course.lesson_count} שיעורים | 
+                                      {course.student_count} תלמידים
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  {typeof course.scheduled_in_month === 'number' && (
+                                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                      השלמה {course.completion_percentage?.toFixed(0) || 0}% ({course.lesson_count}/{course.scheduled_in_month})
+                                    </Badge>
+                                  )}
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                    ₪{(course.price_per_lesson * course.lesson_count).toLocaleString()}
+                                  </Badge>
+                                  {expandedRows.has(course.id) ? 
+                                    <ChevronUp className="h-4 w-4 text-gray-500" /> : 
+                                    <ChevronDown className="h-4 w-4 text-gray-500" />
+                                  }
+                                </div>
+                              </div>
+                              
+                              {expandedRows.has(course.id) && (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full">
+                                    <thead className="bg-gray-50">
+                                      <tr>
+                                        <th className="text-right py-3 px-4 font-medium">שיעור מס'</th>
+                                        <th className="text-right py-3 px-4 font-medium">נושא השיעור</th>
+                                        <th className="text-right py-3 px-4 font-medium">נוכחות</th>
+                                        <th className="text-right py-3 px-4 font-medium">מחיר ללקוח</th>
+                                        <th className="text-right py-3 px-4 font-medium">התנהל כשורה</th>
+                                        <th className="text-right py-3 px-4 font-medium">תאריך</th>
+                                        <th className="text-right py-3 px-4 font-medium">פרטי נוכחות</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                      {course.lesson_details.map((lesson) => (
+                                        <React.Fragment key={lesson.id}>
+                                          <tr className="hover:bg-gray-50">
+                                            <td className="py-3 px-4 font-medium text-blue-600">
+                                              שיעור {lesson.lesson_number}
+                                            </td>
+                                            <td className="py-3 px-4 font-medium">{lesson.lesson_title}</td>
+                                            <td className="py-3 px-4">
+                                              <div className="flex items-center gap-2">
+                                                <Users className="h-4 w-4 text-gray-500" />
+                                                <span className="font-medium">
+                                                  {lesson.participants_count} מתוך {lesson.total_students}
+                                                </span>
+                                              </div>
+                                            </td>
+                                            <td className="py-3 px-4 font-bold text-green-600">
+                                              ₪{lesson.hourly_rate.toLocaleString()}
+                                            </td>
+                                            <td className="py-3 px-4">
+                                              {lesson.is_lesson_ok ? (
+                                                <Badge className="bg-green-100 text-green-800">
+                                                  <CheckCircle className="h-3 w-3 ml-1" />
+                                                  כן
+                                                </Badge>
+                                              ) : (
+                                                <Badge variant="destructive">
+                                                  <X className="h-3 w-3 ml-1" />
+                                                  לא
+                                                </Badge>
+                                              )}
+                                            </td>
+                                            <td className="py-3 px-4 text-gray-600">
+                                              {new Date(lesson.created_at).toLocaleDateString('he-IL')}
+                                            </td>
+                                            <td className="py-3 px-4">
+                                              {lesson.attendanceData.length > 0 && (
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => toggleRowExpansion(lesson.id)}
+                                                  className="flex items-center gap-1"
+                                                >
+                                                  <span className="text-xs">הצג נוכחות</span>
+                                                  {expandedRows.has(lesson.id) ? 
+                                                    <ChevronUp className="h-3 w-3" /> : 
+                                                    <ChevronDown className="h-3 w-3" />
+                                                  }
+                                                </Button>
+                                              )}
+                                            </td>
+                                          </tr>
+                                          {/* Attendance details */}
+                                          {expandedRows.has(lesson.id) && (
+                                            <tr>
+                                              <td colSpan={7} className="bg-gray-50 p-4">
+                                                <div className="grid grid-cols-2 gap-6">
+                                                  <div>
+                                                    <h4 className="font-semibold text-green-700 mb-2 flex items-center">
+                                                      <CheckCircle className="h-4 w-4 ml-1" />
+                                                      נוכחים ({lesson.attendanceData.filter(s => s.attended).length})
+                                                    </h4>
+                                                    <div className="space-y-1">
+                                                      {lesson.attendanceData.filter(s => s.attended).map(student => (
+                                                        <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                          <span className="w-2 h-2 bg-green-500 rounded-full ml-2"></span>
+                                                          {student.name}
+                                                        </div>
+                                                      ))}
+                                                      {lesson.attendanceData.filter(s => s.attended).length === 0 && (
+                                                        <span className="text-gray-500 text-sm">אין תלמידים נוכחים</span>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                  <div>
+                                                    <h4 className="font-semibold text-red-700 mb-2 flex items-center">
+                                                      <X className="h-4 w-4 ml-1" />
+                                                      נעדרים ({lesson.attendanceData.filter(s => !s.attended).length})
+                                                    </h4>
+                                                    <div className="space-y-1">
+                                                      {lesson.attendanceData.filter(s => !s.attended).map(student => (
+                                                        <div key={student.id} className="text-sm text-gray-700 flex items-center">
+                                                          <span className="w-2 h-2 bg-red-500 rounded-full ml-2"></span>
+                                                          {student.name}
+                                                        </div>
+                                                      ))}
+                                                      {lesson.attendanceData.filter(s => !s.attended).length === 0 && (
+                                                        <span className="text-gray-500 text-sm">כל התלמידים נוכחים</span>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          )}
+                                        </React.Fragment>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   );
