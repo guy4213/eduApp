@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -28,6 +28,8 @@ interface MonthlyReport {
   completionRate: number;
   instructorData?: InstructorReport[];
   institutionData?: InstitutionReport[];
+  isLoaded?: boolean;
+  isLoading?: boolean;
 }
 
 interface InstructorReport {
@@ -53,7 +55,6 @@ interface LessonReportDetail {
   created_at: string;
   attendanceData: AttendanceRecord[];
   course_instance_id?: string;
-  // Enhanced fields for complete tracking
   scheduled_date?: string;
   lesson_status: 'completed' | 'reported_issues' | 'not_reported';
   schedule_id?: string;
@@ -90,7 +91,7 @@ const Reports = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState<'instructors' | 'institutions'>('instructors');
-  const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([]);
+  const [monthlyReports, setMonthlyReports] = useState<Map<string, MonthlyReport>>(new Map());
   const [selectedMonth, setSelectedMonth] = useState<string>('current');
   const [selectedInstructor, setSelectedInstructor] = useState<string>('all');
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
@@ -98,6 +99,10 @@ const Reports = () => {
   const [institutionsList, setInstitutionsList] = useState<any[]>([]);
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
+
+  // Cache for schedules data
+  const [schedulesCache, setSchedulesCache] = useState<any>(null);
 
   // Generate months list (current month + 12 months forward)
   const monthsList = useMemo(() => {
@@ -136,9 +141,7 @@ const Reports = () => {
 
   // Get filtered data for selected month
   const filteredMonthData = useMemo(() => {
-    const selectedMonthData = monthlyReports.find(report => 
-      selectedMonth === 'current' ? report.monthKey === 'current' : report.monthKey === selectedMonth
-    );
+    const selectedMonthData = monthlyReports.get(selectedMonth);
     
     if (!selectedMonthData) {
       return {
@@ -152,7 +155,6 @@ const Reports = () => {
     }
 
     if (reportType === 'instructors') {
-      // Filter instructors based on selection
       const filteredInstructors = selectedInstructor === 'all' 
         ? selectedMonthData.instructorData || []
         : (selectedMonthData.instructorData || []).filter(instructor => instructor.id === selectedInstructor);
@@ -164,10 +166,9 @@ const Reports = () => {
       const totalStudents = filteredInstructors.reduce((sum, instructor) => 
         sum + instructor.reports.reduce((reportSum, report) => reportSum + report.total_students, 0), 0);
 
-      // For filtered data, we need to recalculate the completion rate based on filtered data
       const totalScheduledLessons = selectedInstructor === 'all' 
         ? selectedMonthData.totalScheduledLessons 
-        : selectedMonthData.totalScheduledLessons; // This could be refined further if needed per instructor
+        : selectedMonthData.totalScheduledLessons;
 
       return {
         totalEarnings,
@@ -178,7 +179,6 @@ const Reports = () => {
         detailData: filteredInstructors
       };
     } else {
-      // Filter institutions based on selection
       const filteredInstitutions = selectedInstitution === 'all' 
         ? selectedMonthData.institutionData || []
         : (selectedMonthData.institutionData || []).filter(institution => institution.id === selectedInstitution);
@@ -187,7 +187,6 @@ const Reports = () => {
       const totalLessons = filteredInstitutions.reduce((sum, institution) => sum + institution.total_lessons, 0);
       const totalStudents = filteredInstitutions.reduce((sum, institution) => sum + institution.total_students, 0);
       
-      // Calculate completion rate from lesson details
       const allLessonDetails = filteredInstitutions.flatMap(inst => 
         inst.courses.flatMap(course => course.lesson_details)
       );
@@ -195,7 +194,7 @@ const Reports = () => {
 
       const totalScheduledLessons = selectedInstitution === 'all' 
         ? selectedMonthData.totalScheduledLessons 
-        : selectedMonthData.totalScheduledLessons; // This could be refined further if needed per institution
+        : selectedMonthData.totalScheduledLessons;
 
       return {
         totalEarnings,
@@ -209,7 +208,7 @@ const Reports = () => {
   }, [monthlyReports, selectedMonth, reportType, selectedInstructor, selectedInstitution]);
 
   // Toggle row expansion
-  const toggleRowExpansion = (id: string) => {
+  const toggleRowExpansion = useCallback((id: string) => {
     setExpandedRows(prev => {
       const newSet = new Set(prev);
       if (newSet.has(id)) {
@@ -219,8 +218,9 @@ const Reports = () => {
       }
       return newSet;
     });
-  };
+  }, []);
 
+  // Fetch lists once on mount
   useEffect(() => {
     const fetchLists = async () => {
       const [instructorsRes, institutionsRes] = await Promise.all([
@@ -242,55 +242,167 @@ const Reports = () => {
     fetchLists();
   }, []);
 
-  // Fetch reports data for all months (only once on load, no dependency on filters)
+  // Fetch schedules cache once
   useEffect(() => {
-    const fetchAllMonthlyReports = async () => {
-      if (!user) return;
+    const fetchSchedules = async () => {
+      try {
+        const schedules = await fetchCombinedSchedules();
+        setSchedulesCache(schedules);
+      } catch (error) {
+        console.error('Error fetching schedules:', error);
+      }
+    };
 
+    fetchSchedules();
+  }, []);
+
+  // Load current month data immediately, then load others in background
+  useEffect(() => {
+    if (!user || !schedulesCache) return;
+
+    const loadCurrentMonth = async () => {
       setLoading(true);
       try {
-        const reports: MonthlyReport[] = [];
-
-        for (const month of monthsList) {
-          const monthData = await fetchMonthData(month.startDate, month.endDate, month.key);
-          reports.push({
-            month: month.label,
-            monthKey: month.key,
-            date: month.date,
+        const currentMonthData = monthsList.find(m => m.key === 'current');
+        if (currentMonthData) {
+          const monthData = await fetchMonthData(currentMonthData.startDate, currentMonthData.endDate, currentMonthData.key);
+          
+          setMonthlyReports(prev => new Map(prev).set('current', {
+            month: currentMonthData.label,
+            monthKey: currentMonthData.key,
+            date: currentMonthData.date,
+            isLoaded: true,
+            isLoading: false,
             ...monthData
-          });
+          }));
         }
-
-        setMonthlyReports(reports);
       } catch (error) {
-        console.error('Error fetching monthly reports:', error);
+        console.error('Error fetching current month:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAllMonthlyReports();
-  }, [user, monthsList]);
+    loadCurrentMonth();
+  }, [user, schedulesCache, monthsList]);
 
+  // Load other months in background
+  useEffect(() => {
+    if (!user || !schedulesCache || loading) return;
+
+    const loadOtherMonths = async () => {
+      setBackgroundLoading(true);
+      try {
+        // Load other months one by one to avoid overwhelming the database
+        for (const month of monthsList.filter(m => m.key !== 'current')) {
+          const monthData = await fetchMonthData(month.startDate, month.endDate, month.key);
+          
+          setMonthlyReports(prev => new Map(prev).set(month.key, {
+            month: month.label,
+            monthKey: month.key,
+            date: month.date,
+            isLoaded: true,
+            isLoading: false,
+            ...monthData
+          }));
+
+          // Small delay to prevent overwhelming the database
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (error) {
+        console.error('Error loading background months:', error);
+      } finally {
+        setBackgroundLoading(false);
+      }
+    };
+
+    // Start background loading after a short delay
+    const timer = setTimeout(loadOtherMonths, 1000);
+    return () => clearTimeout(timer);
+  }, [user, schedulesCache, loading, monthsList]);
+
+  // Load specific month data on demand
+  const loadMonthOnDemand = useCallback(async (monthKey: string) => {
+    const month = monthsList.find(m => m.key === monthKey);
+    if (!month || monthlyReports.has(monthKey)) return;
+
+    // Mark as loading
+    setMonthlyReports(prev => new Map(prev).set(monthKey, {
+      month: month.label,
+      monthKey: month.key,
+      date: month.date,
+      isLoaded: false,
+      isLoading: true,
+      totalLessons: 0,
+      totalScheduledLessons: 0,
+      totalHours: 0,
+      totalEarnings: 0,
+      completedLessons: 0,
+      cancelledLessons: 0,
+      completionRate: 0,
+      instructorData: [],
+      institutionData: []
+    }));
+
+    try {
+      const monthData = await fetchMonthData(month.startDate, month.endDate, month.key);
+      
+      setMonthlyReports(prev => new Map(prev).set(monthKey, {
+        month: month.label,
+        monthKey: month.key,
+        date: month.date,
+        isLoaded: true,
+        isLoading: false,
+        ...monthData
+      }));
+    } catch (error) {
+      console.error('Error loading month on demand:', error);
+      // Remove loading state on error
+      setMonthlyReports(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(monthKey);
+        return newMap;
+      });
+    }
+  }, [monthsList, monthlyReports]);
+
+  // Handle month selection - load on demand if not loaded
+  const handleMonthChange = useCallback((monthKey: string) => {
+    setSelectedMonth(monthKey);
+    if (!monthlyReports.has(monthKey)) {
+      loadMonthOnDemand(monthKey);
+    }
+  }, [monthlyReports, loadMonthOnDemand]);
+
+  // Optimized fetchMonthData with better queries
   const fetchMonthData = async (startDate: Date, endDate: Date, monthKey: string) => {
     try {
-      // Fetch scheduled lessons for the month (grouped by course instance)
-      const scheduledCountByInstance = await fetchScheduledCountByInstance(startDate, endDate);
+      // Use cached schedules
+      const monthSchedules = schedulesCache ? 
+        filterSchedulesByDateRange(schedulesCache, startDate, endDate) : [];
       
-      // Calculate total scheduled lessons across all instances
+      const scheduledCountByInstance = new Map<string, number>();
+      for (const s of monthSchedules) {
+        const instanceId = s?.course_instances?.id || s?.course_instance_id;
+        if (!instanceId) continue;
+        scheduledCountByInstance.set(instanceId, (scheduledCountByInstance.get(instanceId) || 0) + 1);
+      }
+      
       const totalScheduledLessons = Array.from(scheduledCountByInstance.values()).reduce((a, b) => a + b, 0);
 
-      // Fetch data using original working approach, then enhance with unreported lessons
-      const instructorData = await fetchInstructorDataForMonth(startDate, endDate);
-      const institutionData = await fetchInstitutionDataForMonth(startDate, endDate);
+      // Optimized data fetching with better joins
+      const [instructorData, institutionData] = await Promise.all([
+        fetchInstructorDataOptimized(startDate, endDate),
+        fetchInstitutionDataOptimized(startDate, endDate)
+      ]);
 
-      // Add unreported lessons to instructor data
-      await addUnreportedLessonsToInstructors(instructorData, startDate, endDate);
-      
-      // Add unreported lessons to institution data  
-      await addUnreportedLessonsToInstitutions(institutionData, startDate, endDate);
+      // Add unreported lessons using cached schedules
+      await Promise.all([
+        addUnreportedLessonsOptimized(instructorData, monthSchedules, 'instructor'),
+        addUnreportedLessonsOptimized(institutionData, monthSchedules, 'institution')
+      ]);
 
-      // Attach per-course-instance completion info for institutions
+      // Attach completion info for institutions
       for (const inst of institutionData) {
         for (const course of inst.courses) {
           const scheduledInMonth = scheduledCountByInstance.get(course.id) || 0;
@@ -303,7 +415,6 @@ const Reports = () => {
       const completedLessons = instructorData.reduce((sum, instructor) => 
         sum + instructor.reports.filter(report => report.lesson_status === 'completed').length, 0);
 
-      // Calculate completion rate as (reported lessons / total scheduled lessons) * 100
       const completionRate = totalScheduledLessons > 0 ? (totalReportedLessons / totalScheduledLessons) * 100 : 0;
 
       return {
@@ -333,10 +444,10 @@ const Reports = () => {
     }
   };
 
-  const fetchInstructorDataForMonth = async (startDate: Date, endDate: Date) => {
+  // Optimized instructor data fetching with single query
+  const fetchInstructorDataOptimized = async (startDate: Date, endDate: Date) => {
     try {
-      // Get ALL lesson reports without instructor filtering (ORIGINAL WORKING CODE)
-      let query = supabase
+      const { data: reports, error } = await supabase
         .from('lesson_reports')
         .select(`
           id,
@@ -369,16 +480,28 @@ const Reports = () => {
             courses:course_id (
               name
             )
+          ),
+          course_instances (
+            id,
+            price_for_instructor,
+            students (id),
+            educational_institutions (name)
+          ),
+          lesson_schedules (
+            course_instances (
+              id,
+              price_for_instructor,
+              students (id),
+              educational_institutions (name)
+            )
           )
         `)
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: true });
 
-      const { data: reports, error } = await query;
       if (error) throw error;
 
-      // Process reports and get institution info (ORIGINAL WORKING CODE)
       const instructorMap = new Map<string, InstructorReport>();
 
       for (const report of reports || []) {
@@ -387,52 +510,22 @@ const Reports = () => {
         
         if (!instructor || !instructorId) continue;
 
-        // Get institution info and course instance data
+        // Get institution info and course instance data from the joined data
         let institutionName = 'לא זמין';
         let totalStudents = 0;
         let hourlyRate = instructor.hourly_rate || 0;
         let courseInstanceId: string | undefined = report.course_instance_id || undefined;
 
-        if (report.course_instance_id) {
-          const { data: courseInstanceData } = await supabase
-            .from('course_instances')
-            .select(`
-              price_for_instructor,
-              students (id),
-              educational_institutions (
-                name
-              )
-            `)
-            .eq('id', report.course_instance_id)
-            .single();
-          
-          if (courseInstanceData) {
-            totalStudents = courseInstanceData.students?.length || 0;
-            hourlyRate = courseInstanceData.price_for_instructor || instructor.hourly_rate || 0;
-            institutionName = courseInstanceData.educational_institutions?.name || 'לא זמין';
-          }
-        } else if (report.lesson_schedule_id) {
-          const { data: scheduleData } = await supabase
-            .from('lesson_schedules')
-            .select(`
-              course_instances (
-                id,
-                price_for_instructor,
-                students (id),
-                educational_institutions (
-                  name
-                )
-              )
-            `)
-            .eq('id', report.lesson_schedule_id)
-            .single();
-          
-          if (scheduleData?.course_instances) {
-            totalStudents = scheduleData.course_instances.students?.length || 0;
-            hourlyRate = scheduleData.course_instances.price_for_instructor || instructor.hourly_rate || 0;
-            institutionName = scheduleData.course_instances.educational_institutions?.name || 'לא זמין';
-            courseInstanceId = scheduleData.course_instances.id;
-          }
+        if (report.course_instances) {
+          totalStudents = report.course_instances.students?.length || 0;
+          hourlyRate = report.course_instances.price_for_instructor || instructor.hourly_rate || 0;
+          institutionName = report.course_instances.educational_institutions?.name || 'לא זמין';
+        } else if (report.lesson_schedules?.course_instances) {
+          const courseInstance = report.lesson_schedules.course_instances;
+          totalStudents = courseInstance.students?.length || 0;
+          hourlyRate = courseInstance.price_for_instructor || instructor.hourly_rate || 0;
+          institutionName = courseInstance.educational_institutions?.name || 'לא זמין';
+          courseInstanceId = courseInstance.id;
         }
 
         // Process attendance data
@@ -449,7 +542,6 @@ const Reports = () => {
           }
         }
 
-        // Determine lesson status based on report
         const lessonStatus: 'completed' | 'reported_issues' | 'not_reported' = 
           report.is_lesson_ok ? 'completed' : 'reported_issues';
 
@@ -496,173 +588,10 @@ const Reports = () => {
     }
   };
 
-  const addUnreportedLessonsToInstructors = async (instructorData: InstructorReport[], startDate: Date, endDate: Date) => {
+  // Optimized institution data fetching
+  const fetchInstitutionDataOptimized = async (startDate: Date, endDate: Date) => {
     try {
-      // Get all scheduled lessons for the month
-      const allSchedules = await fetchCombinedSchedules();
-      const monthSchedules = filterSchedulesByDateRange(allSchedules, startDate, endDate);
-
-      // Create a map of reported schedule IDs
-      const reportedScheduleIds = new Set();
-      instructorData.forEach(instructor => {
-        instructor.reports.forEach(report => {
-          if (report.schedule_id) {
-            reportedScheduleIds.add(report.schedule_id);
-          }
-        });
-      });
-
-      // Find unreported scheduled lessons
-      const unreportedSchedules = monthSchedules.filter(schedule => !reportedScheduleIds.has(schedule.id));
-
-      // Add unreported lessons to instructor data
-      for (const schedule of unreportedSchedules) {
-        const courseInstance = schedule.course_instances;
-        if (!courseInstance?.instructor_id) continue;
-
-        const instructorId = courseInstance.instructor_id;
-        
-        // Find or create instructor in the map
-        let instructor = instructorData.find(inst => inst.id === instructorId);
-        if (!instructor) {
-          const instructorDetails = await getInstructorDetails(instructorId);
-          if (!instructorDetails) continue;
-          
-          instructor = {
-            id: instructorId,
-            full_name: instructorDetails.full_name,
-            hourly_rate: instructorDetails.hourly_rate,
-            total_reports: 0,
-            total_hours: 0,
-            total_salary: 0,
-            reports: []
-          };
-          instructorData.push(instructor);
-        }
-
-        // Create unreported lesson detail
-        const unreportedLesson: LessonReportDetail = {
-          id: `schedule-${schedule.id}`,
-          lesson_title: schedule.lesson?.title || 'שיעור מתוכנן',
-          course_name: courseInstance.courses?.name || 'לא זמין',
-          institution_name: courseInstance.educational_institutions?.name || 'לא זמין',
-          lesson_number: schedule.lesson?.order_index ? schedule.lesson.order_index + 1 : 1,
-          participants_count: 0,
-          total_students: courseInstance.students?.length || 0,
-          is_lesson_ok: false,
-          hourly_rate: courseInstance.price_for_instructor || instructor.hourly_rate || 0,
-          created_at: schedule.scheduled_date,
-          attendanceData: [],
-          course_instance_id: courseInstance.id,
-          scheduled_date: schedule.scheduled_date,
-          lesson_status: 'not_reported',
-          schedule_id: schedule.id,
-        };
-
-        instructor.reports.push(unreportedLesson);
-      }
-    } catch (error) {
-      console.error('Error adding unreported lessons to instructors:', error);
-    }
-  };
-
-  const addUnreportedLessonsToInstitutions = async (institutionData: InstitutionReport[], startDate: Date, endDate: Date) => {
-    try {
-      // Get all scheduled lessons for the month
-      const allSchedules = await fetchCombinedSchedules();
-      const monthSchedules = filterSchedulesByDateRange(allSchedules, startDate, endDate);
-
-      // Create a map of reported schedule IDs
-      const reportedScheduleIds = new Set();
-      institutionData.forEach(institution => {
-        institution.courses.forEach(course => {
-          course.lesson_details.forEach(lesson => {
-            if (lesson.schedule_id) {
-              reportedScheduleIds.add(lesson.schedule_id);
-            }
-          });
-        });
-      });
-
-      // Find unreported scheduled lessons
-      const unreportedSchedules = monthSchedules.filter(schedule => !reportedScheduleIds.has(schedule.id));
-
-      // Add unreported lessons to institution data
-      for (const schedule of unreportedSchedules) {
-        const courseInstance = schedule.course_instances;
-        if (!courseInstance?.educational_institutions) continue;
-
-        const institutionId = courseInstance.educational_institutions.id;
-        const institutionName = courseInstance.educational_institutions.name;
-
-        // Find or create institution
-        let institution = institutionData.find(inst => inst.id === institutionId);
-        if (!institution) {
-          institution = {
-            id: institutionId,
-            name: institutionName,
-            total_lessons: 0,
-            total_revenue: 0,
-            total_students: 0,
-            courses: []
-          };
-          institutionData.push(institution);
-        }
-
-        // Find or create course
-        let course = institution.courses.find(c => c.id === courseInstance.id);
-        if (!course) {
-          course = {
-            id: courseInstance.id,
-            course_name: courseInstance.courses?.name || 'לא זמין',
-            instructor_name: courseInstance.instructor?.full_name || 'לא זמין',
-            lesson_count: 0,
-            student_count: courseInstance.students?.length || 0,
-            price_per_lesson: courseInstance.price_for_customer || 0,
-            lesson_details: []
-          };
-          institution.courses.push(course);
-        }
-
-        // Create unreported lesson detail
-        const unreportedLesson: LessonReportDetail = {
-          id: `schedule-${schedule.id}`,
-          lesson_title: schedule.lesson?.title || 'שיעור מתוכנן',
-          course_name: courseInstance.courses?.name || 'לא זמין',
-          institution_name: institutionName,
-          lesson_number: schedule.lesson?.order_index ? schedule.lesson.order_index + 1 : 1,
-          participants_count: 0,
-          total_students: courseInstance.students?.length || 0,
-          is_lesson_ok: false,
-          hourly_rate: courseInstance.price_for_customer || 0,
-          created_at: schedule.scheduled_date,
-          attendanceData: [],
-          course_instance_id: courseInstance.id,
-          scheduled_date: schedule.scheduled_date,
-          lesson_status: 'not_reported',
-          schedule_id: schedule.id,
-        };
-
-        course.lesson_details.push(unreportedLesson);
-      }
-    } catch (error) {
-      console.error('Error adding unreported lessons to institutions:', error);
-    }
-  };
-
-  const getInstructorDetails = async (instructorId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, full_name, hourly_rate')
-      .eq('id', instructorId)
-      .single();
-    return data;
-  };
-
-  const fetchInstitutionDataForMonth = async (startDate: Date, endDate: Date) => {
-    try {
-      // Get ALL course instances without institution filtering (ORIGINAL WORKING CODE)
-      let query = supabase
+      const { data: courseInstances, error } = await supabase
         .from('course_instances')
         .select(`
           id,
@@ -707,10 +636,8 @@ const Reports = () => {
         .gte('lesson_reports.created_at', startDate.toISOString())
         .lte('lesson_reports.created_at', endDate.toISOString());
 
-      const { data: courseInstances, error } = await query;
       if (error) throw error;
 
-      // Process institution data (ORIGINAL WORKING CODE)
       const institutionMap = new Map<string, InstitutionReport>();
 
       for (const instance of courseInstances || []) {
@@ -732,7 +659,6 @@ const Reports = () => {
 
         const institutionReport = institutionMap.get(institutionId)!;
 
-        // Process lessons with attendance
         const lessonsWithAttendance = (instance.lesson_reports || []).map(report => {
           const attendanceData: AttendanceRecord[] = [];
           if (report.lesson_attendance) {
@@ -747,7 +673,6 @@ const Reports = () => {
             }
           }
 
-          // Determine lesson status
           const lessonStatus: 'completed' | 'reported_issues' | 'not_reported' = 
             report.is_lesson_ok ? 'completed' : 'reported_issues';
 
@@ -783,7 +708,6 @@ const Reports = () => {
           institutionReport.total_lessons += lessonsWithAttendance.length;
           institutionReport.total_revenue += (instance.price_for_customer || 0) * lessonsWithAttendance.length;
           
-          // Add unique students
           const uniqueStudents = new Set();
           (instance.students || []).forEach(student => uniqueStudents.add(student.id));
           institutionReport.total_students = Math.max(institutionReport.total_students, uniqueStudents.size);
@@ -797,34 +721,177 @@ const Reports = () => {
     }
   };
 
-  const fetchScheduledCountByInstance = async (startDate: Date, endDate: Date): Promise<Map<string, number>> => {
+  // Optimized unreported lessons processing using cached schedules
+  const addUnreportedLessonsOptimized = async (data: any[], monthSchedules: any[], type: 'instructor' | 'institution') => {
     try {
-      const allSchedules = await fetchCombinedSchedules();
-      const monthSchedules = filterSchedulesByDateRange(allSchedules, startDate, endDate);
-      const map = new Map<string, number>();
-      for (const s of monthSchedules) {
-        const instanceId = s?.course_instances?.id || s?.course_instance_id;
-        if (!instanceId) continue;
-        map.set(instanceId, (map.get(instanceId) || 0) + 1);
+      const reportedScheduleIds = new Set();
+      
+      if (type === 'instructor') {
+        data.forEach(instructor => {
+          instructor.reports.forEach((report: any) => {
+            if (report.schedule_id) {
+              reportedScheduleIds.add(report.schedule_id);
+            }
+          });
+        });
+      } else {
+        data.forEach(institution => {
+          institution.courses.forEach((course: any) => {
+            course.lesson_details.forEach((lesson: any) => {
+              if (lesson.schedule_id) {
+                reportedScheduleIds.add(lesson.schedule_id);
+              }
+            });
+          });
+        });
       }
-      return map;
-    } catch (e) {
-      console.error('Error fetching scheduled lessons:', e);
-      return new Map();
+
+      const unreportedSchedules = monthSchedules.filter(schedule => !reportedScheduleIds.has(schedule.id));
+
+      // Batch fetch instructor details if needed
+      const neededInstructorIds = new Set();
+      if (type === 'instructor') {
+        unreportedSchedules.forEach(schedule => {
+          const instructorId = schedule.course_instances?.instructor_id;
+          if (instructorId && !data.find(inst => inst.id === instructorId)) {
+            neededInstructorIds.add(instructorId);
+          }
+        });
+      }
+
+      let instructorDetails = new Map();
+      if (neededInstructorIds.size > 0) {
+        const { data: instructors } = await supabase
+          .from('profiles')
+          .select('id, full_name, hourly_rate')
+          .in('id', Array.from(neededInstructorIds));
+        
+        instructors?.forEach(instructor => {
+          instructorDetails.set(instructor.id, instructor);
+        });
+      }
+
+      // Process unreported lessons
+      for (const schedule of unreportedSchedules) {
+        const courseInstance = schedule.course_instances;
+        if (!courseInstance) continue;
+
+        if (type === 'instructor') {
+          const instructorId = courseInstance.instructor_id;
+          if (!instructorId) continue;
+
+          let instructor = data.find(inst => inst.id === instructorId);
+          if (!instructor) {
+            const instructorData = instructorDetails.get(instructorId);
+            if (!instructorData) continue;
+            
+            instructor = {
+              id: instructorId,
+              full_name: instructorData.full_name,
+              hourly_rate: instructorData.hourly_rate,
+              total_reports: 0,
+              total_hours: 0,
+              total_salary: 0,
+              reports: []
+            };
+            data.push(instructor);
+          }
+
+          const unreportedLesson: LessonReportDetail = {
+            id: `schedule-${schedule.id}`,
+            lesson_title: schedule.lesson?.title || 'שיעור מתוכנן',
+            course_name: courseInstance.courses?.name || 'לא זמין',
+            institution_name: courseInstance.educational_institutions?.name || 'לא זמין',
+            lesson_number: schedule.lesson?.order_index ? schedule.lesson.order_index + 1 : 1,
+            participants_count: 0,
+            total_students: courseInstance.students?.length || 0,
+            is_lesson_ok: false,
+            hourly_rate: courseInstance.price_for_instructor || instructor.hourly_rate || 0,
+            created_at: schedule.scheduled_date,
+            attendanceData: [],
+            course_instance_id: courseInstance.id,
+            scheduled_date: schedule.scheduled_date,
+            lesson_status: 'not_reported',
+            schedule_id: schedule.id,
+          };
+
+          instructor.reports.push(unreportedLesson);
+        } else {
+          // Institution processing
+          const institutionId = courseInstance.educational_institutions?.id;
+          if (!institutionId) continue;
+
+          let institution = data.find(inst => inst.id === institutionId);
+          if (!institution) {
+            institution = {
+              id: institutionId,
+              name: courseInstance.educational_institutions.name,
+              total_lessons: 0,
+              total_revenue: 0,
+              total_students: 0,
+              courses: []
+            };
+            data.push(institution);
+          }
+
+          let course = institution.courses.find((c: any) => c.id === courseInstance.id);
+          if (!course) {
+            course = {
+              id: courseInstance.id,
+              course_name: courseInstance.courses?.name || 'לא זמין',
+              instructor_name: courseInstance.instructor?.full_name || 'לא זמין',
+              lesson_count: 0,
+              student_count: courseInstance.students?.length || 0,
+              price_per_lesson: courseInstance.price_for_customer || 0,
+              lesson_details: []
+            };
+            institution.courses.push(course);
+          }
+
+          const unreportedLesson: LessonReportDetail = {
+            id: `schedule-${schedule.id}`,
+            lesson_title: schedule.lesson?.title || 'שיעור מתוכנן',
+            course_name: courseInstance.courses?.name || 'לא זמין',
+            institution_name: courseInstance.educational_institutions.name,
+            lesson_number: schedule.lesson?.order_index ? schedule.lesson.order_index + 1 : 1,
+            participants_count: 0,
+            total_students: courseInstance.students?.length || 0,
+            is_lesson_ok: false,
+            hourly_rate: courseInstance.price_for_customer || 0,
+            created_at: schedule.scheduled_date,
+            attendanceData: [],
+            course_instance_id: courseInstance.id,
+            scheduled_date: schedule.scheduled_date,
+            lesson_status: 'not_reported',
+            schedule_id: schedule.id,
+          };
+
+          course.lesson_details.push(unreportedLesson);
+        }
+      }
+    } catch (error) {
+      console.error('Error adding unreported lessons:', error);
     }
   };
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSelectedInstructor('all');
     setSelectedInstitution('all');
     setSelectedMonth('current');
     setSelectedYear('all');
-  };
+  }, []);
+
+  // Get current month data for rendering, with loading state
+  const currentMonthReport = monthlyReports.get(selectedMonth);
+  const isSelectedMonthLoading = currentMonthReport?.isLoading || (!currentMonthReport && selectedMonth !== 'current');
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600">טוען נתוני החודש הנוכחי...</p>
+        </div>
       </div>
     );
   }
@@ -842,6 +909,11 @@ const Reports = () => {
             <div className="flex items-center">
               <BarChart3 className="h-8 w-8 text-primary ml-3" />
               <h1 className="text-xl font-semibold text-gray-900">דוחות ושכר</h1>
+              {backgroundLoading && (
+                <Badge variant="secondary" className="mr-3">
+                  טוען נתונים נוספים...
+                </Badge>
+              )}
             </div>
             <Button className="flex items-center space-x-2">
               <Download className="h-4 w-4" />
@@ -977,7 +1049,7 @@ const Reports = () => {
               </div>
               <div>
                 <Label>חודש</Label>
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <Select value={selectedMonth} onValueChange={handleMonthChange}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -985,6 +1057,7 @@ const Reports = () => {
                     {filteredMonthsByYear.map((month) => (
                       <SelectItem key={month.key} value={month.key}>
                         {month.label}
+                        {monthlyReports.get(month.key)?.isLoading && ' (טוען...)'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1057,16 +1130,51 @@ const Reports = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {monthlyReports.filter(r => selectedYear === 'all' || r.date.getFullYear() === parseInt(selectedYear)).map((report, index) => {
+                  {monthsList.filter(m => selectedYear === 'all' || m.date.getFullYear() === parseInt(selectedYear)).map((month) => {
+                    const report = monthlyReports.get(month.key);
+                    const isLoading = report?.isLoading;
+                    const isLoaded = report?.isLoaded;
+                    
+                    if (!report && month.key !== selectedMonth) {
+                      return (
+                        <tr 
+                          key={month.key}
+                          className="hover:bg-gray-50 cursor-pointer"
+                          onClick={() => handleMonthChange(month.key)}
+                        >
+                          <td className="py-3 px-4 font-medium">{month.label}</td>
+                          <td colSpan={7} className="py-3 px-4 text-gray-500 text-center">
+                            לחץ לטעינת נתונים
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    if (isLoading) {
+                      return (
+                        <tr key={month.key} className="hover:bg-gray-50">
+                          <td className="py-3 px-4 font-medium">{month.label}</td>
+                          <td colSpan={7} className="py-3 px-4 text-gray-500 text-center">
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                              טוען...
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    if (!report) return null;
+
                     const monthEarnings = reportType === 'instructors' 
                       ? report.totalEarnings
                       : report.institutionData?.reduce((sum, inst) => sum + inst.total_revenue, 0) || 0;
                     
                     return (
                       <tr 
-                        key={index} 
+                        key={month.key}
                         className={`hover:bg-gray-50 cursor-pointer ${selectedMonth === report.monthKey ? 'bg-blue-50' : ''}`}
-                        onClick={() => setSelectedMonth(report.monthKey)}
+                        onClick={() => handleMonthChange(report.monthKey)}
                       >
                         <td className="py-3 px-4 font-medium">{report.month}</td>
                         <td className="py-3 px-4 font-bold text-blue-600">{report.totalLessons}</td>
@@ -1113,7 +1221,12 @@ const Reports = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {reportType === 'instructors' ? (
+            {isSelectedMonthLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-gray-600">טוען נתוני החודש...</p>
+              </div>
+            ) : reportType === 'instructors' ? (
               <div className="space-y-6">
                 {filteredMonthData.detailData.length === 0 ? (
                   <Card>
@@ -1164,10 +1277,8 @@ const Reports = () => {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                              {/* Sort lessons: reported first, then unreported */}
                               {instructor.reports
                                 .sort((a, b) => {
-                                  // Sort by status: reported lessons first, then unreported
                                   if (a.lesson_status === 'not_reported' && b.lesson_status !== 'not_reported') return 1;
                                   if (a.lesson_status !== 'not_reported' && b.lesson_status === 'not_reported') return -1;
                                   return a.lesson_number - b.lesson_number;
