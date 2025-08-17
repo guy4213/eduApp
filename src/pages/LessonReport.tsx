@@ -586,7 +586,205 @@ const LessonReport = () => {
         return true;
     };
 
-    const handleSubmit = async () => {
+    // const handleSubmit = async () => {
+    //     // Count present students
+    //     const presentStudents = attendanceList.filter(student => student.isPresent).length;
+    //     const participantsCount = presentStudents;
+
+    //     if (participantsCount > maxPar || participantsCount === 0) {
+    //         toast({
+    //             title: 'שגיאה',
+    //             description: `נדרש לבחור לפחות תלמיד אחד ועד ${maxPar} משתתפים`,
+    //             variant: 'destructive',
+    //         });
+    //         return;
+    //     }
+
+    //     if (!lessonTitle.trim()) {
+    //         toast({
+    //             title: 'שגיאה',
+    //             description: 'נדרש להזין כותרת שיעור',
+    //             variant: 'destructive',
+    //         });
+    //         return;
+    //     }
+
+    //     if (!isLessonOk && !feedback.trim()) {
+    //         toast({
+    //             title: 'שגיאה',
+    //             description: 'בבקשה הזן משוב במידה והשיעור לא התנהל כשורה',
+    //             variant: 'destructive',
+    //         });
+    //         return;
+    //     }
+
+    //     setIsSubmitting(true);
+
+    //     try {
+    //         const { data: { user }, error: userError } = await supabase.auth.getUser();
+    //         if (userError || !user) throw new Error('משתמש לא מחובר');
+
+    //         console.log('Starting form submission...');
+    //         console.log('Current attendance list:', attendanceList);
+
+    //         // שמירת סטודנטים חדשים קודם
+    //         let updatedAttendanceList;
+    //         try {
+    //             updatedAttendanceList = await saveNewStudents();
+    //             console.log('Students saved successfully:', updatedAttendanceList);
+    //         } catch (studentError) {
+    //             console.error('Failed to save students:', studentError);
+    //             toast({
+    //                 title: 'שגיאה',
+    //                 description: studentError.message || 'שגיאה בשמירת תלמידים חדשים',
+    //                 variant: 'destructive',
+    //             });
+    //             return;
+    //         }
+
+    //         // Handle lesson_schedule_id and course_instance_id for new architecture
+    //         let lessonScheduleId = scheduleId;
+    //         let courseInstanceIdForReport = null;
+            
+    //         // If we're using the new architecture (courseInstanceIdFromUrl), use course_instance_id field
+    //         if (courseInstanceIdFromUrl && !scheduleId) {
+    //             console.log('Using new architecture with course_instance_id:', courseInstanceIdFromUrl);
+    //             courseInstanceIdForReport = courseInstanceIdFromUrl;
+    //             lessonScheduleId = null; // Don't use lesson_schedule_id for new architecture
+    //         } else if (scheduleId) {
+    //             console.log('Using legacy architecture with lesson_schedule_id:', scheduleId);
+    //             lessonScheduleId = scheduleId;
+    //         } else {
+    //             throw new Error('לא ניתן ליצור דיווח ללא מזהה לוח זמנים תקין');
+    //         }
+
+    //         // יצירת דיווח השיעור (ללא attended_student_ids)
+    //         const reportDataToInsert = {
+    //             lesson_title: lessonTitle,
+    //             participants_count: participantsCount,
+    //             notes,
+    //             feedback,
+    //             marketing_consent: marketingConsent,
+    //             instructor_id: user.id,
+    //             is_lesson_ok: isLessonOk,
+    //             completed_task_ids: checkedTasks,
+    //             lesson_id: id,
+    //             // הסרנו את attended_student_ids מכאן
+    //         };
+
+    //         // Add the appropriate schedule reference based on architecture
+    //         if (courseInstanceIdForReport) {
+    //             reportDataToInsert.course_instance_id = courseInstanceIdForReport;
+    //         } else if (lessonScheduleId) {
+    //             reportDataToInsert.lesson_schedule_id = lessonScheduleId;
+    //         }
+
+    //         const { data: reportData, error: reportError } = await supabase
+    //             .from('lesson_reports')
+    //             .insert(reportDataToInsert)
+    //             .select()
+    //             .single();
+
+    //         if (reportError) throw reportError;
+
+    //         console.log('Lesson report created:', reportData);
+
+    //         // Create a record in reported_lesson_instances to track this specific lesson instance
+    //         const reportedInstanceData:any = {
+    //             lesson_report_id: reportData.id,
+    //             lesson_id: id,
+    //             scheduled_date: new Date().toISOString().split('T')[0], // Today's date as default
+    //         };
+
+    //         // Add the appropriate schedule reference
+    //         if (courseInstanceIdForReport) {
+    //             reportedInstanceData.course_instance_id = courseInstanceIdForReport;
+                
+    //             // Get the lesson's order_index from the database
+    //             try {
+    //                 const { data: lessonData, error: lessonError } = await supabase
+    //                     .from('lessons')
+    //                     .select('order_index')
+    //                     .eq('id', id)
+    //                     .single();
+
+    //                 if (lessonError) {
+    //                     console.error('Error fetching lesson order_index:', lessonError);
+    //                     reportedInstanceData.lesson_number = 1; // Fallback
+    //                 } else {
+    //                     reportedInstanceData.lesson_number = lessonData.order_index+1;
+    //                     console.log('Using lesson order_index:', lessonData.order_index+1);
+    //                 }
+    //             } catch (error) {
+    //                 console.error('Error getting lesson order_index:', error);
+    //                 reportedInstanceData.lesson_number = 1; // Fallback
+    //             }
+    //         } else if (lessonScheduleId) {
+    //             reportedInstanceData.lesson_schedule_id = lessonScheduleId;
+    //         }
+
+    //         const { error: trackingError } = await supabase
+    //             .from('reported_lesson_instances')
+    //             .insert(reportedInstanceData);
+
+    //         if (trackingError) {
+    //             console.error('Error creating reported lesson instance record:', trackingError);
+    //             // Don't throw error here as the main report was created successfully
+    //         } else {
+    //             console.log('Reported lesson instance record created');
+    //         }
+
+    //         // שמירת נתוני נוכחות בטבלה נפרדת
+    //         try {
+    //             await saveStudentAttendance(reportData.id, updatedAttendanceList);
+    //             console.log('Attendance saved successfully');
+    //         } catch (attendanceError) {
+    //             console.error('Failed to save attendance:', attendanceError);
+    //             toast({
+    //                 title: 'אזהרה',
+    //                 description: 'הדיווח נשמר אך הייתה שגיאה בשמירת הנוכחות',
+    //                 variant: 'destructive',
+    //             });
+    //         }
+
+    //         if (files.length > 0) {
+    //             const uploadResults = await Promise.all(
+    //                 files.map((file) => uploadFile(file, reportData.id))
+    //             );
+    //             const failed = uploadResults.filter((r) => !r).length;
+    //             if (failed > 0) {
+    //                 toast({
+    //                     title: 'אזהרה',
+    //                     description: `${failed} קבצים לא הועלו בהצלחה`,
+    //                     variant: 'destructive',
+    //                 });
+    //             }
+    //         }
+
+    //         toast({ title: 'הצלחה!', description: 'דיווח השיעור נשמר בהצלחה' });
+
+    //         // Reset form
+    //         setLessonTitle('');
+    //         setNotes('');
+    //         setFeedback('');
+    //         setFiles([]);
+    //         setCheckedTasks([]);
+    //         setMarketingConsent(false);
+    //         // Reset attendance but keep existing students
+    //         setAttendanceList(prev => prev.map(student => ({ ...student, isPresent: false, isNew: false })));
+    //         if (fileInputRef.current) fileInputRef.current.value = '';
+
+    //     } catch (err) {
+    //         toast({
+    //             title: 'שגיאה',
+    //             description: err.message || 'אירעה שגיאה בשמירת הדיווח',
+    //             variant: 'destructive',
+    //         });
+    //     } finally {
+    //         setIsSubmitting(false);
+    //     }
+    // };
+const handleSubmit = async () => {
         // Count present students
         const presentStudents = attendanceList.filter(student => student.isPresent).length;
         const participantsCount = presentStudents;
@@ -639,6 +837,7 @@ const LessonReport = () => {
                     description: studentError.message || 'שגיאה בשמירת תלמידים חדשים',
                     variant: 'destructive',
                 });
+                setIsSubmitting(false); // Stop submission on critical error
                 return;
             }
 
@@ -646,11 +845,10 @@ const LessonReport = () => {
             let lessonScheduleId = scheduleId;
             let courseInstanceIdForReport = null;
             
-            // If we're using the new architecture (courseInstanceIdFromUrl), use course_instance_id field
             if (courseInstanceIdFromUrl && !scheduleId) {
                 console.log('Using new architecture with course_instance_id:', courseInstanceIdFromUrl);
                 courseInstanceIdForReport = courseInstanceIdFromUrl;
-                lessonScheduleId = null; // Don't use lesson_schedule_id for new architecture
+                lessonScheduleId = null; 
             } else if (scheduleId) {
                 console.log('Using legacy architecture with lesson_schedule_id:', scheduleId);
                 lessonScheduleId = scheduleId;
@@ -658,7 +856,7 @@ const LessonReport = () => {
                 throw new Error('לא ניתן ליצור דיווח ללא מזהה לוח זמנים תקין');
             }
 
-            // יצירת דיווח השיעור (ללא attended_student_ids)
+            // יצירת דיווח השיעור
             const reportDataToInsert = {
                 lesson_title: lessonTitle,
                 participants_count: participantsCount,
@@ -669,10 +867,8 @@ const LessonReport = () => {
                 is_lesson_ok: isLessonOk,
                 completed_task_ids: checkedTasks,
                 lesson_id: id,
-                // הסרנו את attended_student_ids מכאן
             };
 
-            // Add the appropriate schedule reference based on architecture
             if (courseInstanceIdForReport) {
                 reportDataToInsert.course_instance_id = courseInstanceIdForReport;
             } else if (lessonScheduleId) {
@@ -689,35 +885,25 @@ const LessonReport = () => {
 
             console.log('Lesson report created:', reportData);
 
-            // Create a record in reported_lesson_instances to track this specific lesson instance
-            const reportedInstanceData:any = {
+            // Create a record in reported_lesson_instances
+            const reportedInstanceData = {
                 lesson_report_id: reportData.id,
                 lesson_id: id,
-                scheduled_date: new Date().toISOString().split('T')[0], // Today's date as default
+                scheduled_date: new Date().toISOString().split('T')[0],
+                lesson_number: 1, // Default value
             };
-
-            // Add the appropriate schedule reference
+            
             if (courseInstanceIdForReport) {
                 reportedInstanceData.course_instance_id = courseInstanceIdForReport;
-                
-                // Get the lesson's order_index from the database
-                try {
-                    const { data: lessonData, error: lessonError } = await supabase
-                        .from('lessons')
-                        .select('order_index')
-                        .eq('id', id)
-                        .single();
-
-                    if (lessonError) {
-                        console.error('Error fetching lesson order_index:', lessonError);
-                        reportedInstanceData.lesson_number = 1; // Fallback
-                    } else {
-                        reportedInstanceData.lesson_number = lessonData.order_index+1;
-                        console.log('Using lesson order_index:', lessonData.order_index+1);
-                    }
-                } catch (error) {
-                    console.error('Error getting lesson order_index:', error);
-                    reportedInstanceData.lesson_number = 1; // Fallback
+                const { data: lessonData, error: lessonError } = await supabase
+                    .from('lessons')
+                    .select('order_index')
+                    .eq('id', id)
+                    .single();
+                if (lessonError) {
+                    console.error('Error fetching lesson order_index:', lessonError);
+                } else {
+                    reportedInstanceData.lesson_number = lessonData.order_index + 1;
                 }
             } else if (lessonScheduleId) {
                 reportedInstanceData.lesson_schedule_id = lessonScheduleId;
@@ -729,12 +915,11 @@ const LessonReport = () => {
 
             if (trackingError) {
                 console.error('Error creating reported lesson instance record:', trackingError);
-                // Don't throw error here as the main report was created successfully
             } else {
                 console.log('Reported lesson instance record created');
             }
 
-            // שמירת נתוני נוכחות בטבלה נפרדת
+            // שמירת נתוני נוכחות
             try {
                 await saveStudentAttendance(reportData.id, updatedAttendanceList);
                 console.log('Attendance saved successfully');
@@ -746,6 +931,58 @@ const LessonReport = () => {
                     variant: 'destructive',
                 });
             }
+
+            // --- START: NEW EMAIL SENDING LOGIC ---
+      
+            // If the lesson was not OK, call our secure Edge Function
+            if (!isLessonOk && feedback.trim()) {
+                console.log('Lesson not OK, invoking Edge Function to notify admins...');
+                
+                // 1. Get course name (you still need this on the client)
+                let courseName = 'לא ידוע';
+                if (lesson?.course_id) {
+                    const { data: courseData } = await supabase
+                        .from('courses')
+                        .select('name')
+                        .eq('id', lesson.course_id)
+                        .single();
+                    if (courseData) courseName = courseData.name;
+                }
+
+                // 2. Prepare the payload for the function
+                const feedbackPayload = {
+                    courseName: courseName,
+                    lessonTitle: lessonTitle,
+                    lessonNumber: reportedInstanceData.lesson_number, // from your existing code
+                    participantsCount: participantsCount,
+                    notes: notes,
+                    feedback: feedback,
+                    marketingConsent: marketingConsent,
+                    instructorName: user?.user_metadata?.full_name || 'מדריך לא ידוע',
+                };
+                
+                // 3. Invoke the Edge Function
+                const { error: functionError } = await supabase.functions.invoke(
+                    'notify-admins-on-feedback', 
+                    { body: feedbackPayload }
+                );
+                
+                if (functionError) {
+                    // This is a non-critical error, so just warn the user
+                    console.error('Error invoking notify-admins function:', functionError);
+                    toast({
+                        title: 'אזהרה',
+                        description: 'הדיווח נשמר, אך שליחת ההתראה למנהל נכשלה.',
+                        variant: 'destructive',
+                    });
+                } else {
+                    console.log('Admin notification function invoked successfully.');
+                }
+            }
+            // --- END: MODIFIED EMAIL LOGIC ---
+
+           
+
 
             if (files.length > 0) {
                 const uploadResults = await Promise.all(
@@ -770,7 +1007,6 @@ const LessonReport = () => {
             setFiles([]);
             setCheckedTasks([]);
             setMarketingConsent(false);
-            // Reset attendance but keep existing students
             setAttendanceList(prev => prev.map(student => ({ ...student, isPresent: false, isNew: false })));
             if (fileInputRef.current) fileInputRef.current.value = '';
 
@@ -784,7 +1020,6 @@ const LessonReport = () => {
             setIsSubmitting(false);
         }
     };
-
     return (
         <div className="min-h-screen bg-gray-50 p-6">
             <div className="md:hidden"><MobileNavigation /></div>
