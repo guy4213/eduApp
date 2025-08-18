@@ -42,8 +42,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         setLoading(false);
 
-        // Handle profile creation after email confirmation
+        // Create profile after email verification/sign in
         if (event === 'SIGNED_IN' && session?.user) {
+          console.log('User signed in, creating profile if needed...');
           await createProfileIfNeeded(session.user);
         }
       }
@@ -61,35 +62,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const createProfileIfNeeded = async (user: User) => {
     try {
+      console.log('Checking if profile exists for user:', user.id);
+      
       // Check if profile already exists
-      const { data: existingProfile } = await supabase
+      const { data: existingProfile, error: checkError } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle() instead of single() to avoid errors when no record found
+
+      if (checkError) {
+        console.error('Error checking existing profile:', checkError);
+        return;
+      }
 
       if (!existingProfile) {
-        // Create profile if it doesn't exist
-        const { error } = await supabase.from('profiles').insert([
-          {
-            id: user.id,
-            full_name: user.user_metadata?.full_name || '',
-            phone: user.user_metadata?.phone || null,
-            role: user.user_metadata?.role || 'instructor',
-            email: user.email || null,
-            hourly_rate: null,
-            birthdate: null,
-            current_work_hours: 0,
-            benefits: null,
-          },
-        ]);
+        console.log('Creating new profile...');
+        
+        // Get user metadata (this should be available after email confirmation)
+        const metadata = user.user_metadata || {};
+        
+        const profileData = {
+          id: user.id,
+          full_name: metadata.full_name || metadata.fullName || '',
+          phone: metadata.phone || null,
+          role: (metadata.role as UserRole) || 'instructor',
+          email: user.email || null,
+          hourly_rate: null,
+          birthdate: null,
+          current_work_hours: 0,
+          benefits: null,
+        };
 
-        if (error) {
-          console.error('Error creating profile:', error);
+        console.log('Profile data to insert:', profileData);
+
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert([profileData]);
+
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+        } else {
+          console.log('Profile created successfully!');
         }
+      } else {
+        console.log('Profile already exists');
       }
     } catch (error) {
-      console.error('Error checking/creating profile:', error);
+      console.error('Unexpected error in createProfileIfNeeded:', error);
     }
   };
 
@@ -109,9 +129,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     role: UserRole = 'instructor',
     phone: string = ''
   ) => {
+    // Use window.location.origin to get the current domain
     const redirectUrl = `${window.location.origin}/verify`;
 
-    // Only create the user - profile will be created after email confirmation
+    console.log('Signing up with data:', { 
+      email, 
+      fullName, 
+      role, 
+      phone, 
+      redirectUrl 
+    });
+
+    // Create user with metadata
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -125,6 +154,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
     });
 
+    if (error) {
+      console.error('Signup error:', error);
+    } else {
+      console.log('Signup successful, check email for verification');
+    }
+
     return { error };
   };
 
@@ -132,11 +167,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
-  // Safe access to session data with null checks
+  // Debug user data when session changes
   useEffect(() => {
     if (session?.user) {
-      console.log("User role:", session.user.user_metadata?.role);
-      console.log('Access token:', session.access_token);
+      console.log("Current user data:", {
+        id: session.user.id,
+        email: session.user.email,
+        metadata: session.user.user_metadata,
+        role: session.user.user_metadata?.role,
+      });
     }
   }, [session]);
 

@@ -18,6 +18,7 @@ import Reports from "./pages/Reports";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import MobileNavigation from "./components/layout/MobileNavigation";
+import { VerifyPage } from "./pages/VerifyPage";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,8 @@ const App = () => (
           <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
             <Routes>
               <Route path="/auth" element={<Auth />} />
+             <Route path="/verify" element={<VerifyPage />} />
+
               <Route 
                 path="/" 
                 element={
