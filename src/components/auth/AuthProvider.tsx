@@ -36,14 +36,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         console.log('Auth state changed:', event, session);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+
+        // Handle profile creation after email confirmation
+        if (event === 'SIGNED_IN' && session?.user) {
+          await createProfileIfNeeded(session.user);
+        }
       }
     );
 
+    // Initial session check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -52,6 +58,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const createProfileIfNeeded = async (user: User) => {
+    try {
+      // Check if profile already exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+
+      if (!existingProfile) {
+        // Create profile if it doesn't exist
+        const { error } = await supabase.from('profiles').insert([
+          {
+            id: user.id,
+            full_name: user.user_metadata?.full_name || '',
+            phone: user.user_metadata?.phone || null,
+            role: user.user_metadata?.role || 'instructor',
+            email: user.email || null,
+            hourly_rate: null,
+            birthdate: null,
+            current_work_hours: 0,
+            benefits: null,
+          },
+        ]);
+
+        if (error) {
+          console.error('Error creating profile:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking/creating profile:', error);
+    }
+  };
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -71,8 +111,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     const redirectUrl = `${window.location.origin}/verify`;
 
-    // Step 1: Create the user
-    const { data, error } = await supabase.auth.signUp({
+    // Only create the user - profile will be created after email confirmation
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -85,36 +125,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
     });
 
-    if (error || !data?.user) {
-      return { error };
-    }
-
-    const userId = data.user.id;
-
-    // Step 2: Insert into profiles table
-const { error: profileError } = await supabase.from('profiles').insert([
-  {
-    id: userId,
-    full_name: fullName,
-    phone: phone || null,           // optional, send null if empty string
-    role: role || 'instructor',    // default role if missing
-    email: email || null,
-    hourly_rate: null,              // or some default numeric value if you want
-    birthdate: null,               // optional date
-    current_work_hours: 0,          // default per schema
-    benefits: null,                 // optional text
-    // created_at, updated_at are handled by DB defaults
-  },
-]);
-
-    return { error: profileError };
+    return { error };
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
   };
-console.log("TOKEN :   "+session?.user.user_metadata.role);
-console.log('access token:', session?.access_token);
+
+  // Safe access to session data with null checks
+  useEffect(() => {
+    if (session?.user) {
+      console.log("User role:", session.user.user_metadata?.role);
+      console.log('Access token:', session.access_token);
+    }
+  }, [session]);
+
   const value: AuthContextType = {
     user,
     session,
