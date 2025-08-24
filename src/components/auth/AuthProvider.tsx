@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  initialized: boolean; // New flag to indicate when auth is fully initialized
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (
     email: string,
@@ -33,14 +34,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isMounted) return;
+
         console.log('Auth state changed:', event, session);
+        
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
+        
+        // Set loading to false only after the first auth state change
+        if (!initialized) {
+          setLoading(false);
+          setInitialized(true);
+        }
 
         // Create profile after email verification/sign in
         if (event === 'SIGNED_IN' && session?.user) {
@@ -50,14 +63,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Initial session check with better error handling
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting initial session:', error);
+        }
+        
+        if (!isMounted) return;
 
-    return () => subscription.unsubscribe();
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        setInitialized(true);
+
+        // If there's a session, create profile if needed
+        if (session?.user) {
+          await createProfileIfNeeded(session.user);
+        }
+      } catch (error) {
+        console.error('Unexpected error getting session:', error);
+        if (isMounted) {
+          setLoading(false);
+          setInitialized(true);
+        }
+      }
+    };
+
+    getInitialSession();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const createProfileIfNeeded = async (user: User) => {
@@ -183,6 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     loading,
+    initialized, // Expose the initialized flag
     signIn,
     signUp,
     signOut,

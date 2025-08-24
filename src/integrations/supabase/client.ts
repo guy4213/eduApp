@@ -3,9 +3,57 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 export const SUPABASE_URL = "https://icwidsqbydgycuedhznc.supabase.co";
- export const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imljd2lkc3FieWRneWN1ZWRoem5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAyMzg4MDgsImV4cCI6MjA2NTgxNDgwOH0.kRaeJco9gDVBzWzeU9fOHjkXz4O0hmsie2b_Zu7U6Is";
+export const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imljd2lkc3FieWRneWN1ZWRoem5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAyMzg4MDgsImV4cCI6MjA2NTgxNDgwOH0.kRaeJco9gDVBzWzeU9fOHjkXz4O0hmsie2b_Zu7U6Is";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    // Enable automatic session refresh
+    autoRefreshToken: true,
+    // Persist auth session in localStorage
+    persistSession: true,
+    // Detect session in URL on startup
+    detectSessionInUrl: true,
+    // Flow type for authentication
+    flowType: 'pkce',
+    // Storage key for session
+    storageKey: 'supabase.auth.token',
+    // Custom storage (optional, defaults to localStorage)
+    storage: {
+      getItem: (key: string) => {
+        if (typeof window !== 'undefined') {
+          return window.localStorage.getItem(key);
+        }
+        return null;
+      },
+      setItem: (key: string, value: string) => {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(key, value);
+        }
+      },
+      removeItem: (key: string) => {
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(key);
+        }
+      },
+    },
+  },
+  // Global settings
+  global: {
+    headers: {
+      'X-Client-Info': 'supabase-js-web',
+    },
+  },
+  // Database options
+  db: {
+    schema: 'public',
+  },
+  // Real-time options
+  realtime: {
+    params: {
+      eventsPerSecond: 2,
+    },
+  },
+});
