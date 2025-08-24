@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isInitialized: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (
     email: string,
@@ -17,6 +18,7 @@ interface AuthContextType {
     phone?: string
   ) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,32 +35,92 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Function to refresh session manually
+  const refreshSession = useCallback(async () => {
+    try {
+      const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession();
+      if (error) {
+        console.error('Error refreshing session:', error);
+        return;
+      }
+      if (refreshedSession) {
+        setSession(refreshedSession);
+        setUser(refreshedSession.user);
+      }
+    } catch (error) {
+      console.error('Unexpected error refreshing session:', error);
+    }
+  }, []);
+
+  // Initialize authentication state
+  const initializeAuth = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Get initial session
+      const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Error getting initial session:', error);
+        setLoading(false);
+        setIsInitialized(true);
+        return;
+      }
+
+      if (initialSession) {
+        console.log('Initial session found:', initialSession.user.email);
+        setSession(initialSession);
+        setUser(initialSession.user);
+        
+        // Create profile if needed
+        await createProfileIfNeeded(initialSession.user);
+      } else {
+        console.log('No initial session found');
+      }
+
+      setLoading(false);
+      setIsInitialized(true);
+    } catch (error) {
+      console.error('Error initializing auth:', error);
+      setLoading(false);
+      setIsInitialized(true);
+    }
+  }, []);
 
   useEffect(() => {
+    // Initialize auth state
+    initializeAuth();
+
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-
-        // Create profile after email verification/sign in
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('User signed in, creating profile if needed...');
+        
+        if (event === 'SIGNED_IN' && session) {
+          setSession(session);
+          setUser(session.user);
+          setLoading(false);
+          
+          // Create profile after sign in
           await createProfileIfNeeded(session.user);
+        } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+        } else if (event === 'TOKEN_REFRESHED' && session) {
+          setSession(session);
+          setUser(session.user);
+        } else if (event === 'USER_UPDATED' && session) {
+          setSession(session);
+          setUser(session.user);
         }
       }
     );
 
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
     return () => subscription.unsubscribe();
-  }, []);
+  }, [initializeAuth]);
 
   const createProfileIfNeeded = async (user: User) => {
     try {
@@ -183,9 +245,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     loading,
+    isInitialized,
     signIn,
     signUp,
     signOut,
+    refreshSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -3,9 +3,34 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 export const SUPABASE_URL = "https://icwidsqbydgycuedhznc.supabase.co";
- export const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imljd2lkc3FieWRneWN1ZWRoem5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAyMzg4MDgsImV4cCI6MjA2NTgxNDgwOH0.kRaeJco9gDVBzWzeU9fOHjkXz4O0hmsie2b_Zu7U6Is";
+export const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imljd2lkc3FieWRneWN1ZWRoem5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAyMzg4MDgsImV4cCI6MjA2NTgxNDgwOH0.kRaeJco9gDVBzWzeU9fOHjkXz4O0hmsie2b_Zu7U6Is";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    // Enable automatic session refresh
+    autoRefreshToken: true,
+    // Persist session in localStorage
+    persistSession: true,
+    // Detect session in URL (for email confirmation)
+    detectSessionInUrl: true,
+    // Storage key for session
+    storageKey: 'supabase-auth-token',
+    // Flow type for authentication
+    flowType: 'pkce',
+  },
+  // Enable realtime subscriptions
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+  // Global headers
+  global: {
+    headers: {
+      'X-Client-Info': 'supabase-js-v2',
+    },
+  },
+});
