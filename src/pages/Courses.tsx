@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,10 +28,10 @@ import {
   Circle,
   UserPlus,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import CourseCreateDialog from "@/components/CourseCreateDialog";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
+import { useCoursesData } from "@/hooks/use-courses-data";
 
 interface Task {
   id: string;
@@ -42,7 +42,6 @@ interface Task {
   lesson_number: number;
   lesson_title?: string;
   order_index: number;
-  // Add schedule information
   scheduled_start?: string;
   scheduled_end?: string;
 }
@@ -60,12 +59,11 @@ interface Course {
   tasks: Task[];
   start_date: string;
   approx_end_date: string;
+  is_assigned: boolean;
 }
 
 const Courses = () => {
   const { user } = useAuth();
-  const [courses, setCourses] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<{
@@ -76,6 +74,14 @@ const Courses = () => {
   const [editCourse, setEditCourse] = useState<any | null>(null);
 
   console.log("ROLE  " + user.user_metadata.role);
+
+  // Use the new React Query hook for data fetching
+  const { 
+    data: courses = [], 
+    isLoading, 
+    error, 
+    refetch 
+  } = useCoursesData();
 
   const groupTasksByLesson = (tasks: Task[]) => {
     const grouped: Record<number, Task[]> = {};
@@ -88,134 +94,8 @@ const Courses = () => {
     return grouped;
   };
 
-  const fetchCourses = async () => {
-    if (!user) return;
-
-    try {
-      // Only fetch template courses for the courses page
-      // Course instances are now handled in the CourseAssignments page
-
-      // Fetch all courses for templates
-      const { data: allCoursesData, error: coursesError } = await supabase.from(
-        "courses"
-      ).select(`
-          id,
-          name,
-          created_at
-        `);
-
-      if (coursesError) throw coursesError;
-
-      // Fetch lessons and tasks for template courses
-      const allCourseIds = allCoursesData?.map((course) => course.id) || [];
-      let lessonsData: any[] = [];
-      let tasksData: any[] = [];
-
-      if (allCourseIds.length > 0) {
-        // Fetch lessons
-        const { data: lessons, error: lessonsError } = await supabase
-          .from("lessons")
-          .select("*")
-          .in("course_id", allCourseIds)
-          .order("order_index");
-
-        if (lessonsError) {
-          console.error("Error fetching lessons:", lessonsError);
-        } else {
-          lessonsData = lessons || [];
-        }
-
-        // Fetch tasks for all lessons
-        const lessonIds = lessonsData
-          .map((lesson) => lesson.id)
-          .filter(Boolean);
-        if (lessonIds.length > 0) {
-          const { data: tasks, error: tasksError } = await supabase
-            .from("lesson_tasks")
-            .select("*")
-            .in("lesson_id", lessonIds)
-            .order("order_index");
-
-          if (tasksError) {
-            console.error("Error fetching tasks:", tasksError);
-          } else {
-            tasksData = tasks || [];
-          }
-        }
-      }
-
-      // Fetch instructors data
-      const { data: instructorsData, error: instructorsError } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .eq("role", "instructor");
-
-      if (instructorsError) {
-        console.error("Error fetching instructors:", instructorsError);
-      }
-
-      // Helper function to format template course data
-      const formatCourseData = (course: any) => {
-        const courseLessons = lessonsData.filter(
-          (lesson) => lesson.course_id === course.id
-        );
-        const allCourseTasks = courseLessons.flatMap((lesson) => {
-          const lessonTasks = tasksData.filter(
-            (task) => task.lesson_id === lesson.id
-          );
-
-          return lessonTasks.map((task) => ({
-            ...task,
-            lesson_title: lesson.title,
-            lesson_number:
-              courseLessons.findIndex((l) => l.id === lesson.id) + 1,
-          }));
-        });
-
-        return {
-          id: course.id,
-          instance_id: null,
-          name: course.name || "ללא שם קורס",
-          grade_level: "לא צוין",
-          max_participants: 0,
-          price_per_lesson: 0,
-          institution_name: "תבנית קורס",
-          instructor_name: "לא הוקצה",
-          lesson_count: courseLessons.length,
-          start_date: null,
-          approx_end_date: null,
-          is_assigned: false,
-          tasks: allCourseTasks.map((task: any) => ({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            estimated_duration: task.estimated_duration,
-            is_mandatory: task.is_mandatory,
-            lesson_number: task.lesson_number,
-            lesson_title: task.lesson_title,
-            order_index: task.order_index,
-          })),
-        };
-      };
-
-      // Format template courses only
-      const formattedTemplateCourses = allCoursesData?.map(formatCourseData) || [];
-
-      console.log("Template courses: ", formattedTemplateCourses);
-      setCourses(formattedTemplateCourses);
-    } catch (error) {
-      console.error("Error fetching courses:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCourses();
-  }, [user]);
-
   const handleCourseCreated = () => {
-    fetchCourses();
+    refetch();
   };
 
   const handleAssignCourse = (
@@ -232,7 +112,7 @@ const Courses = () => {
   };
 
   const handleAssignmentComplete = () => {
-    fetchCourses();
+    refetch();
   };
 
   const handleEditCourse = (course: Course) => {
@@ -276,10 +156,30 @@ const Courses = () => {
     return `${day}.${month}.${year} ${hours}:${minutes}`;
   };
 
-  if (loading) {
+  // Handle loading state
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Handle error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">שגיאה בטעינת הנתונים</h2>
+          <p className="text-gray-600 mb-6">אירעה שגיאה בטעינת הנתונים. אנא נסה שוב.</p>
+          <Button 
+            onClick={() => refetch()} 
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            נסה שוב
+          </Button>
+        </div>
       </div>
     );
   }
