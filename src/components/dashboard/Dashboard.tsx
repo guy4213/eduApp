@@ -889,7 +889,7 @@ return (
          <div className="md:col-span-1 col-span-3 mx-2">
         <StatsCard
           title="שיעורים הושלמו"
-          value={stats.totalLessons}
+          value={weeklyReports.length}
           icon={Award}
           color="bg-gradient-to-r from-green-500 to-emerald-500"
         />
