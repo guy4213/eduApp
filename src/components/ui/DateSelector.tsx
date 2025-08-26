@@ -9,13 +9,14 @@ interface DateSelectorProps {
 export const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onChange }) => {
   // Get Sunday as start of week (Hebrew week)
   const startOfWeek = new Date(selectedDate);
-  startOfWeek.setHours(0, 0, 0, 0);
   startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
 
   // Get days array Sun-Sat
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(startOfWeek);
     d.setDate(d.getDate() + i);
+    // Use noon to avoid UTC date rollback across timezones
+    d.setHours(12, 0, 0, 0);
     return d;
   });
 
@@ -25,6 +26,8 @@ export const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onChan
   const goByDays = (daysToMove: number) => {
     const next = new Date(selectedDate);
     next.setDate(next.getDate() + daysToMove);
+    // Keep noon to preserve local day when converted to ISO (UTC)
+    next.setHours(12, 0, 0, 0);
     onChange(next);
   };
 
@@ -52,7 +55,11 @@ export const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onChan
             return (
               <button
                 key={day.toDateString()}
-                onClick={() => onChange(new Date(day))}
+                onClick={() => {
+                  const clicked = new Date(day);
+                  clicked.setHours(12, 0, 0, 0);
+                  onChange(clicked);
+                }}
                 className={`min-w-[44px] h-16 flex flex-col items-center justify-center rounded-2xl text-sm shrink-0 border transition-all duration-150 ${
                   selected
                     ? "bg-blue-600 text-white border-blue-600 shadow-sm"
