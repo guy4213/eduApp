@@ -33,11 +33,11 @@ const Calendar = () => {
   }, [user]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-0 sm:p-6">
+    <div className="min-h-screen bg-gray-50 p-0 sm:p-6 ">
       <div className="md:hidden">
         <MobileNavigation />
       </div>
-      <div className="mb-4 sm:mb-8 px-3 sm:px-0">
+      <div className="mb-4 sm:mb-8 px-3 sm:px-0 py-4 ">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">יומן אישי</h1>
         <p className="text-sm sm:text-base text-gray-600">צפייה במערכת השעות והשיעורים הקרובים</p>
       </div>

@@ -356,6 +356,7 @@ import { DailyLessonsCard } from "@/components/DailyLessonsCard";
 import { useNavigate } from "react-router-dom";
 import MobileDashboard from "./MobileDashboard";
 import { StatsCard } from "../StatsCard";
+import MobileNavigation from "../layout/MobileNavigation";
 
 interface DashboardStats {
   totalLessons: number;
@@ -577,43 +578,52 @@ console.log("Total active students:", totalActive);
     fetchDashboardData();
   }, [user]);
 
-  const menuItems = [
-    {
-      icon: Calendar,
-      title: "יומן אישי",
-      description: "צפייה במערכת השעות והשיעורים הקרובים",
-      path: "/calendar",
-      gradient: "from-blue-500 to-blue-600"
-    },
-    {
-      icon: BookOpen,
-      title: "דיווח שיעור",
-      description: "דיווח על שיעור שהתקיים או בתהליך",
-      path: "/lesson-report",
-      gradient: "from-green-500 to-emerald-600"
-    },
-    {
-      icon: Users,
-      title: "קורסים",
-      description: "ניהול הקורסים והכיתות שלי",
-      path: "/courses",
-      gradient: "from-purple-500 to-purple-600"
-    },
-    {
-      icon: BarChart3,
-      title: "דוחות ושכר",
-      description: "צפייה בדוחות חודשיים וחישוב שכר",
-      path: "/reports",
-      gradient: "from-orange-500 to-red-500"
-    },
-    {
-      icon: Settings,
-      title: "הגדרות פרופיל",
-      description: "עריכת פרטים אישיים והגדרות המערכת",
-      path: "/profile",
-      gradient: "from-gray-500 to-gray-600"
-    },
-  ];
+const menuItems = [
+  {
+    icon: Calendar,
+    title: "יומן אישי",
+    description: "צפייה במערכת השעות והשיעורים הקרובים",
+    path: "/calendar",
+    gradient: "from-blue-500 to-blue-600",
+  },
+  user?.user_metadata.role !== "instructor"
+    ? {
+        icon: BookOpen,
+        title: "דיווח שיעור",
+        description: "דיווח על שיעור שהתקיים או בתהליך",
+        path: "/lesson-report",
+        gradient: "from-green-500 to-emerald-600",
+      }
+    : null,
+  {
+    icon: Users,
+    title: "קורסים",
+    description: "ניהול הקורסים והכיתות שלי",
+    path: "/courses",
+    gradient: "from-purple-500 to-purple-600",
+  },
+  {
+    icon: Users,
+    title: "הקצאות",
+    description: "צפייה והקצאה של קורסים",
+    path: "/course-assignments",
+    gradient: "from-indigo-500 to-indigo-600",
+  },
+  {
+    icon: BarChart3,
+    title: "דוחות ושכר",
+    description: "צפייה בדוחות חודשיים וחישוב שכר",
+    path: "/reports",
+    gradient: "from-orange-500 to-red-500",
+  },
+  {
+    icon: Settings,
+    title: "הגדרות פרופיל",
+    description: "עריכת פרטים אישיים והגדרות המערכת",
+    path: "/profile",
+    gradient: "from-gray-500 to-gray-600",
+  },
+].filter(Boolean);
 
   if (loading) {
     return (
@@ -813,7 +823,8 @@ console.log("Total active students:", totalActive);
   //   </>
   // );
 return (
-  <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+  <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 mb-12">
+    <><MobileNavigation/></>
     <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8 space-y-6 md:space-y-8">
       
       {/* Welcome Section */}
