@@ -48,7 +48,8 @@ export const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onChan
           <ChevronRight className="w-5 h-5" />
         </button>
 
-        <div className="flex gap-2 overflow-x-auto no-scrollbar px-1 py-1 w-full justify-between">
+        {/* 7-column grid to show all days on mobile */}
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full px-1">
           {days.map((day) => {
             const selected = isSameDay(day, selectedDate);
             const weekdayLetter = hebrewWeekLetters[day.getDay()];
@@ -60,7 +61,7 @@ export const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onChan
                   clicked.setHours(12, 0, 0, 0);
                   onChange(clicked);
                 }}
-                className={`min-w-[44px] h-16 flex flex-col items-center justify-center rounded-2xl text-sm shrink-0 border transition-all duration-150 ${
+                className={`h-14 sm:h-16 flex flex-col items-center justify-center rounded-xl text-sm border transition-all duration-150 ${
                   selected
                     ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                     : "bg-white text-gray-800 border-gray-200 hover:bg-gray-50"

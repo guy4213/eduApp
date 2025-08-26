@@ -33,7 +33,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
       dir="rtl"
       role="region"
       aria-label="לוח שבועי"
-      className="bg-white rounded-xl shadow-sm border border-gray-100 w-full max-w-7xl mx-auto overflow-hidden"
+      className="w-full sm:bg-white sm:rounded-xl sm:shadow-sm sm:border sm:border-gray-100 sm:overflow-hidden"
     >
       <DateSelector selectedDate={selectedDate} onChange={setSelectedDate} />
 
