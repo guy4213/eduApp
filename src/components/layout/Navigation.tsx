@@ -108,7 +108,7 @@ const navigationItems = [
           <div className="flex justify-between items-center">
             <div className="flex items-center">
               <BookOpen className="h-6 w-6 text-blue-200 ml-2" />
-              <h1 className="text-lg font-bold text-white">מערכת ניהול</h1>
+              <h1 className="text-xl font-bold text-white">שלום  {user.user_metadata.full_name}</h1>
             </div>
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild>
