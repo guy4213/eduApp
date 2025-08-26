@@ -31,6 +31,9 @@ export const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onChan
   const goPrevWeek = () => goByDays(-7);
   const goNextWeek = () => goByDays(7);
 
+  // Hebrew weekday single-letter labels, Sunday-first
+  const hebrewWeekLetters = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
+
   return (
     <div dir="rtl" className="sticky top-0 z-10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 border-b border-gray-100">
       <div className="flex items-center justify-between px-2 py-2">
@@ -45,18 +48,19 @@ export const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onChan
         <div className="flex gap-2 overflow-x-auto no-scrollbar px-1 py-1 w-full justify-between">
           {days.map((day) => {
             const selected = isSameDay(day, selectedDate);
+            const weekdayLetter = hebrewWeekLetters[day.getDay()];
             return (
               <button
                 key={day.toDateString()}
                 onClick={() => onChange(new Date(day))}
                 className={`min-w-[44px] h-16 flex flex-col items-center justify-center rounded-2xl text-sm shrink-0 border transition-all duration-150 ${
                   selected
-                    ? "bg-primary text-white border-primary shadow-sm"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                     : "bg-white text-gray-800 border-gray-200 hover:bg-gray-50"
                 }`}
               >
                 <span className={`text-[11px] leading-3 font-medium ${selected ? "text-white/90" : "text-gray-500"}`}>
-                  {day.toLocaleDateString("he-IL", { weekday: "short" })}
+                  {weekdayLetter}
                 </span>
                 <span className="text-base font-bold mt-1">
                   {day.getDate()}
