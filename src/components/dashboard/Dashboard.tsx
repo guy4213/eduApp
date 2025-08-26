@@ -397,6 +397,7 @@ const Dashboard = () => {
   const [reports, setReports] = useState<any>([]);
   const [monthlySchedules, setMonthlySchedules] = useState<any>([]);
     const [weeklyReports, setWeeklyReports] = useState<any>([]);
+  const [monthlyReportsCount, setMonthlyReportsCount] = useState<number>(0);
 
 
     function filterReportsCurrentWeek(reports) {
@@ -434,7 +435,15 @@ const Dashboard = () => {
               .lt("created_at", firstDayNextMonth);
 
               setReports(reportsData)
-            
+             // Calculate reports count strictly within the current month (defensive)
+             const monthStartLocal = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+             const monthEndLocal = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+             const onlyThisMonth = (reportsData || []).filter((r: any) => {
+               const d = new Date(r.created_at);
+               return d >= monthStartLocal && d <= monthEndLocal;
+             });
+             setMonthlyReportsCount(onlyThisMonth.length);
+              
 
               const reportsThisWeek = filterReportsCurrentWeek(reportsData);
               setWeeklyReports(reportsThisWeek)
@@ -946,7 +955,7 @@ return (
         <div>
           <div className="flex justify-between mb-2">
             <span>שיעורים</span>
-            <span>{reports.length}/{monthlySchedules}</span>
+            <span>{monthlyReportsCount}/{monthlySchedules}</span>
           </div>
           <Progress value={75} className="h-1.5 md:h-2 bg-white/20" />
         </div>
