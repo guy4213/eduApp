@@ -26,17 +26,19 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     return classDateStr === selectedDateStr;
   });
 
+  const hasItems = filteredClasses.length > 0;
+
   return (
     <div
       dir="rtl"
       role="region"
       aria-label="לוח שבועי"
-      className="bg-white rounded-md shadow p-2 sm:p-4 w-full max-w-7xl mx-auto"
+      className="bg-white rounded-xl shadow-sm border border-gray-100 w-full max-w-7xl mx-auto overflow-hidden"
     >
       <DateSelector selectedDate={selectedDate} onChange={setSelectedDate} />
 
       <div
-        className="text-center mt-2 mb-4 text-base sm:text-lg font-semibold px-2"
+        className="text-center mt-2 mb-3 text-base sm:text-lg font-semibold px-3"
         aria-live="polite"
         aria-atomic="true"
       >
@@ -50,7 +52,13 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
           : "לא נבחר תאריך"}
       </div>
 
-      <ScheduleList lessons={filteredClasses} />
+      {hasItems ? (
+        <ScheduleList lessons={filteredClasses} />
+      ) : (
+        <div className="px-4 py-10 text-center text-gray-500">
+          אין שיעורים ביום זה
+        </div>
+      )}
     </div>
   );
 };
