@@ -33,22 +33,22 @@ const Calendar = () => {
   }, [user]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
+    <div className="min-h-screen bg-gray-50 p-0 sm:p-6">
       <div className="md:hidden">
         <MobileNavigation />
       </div>
-      <div className="mb-6 sm:mb-8 ">
+      <div className="mb-4 sm:mb-8 px-3 sm:px-0">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">יומן אישי</h1>
         <p className="text-sm sm:text-base text-gray-600">צפייה במערכת השעות והשיעורים הקרובים</p>
       </div>
 
-      {/* Fixed mobile layout */}
-      <div className="w-full max-w-7xl mx-auto px-0">
+      {/* Edge-to-edge mobile layout */}
+      <div className="w-full max-w-7xl mx-auto">
         <div className="w-full">
-          <Card className="w-full">
-            <CardHeader className="p-3 sm:p-6">
+          <Card className="w-full rounded-none border-0 shadow-none sm:rounded-xl sm:border sm:shadow">
+            <CardHeader className="p-0 sm:p-6">
               <div className="w-full">
-                <div className="flex items-center gap-2 mb-4">
+                <div className="hidden sm:flex items-center gap-2 mb-4">
                   <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                   <span className="text-sm sm:text-base">בחר תאריך:</span>
                 </div>
@@ -60,7 +60,7 @@ const Calendar = () => {
                 />
               </div>
             </CardHeader>
-            <CardContent></CardContent>
+            <CardContent className="p-0" />
           </Card>
         </div>
       </div>

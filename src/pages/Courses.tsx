@@ -113,12 +113,9 @@ const Courses = () => {
 
       if (allCourseIds.length > 0) {
         // Fetch lessons
-        const { data: lessons, error: lessonsError } = await supabase
-          .from("lessons")
-          .select("*")
-          .in("course_id", allCourseIds)
-          .order("order_index");
-
+  
+      const { data: lessons, error: lessonsError } = await supabase
+      .rpc("get_lessons_by_courses", { course_ids: allCourseIds });
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
         } else {

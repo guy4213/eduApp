@@ -336,7 +336,10 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
-
+  Calendar,
+  Users,
+  BookOpen,
+  BarChart3,
   Settings,
   Clock,
   MapPin,
@@ -347,14 +350,12 @@ import {
   TrendingUp,
   Target,
 } from "lucide-react";
-import { BookOpen, Calendar, FileText, Users, BarChart3, LogOut, Menu, X, User } from 'lucide-react';
-
 import { supabase } from "@/integrations/supabase/client";
+import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
 import { DailyLessonsCard } from "@/components/DailyLessonsCard";
 import { useNavigate } from "react-router-dom";
 import MobileDashboard from "./MobileDashboard";
 import { StatsCard } from "../StatsCard";
-import MobileNavigation from "../layout/MobileNavigation";
 
 interface DashboardStats {
   totalLessons: number;
@@ -396,6 +397,7 @@ const Dashboard = () => {
   const [reports, setReports] = useState<any>([]);
   const [monthlySchedules, setMonthlySchedules] = useState<any>([]);
     const [weeklyReports, setWeeklyReports] = useState<any>([]);
+  const [monthlyReportsCount, setMonthlyReportsCount] = useState<number>(0);
 
 
     function filterReportsCurrentWeek(reports) {
@@ -433,7 +435,15 @@ const Dashboard = () => {
               .lt("created_at", firstDayNextMonth);
 
               setReports(reportsData)
-            
+             // Calculate reports count strictly within the current month (defensive)
+             const monthStartLocal = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+             const monthEndLocal = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+             const onlyThisMonth = (reportsData || []).filter((r: any) => {
+               const d = new Date(r.created_at);
+               return d >= monthStartLocal && d <= monthEndLocal;
+             });
+             setMonthlyReportsCount(onlyThisMonth.length);
+              
 
               const reportsThisWeek = filterReportsCurrentWeek(reportsData);
               setWeeklyReports(reportsThisWeek)
@@ -463,34 +473,26 @@ const Dashboard = () => {
 
         const courseIds = courses.map(c => c.id);
 
-        // מושכים את ה-schedules של הקורסים
-        const { data: schedules, error } = await supabase
-          .from("lesson_schedules")
-          .select(`
-            id,
-            scheduled_start,
-            scheduled_end,
-            lesson:lesson_id (
-              id,
-              title
-            ),
-            course_instance:course_instance_id (
-              id,
-              grade_level,
-              institution:institution_id (
-                id,
-                name
-              ),
-              instructor:instructor_id (
-                id,
-                full_name
-              )
-            )
-          `)
-          .in("course_instance_id", courseIds);
+        // משיכה מאוחדת של כל התזמונים (מורשת + נוצר מתבנית)
+        const combined = await fetchCombinedSchedules();
 
-        console.log("schedules", schedules);
+        // סינון לפי הקורסים הרלוונטיים בלבד
+        const combinedForCourses = (combined || []).filter((s: any) =>
+          courseIds.includes(s.course_instance_id || s?.course_instances?.id)
+        );
 
+        // טווח חודשי
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
+
+        const schedulesThisMonth = combinedForCourses.filter((s: any) => {
+          const d = new Date(s.scheduled_start);
+          return d >= monthStart && d <= monthEnd;
+        });
+
+        setMonthlySchedules(schedulesThisMonth.length);
+
+        // שמירה על הלוגיקה הקיימת לסטטיסטיקות נוספות
         const { data: enrollments } = await supabase
           .from("course_instances")
           .select("*")
@@ -503,31 +505,32 @@ const Dashboard = () => {
 
 
 
+//           const totalActive = enrollments.reduce(
+//   (acc, curr) => acc + (curr.max_participants || 0),
+//   0
+// );
 
-          const totalActive = enrollments.reduce(
-  (acc, curr) => acc + (curr.max_participants || 0),
-  0
-);
+  const { data: students } = await supabase
+          .from("students")
+          .select("*")
 
+const totalActive=students.length;
 console.log("Total active students:", totalActive);
 
-  const schedulesThisMonth = schedules.filter(s => {
-    const start = s.scheduled_start;
-    return start >= firstDay && start < firstDayNextMonth;
-  });
 
-  console.log("All schedules:", schedules.length);
+
+  console.log("All schedules:", combinedForCourses.length);
   console.log("Schedules this month:", schedulesThisMonth.length);
   setMonthlySchedules(schedulesThisMonth.length);
 
-        const adaptedLessons = (schedules || []).map((s) => ({
+        const adaptedLessons = (combinedForCourses || []).map((s: any) => ({
           id: s.id,
-          institution_name: s.course_instance?.institution?.name || "לא ידוע",
+          institution_name: s.course_instances?.institution?.name || s?.course_instance?.institution?.name || "לא ידוע",
           scheduled_start: s.scheduled_start,
           scheduled_end: s.scheduled_end,
           title: s.lesson?.title || "ללא כותרת",
-          instructorName: s.course_instance?.instructor?.full_name || "לא ידוע",
-          instructor_id: s.course_instance?.instructor?.id || "לא ידוע",
+          instructorName: s.course_instances?.instructor?.full_name || s?.course_instance?.instructor?.full_name || "לא ידוע",
+          instructor_id: s.course_instances?.instructor?.id || s?.course_instance?.instructor?.id || "לא ידוע",
           lesson_id: s.lesson?.id 
         }));
 
@@ -573,105 +576,44 @@ console.log("Total active students:", totalActive);
 
     fetchDashboardData();
   }, [user]);
-const isAdminOrManager = ['admin', 'pedagogical_manager'].includes(user?.user_metadata?.role);
-const isAdmin = ['admin'].includes(user?.user_metadata?.role);
 
-const menuItems = [
-  {
-    icon: Calendar,
-    title: "יומן אישי",
-    description: "צפייה במערכת השעות והשיעורים הקרובים",
-    path: "/calendar",
-    gradient: "from-blue-500 to-blue-600"
-  },
-  isAdminOrManager && {
-    icon: BookOpen,
-    title: "דיווח שיעור",
-    description: "דיווח על שיעור שהתקיים או בתהליך",
-    path: "/lesson-report",
-    gradient: "from-green-500 to-emerald-600"
-  },
-  {
-    icon: Users,
-    title: "קורסים",
-    description: "ניהול הקורסים והכיתות שלי",
-    path: "/courses",
-    gradient: "from-purple-500 to-purple-600"
-  },
-  {
-    icon: Users,
-    title: "הקצאות קורסים",
-    description: "ניהול והקצאת קורסים לתלמידים",
-    path: "/course-assignments",
-    gradient: "from-indigo-500 to-indigo-600"
-  },
-  isAdmin && {
-    icon: BarChart3,
-    title: "דוחות ושכר",
-    description: "צפייה בדוחות חודשיים וחישוב שכר",
-    path: "/reports",
-    gradient: "from-orange-500 to-red-500"
-  },
-  {
-    icon: BarChart3,
-    title: "תגמולים",
-    description: "צפייה בתגמולים ובונוסים אישיים",
-    path: "/rewards",
-    gradient: "from-pink-500 to-rose-500"
-  },
+  const menuItems = [
     {
-    icon: User,
-    title: "פרופיל",
-    description: "צפייה ועריכת פרטים אישיים",
-    path: "/profile",
-    gradient: "from-gray-500 to-gray-600"
-  },
-  {
-    icon: Settings,
-    title: "הגדרות פרופיל",
-    description: "עריכת פרטים אישיים והגדרות המערכת",
-    path: "/profile",
-    gradient: "from-gray-500 to-gray-600"
-  },
-].filter(Boolean); // remove falsy items (when condition not met)
-
-  // const menuItems = [
-  //   {
-  //     icon: Calendar,
-  //     title: "יומן אישי",
-  //     description: "צפייה במערכת השעות והשיעורים הקרובים",
-  //     path: "/calendar",
-  //     gradient: "from-blue-500 to-blue-600"
-  //   },
-  //   {
-  //     icon: BookOpen,
-  //     title: "דיווח שיעור",
-  //     description: "דיווח על שיעור שהתקיים או בתהליך",
-  //     path: "/lesson-report",
-  //     gradient: "from-green-500 to-emerald-600"
-  //   },
-  //   {
-  //     icon: Users,
-  //     title: "קורסים",
-  //     description: "ניהול הקורסים והכיתות שלי",
-  //     path: "/courses",
-  //     gradient: "from-purple-500 to-purple-600"
-  //   },
-  //   {
-  //     icon: BarChart3,
-  //     title: "דוחות ושכר",
-  //     description: "צפייה בדוחות חודשיים וחישוב שכר",
-  //     path: "/reports",
-  //     gradient: "from-orange-500 to-red-500"
-  //   },
-  //   {
-  //     icon: Settings,
-  //     title: "הגדרות פרופיל",
-  //     description: "עריכת פרטים אישיים והגדרות המערכת",
-  //     path: "/profile",
-  //     gradient: "from-gray-500 to-gray-600"
-  //   },
-  // ];
+      icon: Calendar,
+      title: "יומן אישי",
+      description: "צפייה במערכת השעות והשיעורים הקרובים",
+      path: "/calendar",
+      gradient: "from-blue-500 to-blue-600"
+    },
+    {
+      icon: BookOpen,
+      title: "דיווח שיעור",
+      description: "דיווח על שיעור שהתקיים או בתהליך",
+      path: "/lesson-report",
+      gradient: "from-green-500 to-emerald-600"
+    },
+    {
+      icon: Users,
+      title: "קורסים",
+      description: "ניהול הקורסים והכיתות שלי",
+      path: "/courses",
+      gradient: "from-purple-500 to-purple-600"
+    },
+    {
+      icon: BarChart3,
+      title: "דוחות ושכר",
+      description: "צפייה בדוחות חודשיים וחישוב שכר",
+      path: "/reports",
+      gradient: "from-orange-500 to-red-500"
+    },
+    {
+      icon: Settings,
+      title: "הגדרות פרופיל",
+      description: "עריכת פרטים אישיים והגדרות המערכת",
+      path: "/profile",
+      gradient: "from-gray-500 to-gray-600"
+    },
+  ];
 
   if (loading) {
     return (
@@ -871,12 +813,8 @@ const menuItems = [
   //   </>
   // );
 return (
-  <>
-    <div className="md:hidden">
-        <MobileNavigation />
-      </div>
-  <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 ">
-    <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8 space-y-6 md:space-y-8 md:mb-0 mb-12">
+  <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8 space-y-6 md:space-y-8">
       
       {/* Welcome Section */}
       <div className="text-center">
@@ -990,9 +928,9 @@ return (
       <div className="space-y-2 md:space-y-3 text-xs md:text-sm">
         <div className="flex justify-between">
           <span>שיעורים שהתקיימו</span>
-          <span className="font-bold">{weeklyReports.length}</span>
+          <span className="font-bold">{monthlyReportsCount}</span>
         </div>
-        <div className="flex justify-between">
+        {/* <div className="flex justify-between">
           <span>נוכחות ממוצעת</span>
           <span className="font-bold">92%</span>
         </div>
@@ -1001,7 +939,7 @@ return (
           <span className="font-bold flex items-center">
             4.8 <Star className="h-3 w-3 md:h-4 md:w-4 text-yellow-300 mr-1" />
           </span>
-        </div>
+        </div> */}
       </div>
     </CardContent>
   </Card>
@@ -1019,17 +957,17 @@ return (
         <div>
           <div className="flex justify-between mb-2">
             <span>שיעורים</span>
-            <span>{reports.length}/{monthlySchedules}</span>
+            <span>{monthlyReportsCount}/{monthlySchedules}</span>
           </div>
-          <Progress value={75} className="h-1.5 md:h-2 bg-white/20" />
+          <Progress value={(monthlyReportsCount/monthlySchedules)*100} className="h-1.5 md:h-2 bg-white/20" />
         </div>
-        <div>
+        {/* <div>
           <div className="flex justify-between mb-2">
             <span>הכנסות</span>
             <span>₪4,350/₪6,000</span>
           </div>
           <Progress value={72} className="h-1.5 md:h-2 bg-white/20" />
-        </div>
+        </div> */}
       </div>
     </CardContent>
   </Card>
@@ -1039,7 +977,6 @@ return (
       {/* Menu Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {menuItems.map((item, index) => (
-          item.title==="דיווח שיעור" && user?.user_metadata.role==="instructor" ? null : (
           <Card
             key={index}
             className="hover:shadow-xl transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:scale-105 group"
@@ -1061,11 +998,10 @@ return (
               </CardDescription>
             </CardContent>
           </Card>
-        )))}
+        ))}
       </div>
     </main>
   </div>
-  </>
 );
 
 };

@@ -73,7 +73,7 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
   }, [instructors]);
 
   return (
-    <div className="schedule-list-container flex flex-col gap-4 px-4 py-6 max-w-4xl w-full mx-auto">
+    <div className="schedule-list-container flex flex-col gap-3 px-2 py-4 sm:px-4 sm:py-6 max-w-4xl w-full mx-auto">
       {lessons.map((item, index) => {
         const instructorName =
           instructorMap.get(item?.course_instances?.instructor?.id) ||
@@ -91,52 +91,55 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
         return (
           <div
             key={index}
-            className="schedule-list-item flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-6 bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+            className="schedule-list-item grid grid-cols-[64px_1fr] gap-3 items-stretch p-3 bg-white rounded-2xl shadow-sm border border-gray-100"
           >
-            <div className="flex flex-col gap-1 text-gray-800">
-              <div className="text-xl text-gray-500 font-bold">
+            {/* Time rail */}
+            <div className="flex flex-col items-center justify-center text-gray-500">
+              <div className="text-xs">{startTime}</div>
+              <div className="h-4 w-px bg-gray-200 my-1" />
+              <div className="text-xs">{endTime}</div>
+            </div>
+
+            {/* Card content */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="text-base font-semibold text-gray-900 truncate">
+                  {item?.lesson?.title}
+                </div>
+                {isReported ? (
+                  <span className="ml-2 inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                    <Check className="w-4 h-4" /> דווח
+                  </span>
+                ) : (
+                  user.user_metadata.role === "instructor" && (
+                    <button
+                      onClick={() =>
+                        nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
+                      }
+                      className="ml-2 text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-full font-semibold shadow-sm transition-colors"
+                    >
+                      דיווח שיעור
+                    </button>
+                  )
+                )}
+              </div>
+
+              <div className="text-[13px] text-gray-600">
                 {item?.course_instances?.institution?.name}
               </div>
-              <div className="text-base font-semibold">{item?.lesson?.title}</div>
 
               {!item?.course_instances?.instructor?.full_name ? (
-                <div className="text-red-600 font-semibold">
+                <div className="text-red-600 font-semibold text-sm">
                   אין מדריך לקורס הזה
                 </div>
               ) : (
                 user.user_metadata.role !== "instructor" && (
-                  <div className="text-md text-gray-600">
+                  <div className="text-sm text-gray-700">
                     מדריך: <span className="font-medium">{instructorName}</span>
                   </div>
                 )
               )}
-
-              <div className="text-sm text-gray-500">
-                {endTime} - {startTime}
-              </div>
             </div>
-
-            {isReported ? (
-              <button
-                disabled
-                className="schedule-list-button bg-green-400 rounded-full p-2 flex items-center font-bold cursor-default"
-                title="השיעור דווח בהצלחה"
-              >
-                <Check className="w-5 h-5 ml-1" />
-                השיעור דווח בהצלחה
-              </button>
-            )  : (
-              user.user_metadata.role === "instructor" && (
-                <button
-                  onClick={() =>
-                    nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
-                  }
-                  className="schedule-list-button bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full font-semibold shadow-sm transition-colors"
-                >
-                  דיווח שיעור
-                </button>
-              )
-            )}
           </div>
         );
       })}

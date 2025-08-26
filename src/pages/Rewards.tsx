@@ -41,7 +41,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
-import MobileNavigation from "@/components/layout/MobileNavigation";
 
 interface SalesLead {
   id: string;
@@ -77,7 +76,6 @@ const leadStatuses = [
   { value: "negotiation", label: "במשא ומתן" },
   { value: "follow_up", label: "מעקב" },
   { value: "closed_won", label: "נסגר - זכייה" },
-  { value: "closed_lost", label: "נסגר - הפסד" },
 ];
 
 export default function Rewards() {
@@ -313,6 +311,11 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
   }
 };
 
+const pendingClosures = filteredSalesLeads.filter(
+
+  (lead) =>  { return lead.status !== 'closed_won' }
+);
+
   const updateLeadStatus = async (leadId: string, newStatus: string) => {
     try {
       const { error } = await supabase
@@ -346,11 +349,7 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
   };
 
   return (
-    <>
-      <div className="md:hidden">
-        <MobileNavigation />
-      </div>
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 overflow-x-hidden">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="text-center mb-8">
@@ -367,14 +366,14 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
           <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-4 inline-block">
             <p className="text-lg font-semibold text-purple-800 flex items-center justify-center">
               <Crown className="h-5 w-5 ml-2 text-yellow-600" />
-              אתה 2 סגירות בלבד ממדריך החודש!
+    אתה {pendingClosures.length} סגירות בלבד ממדריך החודש!
             </p>
           </div>
         </div>
 
         {/* Pipeline Section */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
             <h2 className="text-2xl font-bold text-gray-900 flex items-center">
               <Target className="h-6 w-6 ml-2 text-blue-600" />
               פייפליין – התקדמות מול מוסדות
@@ -480,7 +479,7 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
                   {salesLeads.length === 0 ? 'אין לידים במערכת' : 'אין לידים בטווח התאריכים שנבחר'}
                 </h3>
                 <p className="text-gray-600 mb-6 text-lg">
-                  {salesLeads.length === 0 ? 'התחל ליצור לידים עבור המדריכים' : 'נסה לשנות את טווח התאריכים או לנקות את הסינון'}
+                  {salesLeads.length === 0 ? 'התחל ליצור לישדים עבור המדריכים' : 'נסה לשנות את טווח התאריכים או לנקות את הסינון'}
                 </p>
                 <Button 
                   className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg"
@@ -500,12 +499,12 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
     return (
       <Card key={lead.id} className="shadow-lg border-0 bg-white/90 backdrop-blur-sm hover:shadow-xl transition-all">
         <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center">
               {getStatusIcon(lead.status)}
-              <CardTitle className="text-xl mr-3">{lead.institution_name}</CardTitle>
+              <CardTitle className="text-xl mr-3 break-words">{lead.institution_name}</CardTitle>
             </div>
-            <div className="min-w-[180px]">
+            <div className="w-full sm:w-auto sm:min-w-[180px]">
               <Select 
                 value={lead.status || "new"} 
                 onValueChange={(value) => updateLeadStatus(lead.id, value)}
@@ -689,6 +688,5 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
         />
       </main>
     </div>
-  </>
   );
 };
