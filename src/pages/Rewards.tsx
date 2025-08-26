@@ -345,7 +345,7 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 overflow-x-hidden">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="text-center mb-8">
@@ -369,7 +369,7 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
 
         {/* Pipeline Section */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
             <h2 className="text-2xl font-bold text-gray-900 flex items-center">
               <Target className="h-6 w-6 ml-2 text-blue-600" />
               פייפליין – התקדמות מול מוסדות
@@ -495,12 +495,12 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
     return (
       <Card key={lead.id} className="shadow-lg border-0 bg-white/90 backdrop-blur-sm hover:shadow-xl transition-all">
         <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center">
               {getStatusIcon(lead.status)}
-              <CardTitle className="text-xl mr-3">{lead.institution_name}</CardTitle>
+              <CardTitle className="text-xl mr-3 break-words">{lead.institution_name}</CardTitle>
             </div>
-            <div className="min-w-[180px]">
+            <div className="w-full sm:w-auto sm:min-w-[180px]">
               <Select 
                 value={lead.status || "new"} 
                 onValueChange={(value) => updateLeadStatus(lead.id, value)}
