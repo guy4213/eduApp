@@ -37,7 +37,7 @@ const Calendar = () => {
       <div className="md:hidden">
         <MobileNavigation />
       </div>
-      <div className="mb-6 sm:mb-8">
+      <div className="mb-6 sm:mb-8 ">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">יומן אישי</h1>
         <p className="text-sm sm:text-base text-gray-600">צפייה במערכת השעות והשיעורים הקרובים</p>
       </div>

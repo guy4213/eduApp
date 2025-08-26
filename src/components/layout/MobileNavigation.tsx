@@ -6,15 +6,15 @@ import { useAuth } from '@/components/auth/AuthProvider';
 
 const MobileNavigation = () => {
   const { user } = useAuth();
-  const isAdminOrManager = ['admin', 'pedagogical_manager'].includes(user?.user_metadata?.role);
+const isAdminOrManager = ['admin', 'pedagogical_manager'].includes(user?.user_metadata?.role);
+const isAdmin = ['admin'].includes(user?.user_metadata?.role);
   
   const navItems = [
     { path: '/', label: 'דשבורד', icon: BookOpen },
     { path: '/calendar', label: 'יומן', icon: Calendar },
-    { path: '/lesson-report', label: 'שיעור', icon: FileText },
-    { path: '/courses', label: 'קורסים', icon: Users },
-    ...(isAdminOrManager ? [{ path: '/course-assignments', label: 'הקצאות', icon: Users }] : []),
-    { path: '/reports', label: 'דוחות', icon: BarChart3 },
+    ...(isAdminOrManager ?[{ path: '/lesson-report', label: 'שיעור', icon: FileText }]:[]),
+    { path: '/course-assignments', label: 'הקצאות', icon: Users },
+    ...(isAdmin ? [{ path: '/reports', label: 'דוחות', icon: BarChart3 }] : []),
     { path: '/rewards', label: 'תגמולים', icon: Award },
     { path: '/profile', label: 'פרופיל', icon: User },
   ];

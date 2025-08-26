@@ -288,7 +288,7 @@ const Courses = () => {
   const isInstructor = user.user_metadata.role === "instructor";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 md:mb-0 mb-12">
       <div className="md:hidden">
         <MobileNavigation />
       </div>

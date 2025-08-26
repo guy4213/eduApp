@@ -33,6 +33,7 @@ const Profile = () => {
     img: "",
     email: "",
     phone: "",
+    birthdate: "",
   });
   const [reports, setReports] = useState<any[]>([]);
 
@@ -93,6 +94,7 @@ const Profile = () => {
         img: data.img || "",
         email: data.email || "",
         phone: data.phone || "",
+        birthdate: data.birthdate || "",
       });
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -109,6 +111,7 @@ const Profile = () => {
       img: profile.img || "",
       email: profile?.email || "",
       phone: profile?.phone || "",
+      birthdate : profile?.birthdate || "",
     });
   };
 
@@ -123,6 +126,7 @@ const Profile = () => {
           img: editForm.img || null,
           email: editForm.email || null,
           phone: editForm.phone || null,
+          birthdate: editForm.birthdate || null,
         })
         .eq("id", user.id);
 
@@ -207,7 +211,7 @@ const Profile = () => {
       <div className="md:hidden">
         <MobileNavigation />
       </div>
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
+      <div className="container mx-auto px-4 py-8 max-w-2xl md:mb-0 mb-12">
         <Card className="shadow-md border border-muted">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-2xl font-bold">פרופיל אישי</CardTitle>
@@ -327,6 +331,16 @@ const Profile = () => {
 
               <div>
                 <Label htmlFor="birthdate">תאריך לידה</Label>
+                {editing ? (
+                  <Input
+                    id="birthdate"
+                    type="date"
+                    value={editForm.birthdate}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, birthdate: e.target.value })
+                    }
+                  />
+                ) : (
                 <Input
                   id="birthdate"
                   value={
@@ -336,7 +350,7 @@ const Profile = () => {
                   }
                   disabled
                   className="bg-muted cursor-not-allowed"
-                />
+                />)}
               </div>
 
               {/* {profile.role === 'instructor' && (

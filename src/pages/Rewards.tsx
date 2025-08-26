@@ -41,6 +41,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import MobileNavigation from "@/components/layout/MobileNavigation";
 
 interface SalesLead {
   id: string;
@@ -345,6 +346,10 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
   };
 
   return (
+    <>
+      <div className="md:hidden">
+        <MobileNavigation />
+      </div>
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -684,5 +689,6 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
         />
       </main>
     </div>
+  </>
   );
 };
