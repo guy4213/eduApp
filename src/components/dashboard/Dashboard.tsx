@@ -351,6 +351,7 @@ import {
   Target,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
 import { DailyLessonsCard } from "@/components/DailyLessonsCard";
 import { useNavigate } from "react-router-dom";
 import MobileDashboard from "./MobileDashboard";
@@ -463,34 +464,26 @@ const Dashboard = () => {
 
         const courseIds = courses.map(c => c.id);
 
-        // מושכים את ה-schedules של הקורסים
-        const { data: schedules, error } = await supabase
-          .from("lesson_schedules")
-          .select(`
-            id,
-            scheduled_start,
-            scheduled_end,
-            lesson:lesson_id (
-              id,
-              title
-            ),
-            course_instance:course_instance_id (
-              id,
-              grade_level,
-              institution:institution_id (
-                id,
-                name
-              ),
-              instructor:instructor_id (
-                id,
-                full_name
-              )
-            )
-          `)
-          .in("course_instance_id", courseIds);
+        // משיכה מאוחדת של כל התזמונים (מורשת + נוצר מתבנית)
+        const combined = await fetchCombinedSchedules();
 
-        console.log("schedules", schedules);
+        // סינון לפי הקורסים הרלוונטיים בלבד
+        const combinedForCourses = (combined || []).filter((s: any) =>
+          courseIds.includes(s.course_instance_id || s?.course_instances?.id)
+        );
 
+        // טווח חודשי
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
+
+        const schedulesThisMonth = combinedForCourses.filter((s: any) => {
+          const d = new Date(s.scheduled_start);
+          return d >= monthStart && d <= monthEnd;
+        });
+
+        setMonthlySchedules(schedulesThisMonth.length);
+
+        // שמירה על הלוגיקה הקיימת לסטטיסטיקות נוספות
         const { data: enrollments } = await supabase
           .from("course_instances")
           .select("*")
@@ -503,7 +496,6 @@ const Dashboard = () => {
 
 
 
-
           const totalActive = enrollments.reduce(
   (acc, curr) => acc + (curr.max_participants || 0),
   0
@@ -511,23 +503,23 @@ const Dashboard = () => {
 
 console.log("Total active students:", totalActive);
 
-  const schedulesThisMonth = schedules.filter(s => {
-    const start = s.scheduled_start;
+  const schedulesThisMonthLegacyOnly = (combinedForCourses || []).filter((s: any) => {
+    const start = new Date(s.scheduled_start).toISOString();
     return start >= firstDay && start < firstDayNextMonth;
   });
 
-  console.log("All schedules:", schedules.length);
+  console.log("All schedules:", combinedForCourses.length);
   console.log("Schedules this month:", schedulesThisMonth.length);
   setMonthlySchedules(schedulesThisMonth.length);
 
-        const adaptedLessons = (schedules || []).map((s) => ({
+        const adaptedLessons = (combinedForCourses || []).map((s: any) => ({
           id: s.id,
-          institution_name: s.course_instance?.institution?.name || "לא ידוע",
+          institution_name: s.course_instances?.institution?.name || s?.course_instance?.institution?.name || "לא ידוע",
           scheduled_start: s.scheduled_start,
           scheduled_end: s.scheduled_end,
           title: s.lesson?.title || "ללא כותרת",
-          instructorName: s.course_instance?.instructor?.full_name || "לא ידוע",
-          instructor_id: s.course_instance?.instructor?.id || "לא ידוע",
+          instructorName: s.course_instances?.instructor?.full_name || s?.course_instance?.instructor?.full_name || "לא ידוע",
+          instructor_id: s.course_instances?.instructor?.id || s?.course_instance?.instructor?.id || "לא ידוע",
           lesson_id: s.lesson?.id 
         }));
 
