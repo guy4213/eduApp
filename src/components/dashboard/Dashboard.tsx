@@ -357,6 +357,7 @@ import { useNavigate } from "react-router-dom";
 import MobileDashboard from "./MobileDashboard";
 import { StatsCard } from "../StatsCard";
 import MobileNavigation from "../layout/MobileNavigation";
+import LeadsStatsCard from "./LeadsStatsCard";
 
 interface DashboardStats {
   totalLessons: number;
@@ -927,6 +928,14 @@ return (
       </Card>
       </div>
       }
+
+      {/* Leads Stats Card - Only for Admin and Pedagogical Manager */}
+      {(user.user_metadata.role === "admin" || user.user_metadata.role === "pedagogical_manager") && (
+        <div className="col-span-3 mb-4">
+          <LeadsStatsCard />
+        </div>
+      )}
+
         <div className="md:col-span-1 col-span-3">
         <StatsCard  
           title="תלמידים פעילים"
