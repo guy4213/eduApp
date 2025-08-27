@@ -851,7 +851,7 @@ return (
       </div>
 
       {/* תגמולים */}
-      <Card 
+   { user.user_metadata.role==="instructor"&&  <Card 
         className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 border-0 shadow-2xl cursor-pointer hover:scale-[1.02] transition-all duration-300 overflow-hidden relative active:scale-95"
         onClick={() => nav('/rewards')}
       >
@@ -882,7 +882,7 @@ return (
           </Button>
         </CardContent>
       </Card>
-
+}
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
          <div className="col-span-3">
@@ -892,6 +892,41 @@ return (
             lessons={lessons}
           />
         </div>
+     { user.user_metadata.role!=="instructor"&&   
+       <div className="col-span-3">
+        <Card 
+        className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 border-0 shadow-2xl cursor-pointer hover:scale-[1.02] transition-all duration-300 overflow-hidden relative active:scale-95"
+        onClick={() => nav('/rewards')}
+      >
+        <div className="absolute top-0 right-0 w-16 sm:w-20 md:w-32 h-16 sm:h-20 md:h-32 bg-white/10 rounded-full -translate-y-8 sm:-translate-y-10 md:-translate-y-16 translate-x-8 sm:translate-x-10 md:translate-x-16"></div>
+        <div className="absolute bottom-0 left-0 w-12 sm:w-16 md:w-24 h-12 sm:h-16 md:h-24 bg-white/10 rounded-full translate-y-6 sm:translate-y-8 md:translate-y-12 -translate-x-6 sm:-translate-x-8 md:-translate-x-12"></div>
+        <CardContent className="p-3 sm:p-4 md:p-8 text-center relative z-10">
+          <div className="flex items-center justify-center mb-2 sm:mb-3 md:mb-4">
+            <Award className="h-6 w-6 sm:h-8 sm:w-8 md:h-12 md:w-12 text-white mr-2 sm:mr-3 md:mr-4 animate-pulse" />
+            <div className="text-right">
+              <span className="text-xl sm:text-2xl md:text-4xl font-bold text-white block">
+                ₪{stats.rewardsTotal.toLocaleString()}
+              </span>
+              <span className="text-xs sm:text-sm text-white/80">סה״כ תגמולים צפויים למדריכים</span>
+            </div>
+          </div>
+          <p className="text-white font-bold text-base sm:text-lg md:text-xl mb-2">
+            🏆      לחצו לצפייה בכלל הלידים הזמינים למדריכים
+
+
+          </p>
+          
+          <Button 
+            variant="secondary" 
+            size="sm"
+            className="bg-white/20 text-white border-white/30 hover:bg-white/30 transition-all duration-200 text-xs sm:text-sm"
+          >
+            צפייה בתגמולים ←
+          </Button>
+        </CardContent>
+      </Card>
+      </div>
+      }
         <div className="md:col-span-1 col-span-3">
         <StatsCard  
           title="תלמידים פעילים"
