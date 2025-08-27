@@ -9,6 +9,8 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { toast } from '@/components/ui/use-toast';
 import { Eye, EyeOff, GraduationCap } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import bg from '../materials/bg.png';
+import logo from '../materials/logo.png';
 
 const Auth = () => {
   const { user, signIn, signUp } = useAuth();
@@ -107,131 +109,143 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <GraduationCap className="h-12 w-12 text-primary" />
+<div className="min-h-screen flex items-center justify-center bg-white to-purple-700' p-4">
+  <Card
+    className="w-full max-w-md relative overflow-hidden rounded-2xl shadow-xl bg-cover bg-center"
+    style={{ backgroundImage: `url(${bg})`}}
+  >
+    {/* Dark overlay */}
+   
+
+    <div className="relative z-10">
+      <CardHeader className="text-center">
+        <div className="flex justify-center mb-4">
+          <img src={logo} alt="Logo" className="h-30 w-64 mb-5" />
+        </div>
+        <CardTitle className="text-2xl font-bold text-white drop-shadow-md">
+          {isLogin ? 'התחברות למערכת' : 'רישום למערכת'}
+        </CardTitle>
+        <CardDescription className="text-gray-200">
+          {isLogin
+            ? 'הכנס את פרטיך להתחברות למערכת ניהול המנחים'
+            : 'צור חשבון חדש במערכת ניהול המנחים'}
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="fullName" className="text-gray-200">שם מלא</Label>
+                <Input
+                  id="fullName"
+                  name="fullName"
+                  type="text"
+                  value={formData.fullName}
+                  onChange={handleInputChange}
+                  placeholder="הכנס שם מלא"
+                  className="bg-white/90 text-gray-900 placeholder-gray-500"
+                  required={!isLogin}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="text-gray-200">טלפון</Label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  placeholder="מספר טלפון"
+                  className="bg-white/90 text-gray-900 placeholder-gray-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role" className="text-gray-200">תפקיד</Label>
+                <Select value={formData.role} onValueChange={handleRoleChange}>
+                  <SelectTrigger className="bg-white/90 text-gray-900">
+                    <SelectValue placeholder="בחר תפקיד" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="instructor">מדריך/מרצה</SelectItem>
+                    <SelectItem value="pedagogical_manager">מנהל פדגוגי</SelectItem>
+                    <SelectItem value="admin">מנהל מערכת</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-gray-200">אימייל</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              placeholder="example@domain.com"
+              className="bg-white/90 text-gray-900 placeholder-gray-500"
+              required
+            />
           </div>
-          <CardTitle className="text-2xl font-bold">
-            {isLogin ? 'התחברות למערכת' : 'רישום למערכת'}
-          </CardTitle>
-          <CardDescription>
-            {isLogin 
-              ? 'הכנס את פרטיך להתחברות למערכת ניהול המנחים' 
-              : 'צור חשבון חדש במערכת ניהול המנחים'
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">שם מלא</Label>
-                  <Input
-                    id="fullName"
-                    name="fullName"
-                    type="text"
-                    value={formData.fullName}
-                    onChange={handleInputChange}
-                    placeholder="הכנס שם מלא"
-                    required={!isLogin}
-                  />
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="phone">טלפון</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    placeholder="מספר טלפון"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="role">תפקיד</Label>
-                  <Select value={formData.role} onValueChange={handleRoleChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="בחר תפקיד" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="instructor">מדריך/מרצה</SelectItem>
-                      <SelectItem value="pedagogical_manager">מנהל פדגוגי</SelectItem>
-                      <SelectItem value="admin">מנהל מערכת</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">אימייל</Label>
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-gray-200">סיסמה</Label>
+            <div className="relative">
               <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
                 onChange={handleInputChange}
-                placeholder="example@domain.com"
+                placeholder="הכנס סיסמה"
+                className="bg-white/90 text-gray-900 placeholder-gray-500"
                 required
               />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute left-0 top-0 h-full px-3 py-2 text-gray-600 hover:text-gray-900"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">סיסמה</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder="הכנס סיסמה"
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute left-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-            
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'מעבד...' : (isLogin ? 'התחבר' : 'הירשם')}
-            </Button>
-          </form>
-          
-          <div className="mt-6 text-center">
-            <Button
-              variant="link"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setFormData({ email: '', password: '', fullName: '', role: 'instructor', phone: '' });
-              }}
-              className="text-sm"
-            >
-              {isLogin 
-                ? 'אין לך חשבון? לחץ כאן להרשמה' 
-                : 'יש לך כבר חשבון? לחץ כאן להתחברות'
-              }
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+
+          <Button
+            type="submit"
+className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700"
+            disabled={loading}
+          >
+            {loading ? 'מעבד...' : (isLogin ? 'התחבר' : 'הירשם')}
+          </Button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <Button
+            variant="link"
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setFormData({ email: '', password: '', fullName: '', role: 'instructor', phone: '' });
+            }}
+            className="text-sm text-blue-200 hover:text-white"
+          >
+            {isLogin
+              ? 'אין לך חשבון? לחץ כאן להרשמה'
+              : 'יש לך כבר חשבון? לחץ כאן להתחברות'}
+          </Button>
+        </div>
+      </CardContent>
     </div>
+  </Card>
+</div>
+
   );
 };
 
