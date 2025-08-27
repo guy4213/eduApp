@@ -789,7 +789,7 @@ const handleSubmit = async () => {
         const presentStudents = attendanceList.filter(student => student.isPresent).length;
         const participantsCount = presentStudents;
 
-        if (participantsCount > maxPar || participantsCount === 0) {
+        if (participantsCount === 0) {
             toast({
                 title: 'שגיאה',
                 description: `נדרש לבחור לפחות תלמיד אחד ועד ${maxPar} משתתפים`,
@@ -1021,7 +1021,7 @@ const handleSubmit = async () => {
         }
     };
     return (
-        <div className="min-h-screen bg-gray-50 p-6 mb-12">
+        <div className="min-h-screen bg-gray-50 p-6">
             <div className="md:hidden"><MobileNavigation /></div>
             <div className="max-w-7xl mx-auto ">
                 {isInstructor ?
