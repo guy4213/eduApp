@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Edit2, Check } from "lucide-react"
 import {
@@ -99,6 +99,17 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [filteredSalesLeads, setFilteredSalesLeads] = useState<SalesLead[]>([]);
+  
+  // Additional filter states
+  const [selectedInstructor, setSelectedInstructor] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedInstitution, setSelectedInstitution] = useState<string>("all");
+  const [selectedCity, setSelectedCity] = useState<string>("all");
+  
+  // Data for filter options
+  const [instructors, setInstructors] = useState<{id: string, full_name: string}[]>([]);
+  const [institutions, setInstitutions] = useState<{name: string, city: string}[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
 
   const getStatusIcon = (status: string | null) => {
     if (!status) return <AlertCircle className="h-5 w-5 text-gray-600" />;
@@ -204,12 +215,13 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
     fetchSalesLeads();
   }, []);
 
-  // Date filtering effect (for all authenticated users)
+  // Combined filtering effect (for all authenticated users)
   useEffect(() => {
     if (!salesLeads.length) return;
     
     let filtered = [...salesLeads];
     
+    // Date filtering
     if (dateFrom) {
       filtered = filtered.filter(lead => 
         lead.created_at && new Date(lead.created_at) >= dateFrom
@@ -224,8 +236,31 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
       );
     }
     
+    // Instructor filtering
+    if (selectedInstructor !== "all") {
+      filtered = filtered.filter(lead => lead.instructor_id === selectedInstructor);
+    }
+    
+    // Status filtering
+    if (selectedStatus !== "all") {
+      filtered = filtered.filter(lead => lead.status === selectedStatus);
+    }
+    
+    // Institution filtering
+    if (selectedInstitution !== "all") {
+      filtered = filtered.filter(lead => lead.institution_name === selectedInstitution);
+    }
+    
+    // City filtering
+    if (selectedCity !== "all") {
+      filtered = filtered.filter(lead => {
+        const institutionData = institutions.find(inst => inst.name === lead.institution_name);
+        return institutionData?.city === selectedCity;
+      });
+    }
+    
     setFilteredSalesLeads(filtered);
-  }, [dateFrom, dateTo, salesLeads]);
+  }, [dateFrom, dateTo, salesLeads, selectedInstructor, selectedStatus, selectedInstitution, selectedCity, institutions]);
 
   // Calculate monthly summary whenever filtered leads change
   useEffect(() => {
@@ -236,6 +271,15 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
   const clearDateFilters = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
+  };
+
+  const clearAllFilters = () => {
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setSelectedInstructor("all");
+    setSelectedStatus("all");
+    setSelectedInstitution("all");
+    setSelectedCity("all");
   };
 
   const calculateMonthlySummary = (leads: SalesLead[]) => {
@@ -258,7 +302,7 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
     };
   };
 
-  const fetchSalesLeads = async () => {
+  const fetchSalesLeads = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -277,11 +321,85 @@ const [priceValues, setPriceValues] = useState<{ [key: string]: number }>({});
       setSalesLeads(data || []);
       setFilteredSalesLeads(data || []);
       
+      // Fetch additional data for filters
+      await fetchFilterData(data || []);
+      
     } catch (error) {
       console.error('Error fetching sales leads:', error);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const fetchFilterData = async (salesData: SalesLead[]) => {
+    try {
+      // Fetch instructors
+      const { data: instructorsData, error: instructorsError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('role', 'instructor')
+        .order('full_name');
+
+      if (instructorsError) {
+        console.error('Error fetching instructors:', instructorsError);
+      } else {
+        setInstructors(instructorsData || []);
+      }
+
+      // Fetch institutions with address data
+      const { data: institutionsData, error: institutionsError } = await supabase
+        .from('educational_institutions')
+        .select('name, address')
+        .order('name');
+
+      if (institutionsError) {
+        console.error('Error fetching institutions:', institutionsError);
+      } else {
+        // Extract cities from addresses and combine with institution names
+        const institutionsWithCities = (institutionsData || []).map(inst => {
+          const city = extractCityFromAddress(inst.address || '');
+          return { name: inst.name, city };
+        });
+        
+        // Also include institutions from sales leads that might not be in educational_institutions table
+        const salesInstitutions = salesData.map(lead => {
+          return { name: lead.institution_name, city: 'לא צוין' };
+        });
+        
+        // Combine and deduplicate
+        const allInstitutions = [...institutionsWithCities, ...salesInstitutions];
+        const uniqueInstitutions = allInstitutions.filter((inst, index, self) => 
+          index === self.findIndex(i => i.name === inst.name)
+        );
+        
+        setInstitutions(uniqueInstitutions);
+        
+        // Extract unique cities
+        const uniqueCities = [...new Set(uniqueInstitutions.map(inst => inst.city).filter(city => city && city !== 'לא צוין'))];
+        setCities(uniqueCities.sort());
+      }
+      
+    } catch (error) {
+      console.error('Error fetching filter data:', error);
+    }
+  };
+
+  const extractCityFromAddress = (address: string): string => {
+    if (!address) return 'לא צוין';
+    
+    // Split by comma and take the last part (usually the city)
+    const parts = address.split(',').map(part => part.trim());
+    if (parts.length > 1) {
+      return parts[parts.length - 1];
+    }
+    
+    // If no comma, try to extract city from common patterns
+    const words = address.split(' ').map(word => word.trim());
+    if (words.length > 2) {
+      return words[words.length - 1];
+    }
+    
+    return 'לא צוין';
   };
 
   const formatDate = (dateString: string | null) => {
@@ -391,82 +509,171 @@ const pendingClosures = filteredSalesLeads.filter(
             </Button>
           </div>
 
-          {/* Date Filter for All Authenticated Users */}
+          {/* Comprehensive Filters */}
           <Card className="border-primary/20 shadow-md mb-6">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center text-primary">
                 <Filter className="h-5 w-5 ml-2" />
-                סינון לפי תאריך יצירה
+                סינון וחיפוש
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col sm:flex-row gap-4 items-end">
-                <div className="flex-1">
-                  <Label htmlFor="date-from">מתאריך</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarDays className="ml-2 h-4 w-4" />
-                        {dateFrom ? format(dateFrom, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך התחלה'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={dateFrom}
-                        onSelect={setDateFrom}
-                        initialFocus
-                        locale={he}
-                      />
-                    </PopoverContent>
-                  </Popover>
+              {/* Date Filters Row */}
+              <div className="mb-6">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">סינון לפי תאריך יצירה</h4>
+                <div className="flex flex-col sm:flex-row gap-4 items-end">
+                  <div className="flex-1">
+                    <Label htmlFor="date-from">מתאריך</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarDays className="ml-2 h-4 w-4" />
+                          {dateFrom ? format(dateFrom, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך התחלה'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={setDateFrom}
+                          initialFocus
+                          locale={he}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  <div className="flex-1">
+                    <Label htmlFor="date-to">עד תאריך</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarDays className="ml-2 h-4 w-4" />
+                          {dateTo ? format(dateTo, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך סיום'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={setDateTo}
+                          initialFocus
+                          locale={he}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
-                
-                <div className="flex-1">
-                  <Label htmlFor="date-to">עד תאריך</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarDays className="ml-2 h-4 w-4" />
-                        {dateTo ? format(dateTo, 'dd/MM/yyyy', { locale: he }) : 'בחר תאריך סיום'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={dateTo}
-                        onSelect={setDateTo}
-                        initialFocus
-                        locale={he}
-                      />
-                    </PopoverContent>
-                  </Popover>
+              </div>
+
+              {/* Additional Filters Row */}
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">סינון נוסף</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Instructor Filter */}
+                  <div>
+                    <Label htmlFor="instructor-filter">מדריך</Label>
+                    <Select value={selectedInstructor} onValueChange={setSelectedInstructor}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="כל המדריכים" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">כל המדריכים</SelectItem>
+                        {instructors.map((instructor) => (
+                          <SelectItem key={instructor.id} value={instructor.id}>
+                            {instructor.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div>
+                    <Label htmlFor="status-filter">סטטוס</Label>
+                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="כל הסטטוסים" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">כל הסטטוסים</SelectItem>
+                        {leadStatuses.map((status) => (
+                          <SelectItem key={status.value} value={status.value}>
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Institution Filter */}
+                  <div>
+                    <Label htmlFor="institution-filter">מוסד חינוכי</Label>
+                    <Select value={selectedInstitution} onValueChange={setSelectedInstitution}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="כל המוסדות" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">כל המוסדות</SelectItem>
+                        {institutions.map((institution, index) => (
+                          <SelectItem key={`${institution.name}-${index}`} value={institution.name}>
+                            {institution.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* City Filter */}
+                  <div>
+                    <Label htmlFor="city-filter">עיר</Label>
+                    <Select value={selectedCity} onValueChange={setSelectedCity}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="כל הערים" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">כל הערים</SelectItem>
+                        {cities.map((city, index) => (
+                          <SelectItem key={`${city}-${index}`} value={city}>
+                            {city}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                
+              </div>
+
+              {/* Clear Filters and Results Summary */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <Button 
                   variant="outline" 
-                  onClick={clearDateFilters}
+                  onClick={clearAllFilters}
                   className="px-6"
                 >
-                  נקה סינון
+                  נקה את כל הסינונים
                 </Button>
+                
+                {(dateFrom || dateTo || selectedInstructor !== "all" || selectedStatus !== "all" || selectedInstitution !== "all" || selectedCity !== "all") && (
+                  <div className="p-3 bg-primary/5 rounded-lg">
+                    <p className="text-sm text-primary font-medium">
+                      מציג {filteredSalesLeads.length} לידים מתוך {salesLeads.length}
+                      {dateFrom && ` | מתאריך ${format(dateFrom, 'dd/MM/yyyy', { locale: he })}`}
+                      {dateTo && ` | עד תאריך ${format(dateTo, 'dd/MM/yyyy', { locale: he })}`}
+                      {selectedInstructor !== "all" && ` | מדריך: ${instructors.find(i => i.id === selectedInstructor)?.full_name}`}
+                      {selectedStatus !== "all" && ` | סטטוס: ${leadStatuses.find(s => s.value === selectedStatus)?.label}`}
+                      {selectedInstitution !== "all" && ` | מוסד: ${selectedInstitution}`}
+                      {selectedCity !== "all" && ` | עיר: ${selectedCity}`}
+                    </p>
+                  </div>
+                )}
               </div>
-              
-              {(dateFrom || dateTo) && (
-                <div className="mt-4 p-3 bg-primary/5 rounded-lg">
-                  <p className="text-sm text-primary font-medium">
-                    מציג {filteredSalesLeads.length} לידים מתוך {salesLeads.length}
-                    {dateFrom && ` מתאריך ${format(dateFrom, 'dd/MM/yyyy', { locale: he })}`}
-                    {dateTo && ` עד תאריך ${format(dateTo, 'dd/MM/yyyy', { locale: he })}`}
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
 
