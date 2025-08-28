@@ -186,70 +186,53 @@ const instructorMap = useMemo(() => {
             return (
             <div
               key={lesson.lesson_id}
-              className={`bg-gradient-to-r ${color.bg} rounded-xl p-4 border-r-4 ${color.border} shadow-sm`}
+              className="p-4 rounded-2xl shadow bg-white border text-right space-y-1"
             >
-              <div className="flex justify-between items-center">
-                {/* lesson info left */}
-                <div className="flex items-center space-x-3 space-x-reverse">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className={`text-${colorKey}-600 border-${colorKey}-600 hover:bg-${colorKey}-50`}
-                    onClick={lesson.onClick}
-                  >
-                    {lesson.buttonLabel}
-                  </Button>
-                  <div className="flex flex-col gap-2">
-                    <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-sm">
-                      <span className="font-semibold text-gray-700">שם הקורס:</span>
-                      <span className="font-medium text-blue-700">{lesson?.course_name}</span>
-                      
-                      <span className="font-semibold text-gray-700">מספר שיעור:</span>
-                      <span className="font-medium text-green-700">{lesson?.lesson_number}</span>
-                      
-                      <span className="font-semibold text-gray-700">שם השיעור:</span>
-                      <span className="font-medium text-gray-800">{lesson?.title}</span>
-                      
-                      <span className="font-semibold text-gray-700">מוסד חינוכי:</span>
-                      <span className="font-medium text-gray-800">{lesson?.institution_name}</span>
-                    </div>
-                    
-                    {user.user_metadata.role !== "instructor" && (
-                      <div className="mt-1">
-                        <span className="font-semibold text-gray-700 text-sm">מדריך: </span>
-                        <span className="text-sm text-gray-600">{instructorName}</span>
-                      </div>
-                    )}
-                    
-                    <div className="mt-2 text-[1rem] font-medium text-gray-900">
-                      {formatTime(lesson.scheduled_start)}-{formatTime(lesson.scheduled_end)}
-                    </div>
-                  </div>
+              <div className="flex justify-between items-start">
+                {/* lesson info */}
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold mb-2">
+                    📘 {lesson?.course_name} – שיעור מס׳ {lesson?.lesson_number}
+                  </h3>
+                  <p className="text-base mb-1">
+                    <span className="font-semibold">📖 שם השיעור:</span> {lesson?.title}
+                  </p>
+                  <p className="text-base mb-1">
+                    <span className="font-semibold">🏫 מוסד:</span> {lesson?.institution_name}
+                  </p>
+                  
+                  {user.user_metadata.role !== "instructor" && (
+                    <p className="text-base mb-1">
+                      <span className="font-semibold">👨‍🏫 מדריך:</span> {instructorName}
+                    </p>
+                  )}
+                  
+                  <p className="text-base font-medium text-gray-900 mt-3">
+                    🕐 {formatTime(lesson.scheduled_start)}-{formatTime(lesson.scheduled_end)}
+                  </p>
                 </div>
 
                 {/* lesson action right */}
                 <div className="text-left">
-                 
                   {isReported ? (
+                    <button
+                      disabled
+                      className="bg-green-400 rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base"
+                      title="השיעור דווח בהצלחה"
+                    >
+                      <Check className="w-6 h-6 ml-2" />
+                      השיעור דווח בהצלחה
+                    </button>
+                  ) : (
+                    user.user_metadata?.role === "instructor" && (
                       <button
-                        disabled
-                        className="bg-green-400 rounded-full p-2 flex items-center font-bold cursor-default"
-                        title="השיעור דווח בהצלחה"
-                      >
-                        <Check className="w-5 h-5 ml-1" />
-                        השיעור דווח בהצלחה
-                      </button>
-                    ) 
-                 
-                    
-                 
-
-                   :( user.user_metadata?.role === "instructor" &&   <button
                         onClick={() => nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}`)}
-                        className="bg-green-300 rounded-full p-2 items-center font-bold"
+                        className="bg-green-500 hover:bg-green-600 rounded-full px-4 py-3 text-white font-bold text-base transition-colors"
                       >
-                        דיווח שיעור
-                      </button>)}
+                        📋 דיווח שיעור
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             </div>
