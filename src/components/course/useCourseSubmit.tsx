@@ -12,11 +12,12 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
       let courseId: string;
 
       if (editCourseId) {
-        // Update the course name directly using the course_id
+        // Update the course name and school_type directly using the course_id
         const { error: courseError } = await supabase
           .from('courses')
           .update({
             name: formData.name,
+            school_type: formData.school_type,
           })
           .eq('id', editCourseId);
 
@@ -30,6 +31,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           .from('courses')
           .insert({
             name: formData.name,
+            school_type: formData.school_type,
           })
           .select('id')
           .single();

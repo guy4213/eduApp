@@ -1,9 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 interface TimeSlot {
   day: number;
   start_time: string;
   end_time: string;
+  [key: string]: Json | undefined;
 }
 
 interface CourseInstanceSchedule {

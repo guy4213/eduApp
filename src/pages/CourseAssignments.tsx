@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Users,
   Calendar,
@@ -25,8 +26,10 @@ import {
   CheckCircle2,
   Circle,
   UserPlus,
+  Filter,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSchoolTypeDisplayName, getSchoolTypeColors } from "@/utils/schoolTypeUtils";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
@@ -58,11 +61,13 @@ interface CourseAssignment {
   tasks: Task[];
   start_date: string;
   approx_end_date: string;
+  school_type?: string;
 }
 
 const CourseAssignments = () => {
   const { user } = useAuth();
   const [assignments, setAssignments] = useState<CourseAssignment[]>([]);
+  const [filteredAssignments, setFilteredAssignments] = useState<CourseAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
@@ -72,6 +77,17 @@ const CourseAssignments = () => {
     name: string;
   } | null>(null);
   const [editData, setEditData] = useState<CourseAssignment | null>(null);
+  
+  // Filter states
+  const [instructorFilter, setInstructorFilter] = useState<string>('');
+  const [institutionFilter, setInstitutionFilter] = useState<string>('');
+  const [courseFilter, setCourseFilter] = useState<string>('');
+  const [schoolTypeFilter, setSchoolTypeFilter] = useState<string>('');
+  
+  // Filter options
+  const [instructors, setInstructors] = useState<any[]>([]);
+  const [institutions, setInstitutions] = useState<any[]>([]);
+  const [courseTemplates, setCourseTemplates] = useState<any[]>([]);
 
   // Check user role and permissions
   const userRole = user?.user_metadata?.role;
@@ -89,6 +105,41 @@ const CourseAssignments = () => {
     return grouped;
   };
 
+  const fetchFilterOptions = async () => {
+    try {
+      // Fetch instructors
+      const { data: instructorsData, error: instructorsError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('role', 'instructor')
+        .order('full_name');
+
+      if (instructorsError) throw instructorsError;
+
+      // Fetch institutions
+      const { data: institutionsData, error: institutionsError } = await supabase
+        .from('educational_institutions')
+        .select('id, name')
+        .order('name');
+
+      if (institutionsError) throw institutionsError;
+
+      // Fetch course templates
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select('id, name, school_type')
+        .order('name');
+
+      if (coursesError) throw coursesError;
+
+      setInstructors(instructorsData || []);
+      setInstitutions(institutionsData || []);
+      setCourseTemplates(coursesData || []);
+    } catch (error) {
+      console.error('Error fetching filter options:', error);
+    }
+  };
+
   const fetchAssignments = async () => {
     if (!user) return;
 
@@ -104,7 +155,8 @@ const CourseAssignments = () => {
         created_at,
         course:course_id (
           id,
-          name
+          name,
+          school_type
         ),
         instructor:instructor_id (
           id,
@@ -243,6 +295,7 @@ const CourseAssignments = () => {
           lesson_count: courseLessons.length,
           start_date: instanceData.start_date || null,
           approx_end_date: instanceData.end_date || null,
+          school_type: course.school_type,
           tasks: allCourseTasks.map((task: any) => ({
             id: task.id,
             title: task.title,
@@ -265,6 +318,7 @@ const CourseAssignments = () => {
         lesson_count: a.lesson_count 
       })));
       setAssignments(formattedAssignments);
+      setFilteredAssignments(formattedAssignments);
     } catch (error) {
       console.error("Error fetching assignments:", error);
     } finally {
@@ -274,7 +328,40 @@ const CourseAssignments = () => {
 
   useEffect(() => {
     fetchAssignments();
+    fetchFilterOptions();
   }, [user]);
+
+  // Apply filters
+  useEffect(() => {
+    let filtered = assignments;
+
+    if (instructorFilter && instructorFilter !== 'all') {
+      filtered = filtered.filter(assignment => 
+        assignment.instructor_name.includes(instructorFilter) ||
+        instructors.find(instructor => instructor.id === instructorFilter)?.full_name === assignment.instructor_name
+      );
+    }
+
+    if (institutionFilter && institutionFilter !== 'all') {
+      filtered = filtered.filter(assignment => 
+        assignment.institution_name.includes(institutionFilter) ||
+        institutions.find(institution => institution.id === institutionFilter)?.name === assignment.institution_name
+      );
+    }
+
+    if (courseFilter && courseFilter !== 'all') {
+      filtered = filtered.filter(assignment => 
+        assignment.name.includes(courseFilter) ||
+        courseTemplates.find(course => course.id === courseFilter)?.name === assignment.name
+      );
+    }
+
+    if (schoolTypeFilter && schoolTypeFilter !== 'all') {
+      filtered = filtered.filter(assignment => assignment.school_type === schoolTypeFilter);
+    }
+
+    setFilteredAssignments(filtered);
+  }, [assignments, instructorFilter, institutionFilter, courseFilter, schoolTypeFilter, instructors, institutions, courseTemplates]);
 
   // Handle creating new assignment
   const handleAssignCourse = (
@@ -381,24 +468,132 @@ const CourseAssignments = () => {
           </div>
         </div>
 
-        {assignments.length === 0 ? (
+        {/* Filters - Only show for admins */}
+        {hasAdminAccess && (
+          <div className="mb-6">
+            <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
+              <CardContent className="p-4">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-gray-500" />
+                    <span className="font-medium text-gray-700">סינון:</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm text-gray-600">מדריך:</span>
+                      <Select value={instructorFilter} onValueChange={setInstructorFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="כל המדריכים" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">כל המדריכים</SelectItem>
+                          {instructors.map((instructor) => (
+                            <SelectItem key={instructor.id} value={instructor.full_name}>
+                              {instructor.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm text-gray-600">מוסד חינוכי:</span>
+                      <Select value={institutionFilter} onValueChange={setInstitutionFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="כל המוסדות" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">כל המוסדות</SelectItem>
+                          {institutions.map((institution) => (
+                            <SelectItem key={institution.id} value={institution.name}>
+                              {institution.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm text-gray-600">קורס:</span>
+                      <Select value={courseFilter} onValueChange={setCourseFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="כל הקורסים" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">כל הקורסים</SelectItem>
+                          {courseTemplates.map((course) => (
+                            <SelectItem key={course.id} value={course.name}>
+                              {course.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm text-gray-600">סוג בית ספר:</span>
+                      <Select value={schoolTypeFilter} onValueChange={setSchoolTypeFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="כל סוגי בתי הספר" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">כל סוגי בתי הספר</SelectItem>
+                          <SelectItem value="elementary">יסודי</SelectItem>
+                          <SelectItem value="middle">חטיבה</SelectItem>
+                          <SelectItem value="high">תיכון</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {(instructorFilter || institutionFilter || courseFilter || schoolTypeFilter) && (
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setInstructorFilter('');
+                          setInstitutionFilter('');
+                          setCourseFilter('');
+                          setSchoolTypeFilter('');
+                        }}
+                        className="text-gray-600"
+                      >
+                        נקה את כל הסינונים
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {filteredAssignments.length === 0 ? (
           <Card className="text-center py-16 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardContent>
               <Users className="h-16 w-16 text-gray-400 mx-auto mb-6" />
               <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                {isInstructor ? "אין קורסים מוקצים" : "אין הקצאות קורסים עדיין"}
+                {(instructorFilter && instructorFilter !== 'all' || institutionFilter && institutionFilter !== 'all' || courseFilter && courseFilter !== 'all' || schoolTypeFilter && schoolTypeFilter !== 'all') 
+                  ? "לא נמצאו הקצאות התואמות לסינון" 
+                  : (isInstructor ? "אין קורסים מוקצים" : "אין הקצאות קורסים עדיין")
+                }
               </h3>
               <p className="text-gray-600 mb-6 text-lg">
-                {isInstructor 
-                  ? "לא נמצאו קורסים שהוקצו לך"
-                  : "לא נמצאו קורסים שהוקצו למדריכים"
+                {(instructorFilter && instructorFilter !== 'all' || institutionFilter && institutionFilter !== 'all' || courseFilter && courseFilter !== 'all' || schoolTypeFilter && schoolTypeFilter !== 'all')
+                  ? "נסה לשנות את הסינון או לנקות את הסינונים"
+                  : (isInstructor 
+                    ? "לא נמצאו קורסים שהוקצו לך"
+                    : "לא נמצאו קורסים שהוקצו למדריכים"
+                  )
                 }
               </p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-8">
-            {assignments.map((assignment) => (
+            {filteredAssignments.map((assignment) => (
               <Card
                 key={assignment.instance_id}
                 className="shadow-xl border-0 backdrop-blur-sm bg-white/80"
@@ -455,7 +650,16 @@ const CourseAssignments = () => {
 
                 <CardContent className="p-6">
                   {/* Course Info Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                    <div className={`${getSchoolTypeColors(assignment.school_type).bg} p-4 rounded-lg border ${getSchoolTypeColors(assignment.school_type).border}`}>
+                      <div className={`flex items-center ${getSchoolTypeColors(assignment.school_type).text} mb-2`}>
+                        <span className="font-medium">סוג בית ספר</span>
+                      </div>
+                      <span className="text-lg font-bold text-gray-900">
+                        {getSchoolTypeDisplayName(assignment.school_type)}
+                      </span>
+                    </div>
+
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <div className="flex items-center text-blue-600 mb-2">
                         <Users className="h-5 w-5 ml-2" />

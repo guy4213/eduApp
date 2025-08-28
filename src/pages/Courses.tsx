@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BookOpen,
   Users,
@@ -27,8 +28,10 @@ import {
   CheckCircle2,
   Circle,
   UserPlus,
+  Filter,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSchoolTypeDisplayName } from "@/utils/schoolTypeUtils";
 import CourseCreateDialog from "@/components/CourseCreateDialog";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
@@ -60,11 +63,13 @@ interface Course {
   tasks: Task[];
   start_date: string;
   approx_end_date: string;
+  school_type?: string;
 }
 
 const Courses = () => {
   const { user } = useAuth();
   const [courses, setCourses] = useState<any[]>([]);
+  const [filteredCourses, setFilteredCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
@@ -74,6 +79,7 @@ const Courses = () => {
     name: string;
   } | null>(null);
   const [editCourse, setEditCourse] = useState<any | null>(null);
+  const [schoolTypeFilter, setSchoolTypeFilter] = useState<string>('');
 
   console.log("ROLE  " + user.user_metadata.role);
 
@@ -101,6 +107,7 @@ const Courses = () => {
       ).select(`
           id,
           name,
+          school_type,
           created_at
         `);
 
@@ -182,6 +189,7 @@ const Courses = () => {
           start_date: null,
           approx_end_date: null,
           is_assigned: false,
+          school_type: course.school_type,
           tasks: allCourseTasks.map((task: any) => ({
             id: task.id,
             title: task.title,
@@ -200,6 +208,7 @@ const Courses = () => {
 
       console.log("Template courses: ", formattedTemplateCourses);
       setCourses(formattedTemplateCourses);
+      setFilteredCourses(formattedTemplateCourses);
     } catch (error) {
       console.error("Error fetching courses:", error);
     } finally {
@@ -210,6 +219,16 @@ const Courses = () => {
   useEffect(() => {
     fetchCourses();
   }, [user]);
+
+  // Filter courses based on school type
+  useEffect(() => {
+    if (!schoolTypeFilter || schoolTypeFilter === 'all') {
+      setFilteredCourses(courses);
+    } else {
+      const filtered = courses.filter(course => course.school_type === schoolTypeFilter);
+      setFilteredCourses(filtered);
+    }
+  }, [courses, schoolTypeFilter]);
 
   const handleCourseCreated = () => {
     fetchCourses();
@@ -243,6 +262,7 @@ const Courses = () => {
       tasks: course.tasks,
       start_date: course?.start_date,
       approx_end_date: course?.approx_end_date,
+      school_type: course.school_type,
     });
     setShowCreateDialog(true);
   };
@@ -323,15 +343,56 @@ const Courses = () => {
           )}
         </div>
 
-        {courses.length === 0 ? (
+        {/* Filters */}
+        <div className="mb-6">
+          <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <span className="font-medium text-gray-700">סינון:</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">סוג בית ספר:</span>
+                  <Select
+                    value={schoolTypeFilter}
+                    onValueChange={setSchoolTypeFilter}
+                  >
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="כל סוגי בתי הספר" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">כל סוגי בתי הספר</SelectItem>
+                      <SelectItem value="elementary">יסודי</SelectItem>
+                      <SelectItem value="middle">חטיבה</SelectItem>
+                      <SelectItem value="high">תיכון</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {schoolTypeFilter && schoolTypeFilter !== 'all' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSchoolTypeFilter('all')}
+                    className="text-gray-600"
+                  >
+                    נקה סינון
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {filteredCourses.length === 0 ? (
           <Card className="text-center py-16 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardContent>
               <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-6" />
               <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                אין תוכניות לימוד עדיין
+                {schoolTypeFilter && schoolTypeFilter !== 'all' ? 'לא נמצאו תוכניות לימוד מהסוג הנבחר' : 'אין תוכניות לימוד עדיין'}
               </h3>
               <p className="text-gray-600 mb-6 text-lg">
-                התחל ליצור את תוכנית הלימוד הראשונה שלך
+                {schoolTypeFilter && schoolTypeFilter !== 'all' ? 'נסה לשנות את הסינון או לצור תוכנית לימוד חדשה' : 'התחל ליצור את תוכנית הלימוד הראשונה שלך'}
               </p>
               <Button
                 onClick={() => setShowCreateDialog(true)}
@@ -344,7 +405,7 @@ const Courses = () => {
           </Card>
         ) : (
           <div className="space-y-8">
-            {courses.map((course) => (
+            {filteredCourses.map((course) => (
               <Card
                 key={course.instance_id || course.id}
                 className={`shadow-xl border-0 backdrop-blur-sm ${
@@ -425,7 +486,15 @@ const Courses = () => {
                   )}
 
                   {/* Course Details */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <div className="flex items-center justify-evenly">
+                      <span className="text-sm text-gray-600 font-medium">
+                        סוג בית ספר:
+                      </span>
+                      <span className="text-sm font-bold text-blue-600">
+                        {getSchoolTypeDisplayName(course.school_type)}
+                      </span>
+                    </div>
                     <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">
                         שם המדריך:

@@ -27,6 +27,7 @@ import { CalendarIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 interface Institution {
   id: string;
@@ -42,6 +43,7 @@ interface TimeSlot {
   day: number;
   start_time: string;
   end_time: string;
+  [key: string]: Json | undefined;
 }
 
 interface CourseInstanceSchedule {
@@ -54,7 +56,8 @@ interface CourseInstanceSchedule {
 interface Lesson {
   id: string;
   title: string;
-  order_index?: number;
+  description: string;
+  order_index: number;
   tasks?: any[];
 }
 
@@ -251,7 +254,7 @@ const CourseAssignDialog = ({
     try {
       const { data, error } = await supabase
         .from("lessons")
-        .select("id, title, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
+        .select("id, title, description, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
         .eq("course_id", courseId)
         .order("order_index");
 
