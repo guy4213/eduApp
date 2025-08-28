@@ -275,6 +275,7 @@ export type Database = {
           id: string
           instructor_id: string | null
           is_lesson_ok: boolean | null
+          isCompleted: boolean | null
           lesson_id: string | null
           lesson_schedule_id: string | null
           lesson_title: string
@@ -291,6 +292,7 @@ export type Database = {
           id?: string
           instructor_id?: string | null
           is_lesson_ok?: boolean | null
+          isCompleted?: boolean | null
           lesson_id?: string | null
           lesson_schedule_id?: string | null
           lesson_title: string
@@ -307,6 +309,7 @@ export type Database = {
           id?: string
           instructor_id?: string | null
           is_lesson_ok?: boolean | null
+          isCompleted?: boolean | null
           lesson_id?: string | null
           lesson_schedule_id?: string | null
           lesson_title?: string
