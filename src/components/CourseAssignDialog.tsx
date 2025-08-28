@@ -27,6 +27,7 @@ import { CalendarIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 interface Institution {
   id: string;
@@ -42,6 +43,7 @@ interface TimeSlot {
   day: number;
   start_time: string;
   end_time: string;
+  [key: string]: Json | undefined;
 }
 
 interface CourseInstanceSchedule {
