@@ -29,6 +29,7 @@ import {
   Filter,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSchoolTypeDisplayName, getSchoolTypeColors } from "@/utils/schoolTypeUtils";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
@@ -650,14 +651,12 @@ const CourseAssignments = () => {
                 <CardContent className="p-6">
                   {/* Course Info Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-                    <div className="bg-indigo-50 p-4 rounded-lg">
-                      <div className="flex items-center text-indigo-600 mb-2">
+                    <div className={`${getSchoolTypeColors(assignment.school_type).bg} p-4 rounded-lg border ${getSchoolTypeColors(assignment.school_type).border}`}>
+                      <div className={`flex items-center ${getSchoolTypeColors(assignment.school_type).text} mb-2`}>
                         <span className="font-medium">סוג בית ספר</span>
                       </div>
                       <span className="text-lg font-bold text-gray-900">
-                        {assignment.school_type === 'elementary' ? 'יסודי' : 
-                         assignment.school_type === 'middle' ? 'חטיבה' : 
-                         assignment.school_type === 'high' ? 'תיכון' : 'לא צוין'}
+                        {getSchoolTypeDisplayName(assignment.school_type)}
                       </span>
                     </div>
 

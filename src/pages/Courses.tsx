@@ -31,6 +31,7 @@ import {
   Filter,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSchoolTypeDisplayName } from "@/utils/schoolTypeUtils";
 import CourseCreateDialog from "@/components/CourseCreateDialog";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
@@ -491,9 +492,7 @@ const Courses = () => {
                         סוג בית ספר:
                       </span>
                       <span className="text-sm font-bold text-blue-600">
-                        {course.school_type === 'elementary' ? 'יסודי' : 
-                         course.school_type === 'middle' ? 'חטיבה' : 
-                         course.school_type === 'high' ? 'תיכון' : 'לא צוין'}
+                        {getSchoolTypeDisplayName(course.school_type)}
                       </span>
                     </div>
                     <div className="flex items-center justify-evenly">
