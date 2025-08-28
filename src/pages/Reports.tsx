@@ -591,7 +591,7 @@ const Reports = () => {
           total_students: totalStudents,
           is_lesson_ok: report.is_lesson_ok || false,
           is_completed: report.is_completed !== false,
-          hourly_rate: hourlyRate,
+          hourly_rate: report.is_completed !== false ? hourlyRate : 0, // 0 שקל אם השיעור לא התקיים
           created_at: report.created_at,
           attendanceData,
           course_instance_id: courseInstanceId,
@@ -617,12 +617,8 @@ const Reports = () => {
         const instructorReport = instructorMap.get(instructorId)!;
         instructorReport.reports.push(lessonDetail);
         instructorReport.total_reports += 1;
-        
-        // רק אם השיעור התקיים - להוסיף לשכר ולשעות
-        if (report.is_completed !== false) {
-          instructorReport.total_hours += actualHours; // Use actual calculated hours
-          instructorReport.total_salary += hourlyRate;
-        }
+        instructorReport.total_hours += actualHours; // Use actual calculated hours
+        instructorReport.total_salary += lessonDetail.hourly_rate; // כבר 0 אם השיעור לא התקיים
       }
 
       return Array.from(instructorMap.values());
@@ -731,7 +727,7 @@ const Reports = () => {
             total_students: instance.students?.length || 0,
             is_lesson_ok: report.is_lesson_ok || false,
             is_completed: report.is_completed !== false,
-            hourly_rate: instance.price_for_customer || 0,
+            hourly_rate: report.is_completed !== false ? (instance.price_for_customer || 0) : 0, // 0 שקל אם השיעור לא התקיים
             created_at: report.created_at,
             attendanceData,
             lesson_status: lessonStatus,
@@ -753,9 +749,9 @@ const Reports = () => {
           institutionReport.courses.push(courseDetail);
           institutionReport.total_lessons += lessonsWithAttendance.length;
           
-          // רק אם השיעור התקיים - להוסיף להכנסות
-          const completedLessons = lessonsWithAttendance.filter(lesson => lesson.is_completed !== false).length;
-          institutionReport.total_revenue += (instance.price_for_customer || 0) * completedLessons;
+          // סכום ההכנסות - כבר כולל 0 אם השיעור לא התקיים
+          const totalRevenue = lessonsWithAttendance.reduce((sum, lesson) => sum + lesson.hourly_rate, 0);
+          institutionReport.total_revenue += totalRevenue;
           
           const uniqueStudents = new Set();
           (instance.students || []).forEach(student => uniqueStudents.add(student.id));
