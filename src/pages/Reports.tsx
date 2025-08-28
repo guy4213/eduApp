@@ -577,7 +577,6 @@ const Reports = () => {
         }
 
         const lessonStatus: 'completed' | 'reported_issues' | 'not_reported' = 
-          !report.is_completed ? 'not_reported' : 
           report.is_lesson_ok ? 'completed' : 'reported_issues';
 
         const lessonDetail: LessonReportDetail = {
@@ -712,7 +711,6 @@ const Reports = () => {
           }
 
           const lessonStatus: 'completed' | 'reported_issues' | 'not_reported' = 
-            !report.is_completed ? 'not_reported' : 
             report.is_lesson_ok ? 'completed' : 'reported_issues';
 
           return {

@@ -72,22 +72,23 @@ export const DailyLessonsCard: React.FC<any> = ({
 
 useEffect(() => {
   async function fetchReportedSchedules() {
-    const { data, error } = await supabase
-      .from('reported_lesson_instances')
+    // Get lesson reports with their associated reported_lesson_instances
+    const { data: lessonReports, error } = await supabase
+      .from("lesson_reports")
       .select(`
-        lesson_schedule_id, 
-        course_instance_id, 
-        lesson_id, 
-        scheduled_date,
-        lesson_reports (
-          id,
-          is_completed,
-          is_lesson_ok
+        id,
+        is_completed,
+        is_lesson_ok,
+        reported_lesson_instances (
+          lesson_schedule_id,
+          course_instance_id,
+          lesson_id,
+          scheduled_date
         )
       `);
 
     if (error) {
-      console.error('Failed to fetch reported lesson instances:', error);
+      console.error('Failed to fetch lesson reports:', error);
       return;
     }
 
@@ -95,26 +96,28 @@ useEffect(() => {
     const reportedIds = new Set<string>();
     const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
     
-    data?.forEach((instance: any) => {
-      let key = '';
-      if (instance.lesson_schedule_id) {
-        // Legacy architecture: use lesson_schedule_id
-        key = instance.lesson_schedule_id;
-        reportedIds.add(instance.lesson_schedule_id);
-      } else if (instance.course_instance_id && instance.lesson_id) {
-        // New architecture: create a composite key for course_instance_id + lesson_id
-        key = `${instance.course_instance_id}_${instance.lesson_id}`;
-        reportedIds.add(key);
-      }
+    lessonReports?.forEach((report: any) => {
+      // A lesson report can have multiple reported_lesson_instances
+      report.reported_lesson_instances?.forEach((instance: any) => {
+        let key = '';
+        if (instance.lesson_schedule_id) {
+          // Legacy architecture: use lesson_schedule_id
+          key = instance.lesson_schedule_id;
+          reportedIds.add(instance.lesson_schedule_id);
+        } else if (instance.course_instance_id && instance.lesson_id) {
+          // New architecture: create a composite key for course_instance_id + lesson_id
+          key = `${instance.course_instance_id}_${instance.lesson_id}`;
+          reportedIds.add(key);
+        }
 
-      // Store the status for this lesson
-      if (key && instance.lesson_reports && instance.lesson_reports.length > 0) {
-        const report = instance.lesson_reports[0]; // Get the first (most recent) report
-        statusMap.set(key, {
-          isCompleted: report.is_completed !== false, // Default to true if null
-          isLessonOk: report.is_lesson_ok || false
-        });
-      }
+        // Store the status for this lesson
+        if (key) {
+          statusMap.set(key, {
+            isCompleted: report.is_completed !== false, // Default to true if null
+            isLessonOk: report.is_lesson_ok || false
+          });
+        }
+      });
     });
     
     setReportedScheduleIds(reportedIds);
