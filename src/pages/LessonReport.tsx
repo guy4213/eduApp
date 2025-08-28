@@ -47,6 +47,7 @@ const LessonReport = () => {
     const [allReports, setAllReports] = useState([]);
     const [loading, setLoading] = useState(false);
     const [isLessonOk, setIsLessonOk] = useState(false);
+    const [isCompleted, setIsCompleted] = useState(true); // האם השיעור התקיים
     const [maxPar, setMaxPar] = useState(null);
     const { user } = useAuth();
     const [selectedReport, setSelectedReport] = useState(null);
@@ -789,7 +790,8 @@ const handleSubmit = async () => {
         const presentStudents = attendanceList.filter(student => student.isPresent).length;
         const participantsCount = presentStudents;
 
-        if (participantsCount === 0) {
+        // If lesson didn't take place, allow submission without participants
+        if (isCompleted && participantsCount === 0) {
             toast({
                 title: 'שגיאה',
                 description: `נדרש לבחור לפחות תלמיד אחד ועד ${maxPar} משתתפים`,
@@ -865,6 +867,7 @@ const handleSubmit = async () => {
                 marketing_consent: marketingConsent,
                 instructor_id: user.id,
                 is_lesson_ok: isLessonOk,
+                is_completed: isCompleted,
                 completed_task_ids: checkedTasks,
                 lesson_id: id,
             };
@@ -1007,6 +1010,8 @@ const handleSubmit = async () => {
             setFiles([]);
             setCheckedTasks([]);
             setMarketingConsent(false);
+            setIsCompleted(true);
+            setIsLessonOk(false);
             setAttendanceList(prev => prev.map(student => ({ ...student, isPresent: false, isNew: false })));
             if (fileInputRef.current) fileInputRef.current.value = '';
 
@@ -1153,12 +1158,24 @@ const handleSubmit = async () => {
                             <div className="flex items-center ">
                                 <input
                                     type="checkbox"
-                                    checked={isLessonOk}
-                                    onChange={() => setIsLessonOk(!isLessonOk)}
+                                    checked={isCompleted}
+                                    onChange={() => setIsCompleted(!isCompleted)}
                                     className="w-4 h-4"
                                 />
-                                <label className="text-sm pr-1">האם השיעור התנהל כשורה </label>
+                                <label className="text-sm pr-1">האם השיעור התקיים? </label>
                             </div>
+
+                            {isCompleted && (
+                                <div className="flex items-center ">
+                                    <input
+                                        type="checkbox"
+                                        checked={isLessonOk}
+                                        onChange={() => setIsLessonOk(!isLessonOk)}
+                                        className="w-4 h-4"
+                                    />
+                                    <label className="text-sm pr-1">האם השיעור התנהל כשורה? </label>
+                                </div>
+                            )}
 
                             <div>
                                 <Label htmlFor="notes">הערות נוספות</Label>
@@ -1357,6 +1374,7 @@ const handleSubmit = async () => {
                                                     <TableHead className="font-bold text-primary py-4 px-6 text-right">תאריך</TableHead>
                                                     <TableHead className="font-bold text-primary py-4 px-6 text-right">משוב</TableHead>
                                                     <TableHead className="font-bold text-primary py-4 px-6 text-right">התנהל כשורה</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">סטטוס שיעור</TableHead>
                                                     <TableHead className="font-bold text-primary py-4 px-6 text-right">צפייה</TableHead>
                                                 </TableRow>
                                             </TableHeader>
@@ -1469,6 +1487,21 @@ const handleSubmit = async () => {
                                                                     </Badge>
                                                                 )}
                                                             </TableCell>
+                                                            <TableCell className='px-6'>
+                                                                {report.is_completed === false ? (
+                                                                    <Badge variant="outline" className="bg-orange-100 text-white border-orange-200 hover:bg-orange-200" style={{backgroundColor: '#FFA500', color: 'white'}}>
+                                                                        לא התקיים
+                                                                    </Badge>
+                                                                ) : !report.is_lesson_ok ? (
+                                                                    <Badge variant="outline" className="bg-red-100 text-white border-red-200 hover:bg-red-200" style={{backgroundColor: '#FF0000', color: 'white'}}>
+                                                                        לא התנהל כשורה
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
+                                                                        דווח
+                                                                    </Badge>
+                                                                )}
+                                                            </TableCell>
                                                             <TableCell>
                                                                 <Button
                                                                     variant="outline"
@@ -1487,7 +1520,7 @@ const handleSubmit = async () => {
                                                         {/* Expandable row for attendance details */}
                                                         {expandedRows.has(report.id) && (
                                                             <TableRow>
-                                                                <TableCell colSpan={10} className="bg-gray-50 p-4">
+                                                                <TableCell colSpan={11} className="bg-gray-50 p-4">
                                                                     <div className="grid grid-cols-2 gap-6">
                                                                         <div>
                                                                             <h4 className="font-semibold text-green-700 mb-2 flex items-center">
