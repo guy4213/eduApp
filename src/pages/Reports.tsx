@@ -473,6 +473,7 @@ const Reports = () => {
           lesson_title,
           participants_count,
           is_lesson_ok,
+          is_completed,
           created_at,
           instructor_id,
           course_instance_id,
@@ -526,7 +527,16 @@ const Reports = () => {
 
       const instructorMap = new Map<string, InstructorReport>();
 
+      console.log('Reports fetched:', reports?.length || 0);
       for (const report of reports || []) {
+        console.log('Processing report:', {
+          id: report.id,
+          lesson_title: report.lesson_title,
+          is_completed: report.is_completed,
+          is_lesson_ok: report.is_lesson_ok,
+          created_at: report.created_at
+        });
+        
         const instructorId = report.instructor_id;
         const instructor = report.instructor;
         
@@ -657,6 +667,7 @@ const Reports = () => {
             lesson_title,
             participants_count,
             is_lesson_ok,
+            is_completed,
             created_at,
             lesson_schedule_id,
             lesson_attendance (
@@ -679,7 +690,13 @@ const Reports = () => {
 
       const institutionMap = new Map<string, InstitutionReport>();
 
+      console.log('Course instances fetched:', courseInstances?.length || 0);
       for (const instance of courseInstances || []) {
+        console.log('Processing course instance:', {
+          id: instance.id,
+          lesson_reports: instance.lesson_reports?.length || 0
+        });
+        
         if (!instance.educational_institutions) continue;
 
         const institutionId = instance.educational_institutions.id;
@@ -698,7 +715,14 @@ const Reports = () => {
 
         const institutionReport = institutionMap.get(institutionId)!;
 
+        console.log('Processing lesson reports for instance:', instance.id);
         const lessonsWithAttendance = (instance.lesson_reports || []).map(report => {
+          console.log('Processing lesson report:', {
+            id: report.id,
+            lesson_title: report.lesson_title,
+            is_completed: report.is_completed,
+            is_lesson_ok: report.is_lesson_ok
+          });
           const attendanceData: AttendanceRecord[] = [];
           if (report.lesson_attendance) {
             for (const attendance of report.lesson_attendance) {
