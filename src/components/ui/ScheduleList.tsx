@@ -128,9 +128,9 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
                 onClick={() =>
                   nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
                 }
-                className="bg-gray-200 text-gray-700 px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-gray-300"
+                className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
               >
-                📋 טרם דווח
+                📋 דווח על השיעור
               </button>
             ) : (
               <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
@@ -150,7 +150,7 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
             );
           }
 
-          if (lessonStatus?.isLessonOk === false) {
+          if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
             return (
               <span 
                 className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
