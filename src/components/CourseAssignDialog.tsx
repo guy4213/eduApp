@@ -657,18 +657,7 @@ const CourseAssignDialog = ({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="max_participants">מספר משתתפים מקסימלי</Label>
-          <Input
-            id="max_participants"
-            type="number"
-            value={formData.max_participants}
-            onChange={(e) =>
-              handleInputChange("max_participants", e.target.value)
-            }
-            placeholder="מספר משתתפים"
-          />
-        </div>
+
 
         <div className="space-y-2">
           <Label htmlFor="start_date">תאריך התחלה</Label>

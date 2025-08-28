@@ -199,8 +199,9 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         <form onSubmit={onSubmit} className="space-y-4">
           <Tabs defaultValue="details" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="details">פרטי התוכנית</TabsTrigger>
               <TabsTrigger value="lessons">שיעורים ומשימות</TabsTrigger>
+               <TabsTrigger value="details">פרטי התוכנית</TabsTrigger>
+
             </TabsList>
 
             <TabsContent value="details" className="space-y-4">
