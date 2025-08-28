@@ -1439,10 +1439,17 @@ const Reports = () => {
                                     </td>
                                     <td className="py-3 px-4">
                                       {report.lesson_status === 'completed' ? (
-                                        <Badge className="bg-green-100 text-green-800">
-                                          <CheckCircle className="h-3 w-3 ml-1" />
-                                          הושלם בהצלחה
-                                        </Badge>
+                                        report.is_lesson_ok ? (
+                                          <Badge className="bg-green-100 text-green-800">
+                                            <CheckCircle className="h-3 w-3 ml-1" />
+                                            הושלם בהצלחה
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="destructive">
+                                            <X className="h-3 w-3 ml-1" />
+                                            לא התנהל כשורה
+                                          </Badge>
+                                        )
                                       ) : report.lesson_status === 'reported_issues' ? (
                                         report.is_completed === false ? (
                                           <Badge className="bg-orange-100 text-orange-800 border-orange-300">
@@ -1654,10 +1661,17 @@ const Reports = () => {
                                           </td>
                                           <td className="py-3 px-4">
                                             {lesson.lesson_status === 'completed' ? (
-                                              <Badge className="bg-green-100 text-green-800">
-                                                <CheckCircle className="h-3 w-3 ml-1" />
-                                                הושלם בהצלחה
-                                              </Badge>
+                                              lesson.is_lesson_ok ? (
+                                                <Badge className="bg-green-100 text-green-800">
+                                                  <CheckCircle className="h-3 w-3 ml-1" />
+                                                  הושלם בהצלחה
+                                                </Badge>
+                                              ) : (
+                                                <Badge variant="destructive">
+                                                  <X className="h-3 w-3 ml-1" />
+                                                  לא התנהל כשורה
+                                                </Badge>
+                                              )
                                             ) : lesson.lesson_status === 'reported_issues' ? (
                                               lesson.is_completed === false ? (
                                                 <Badge className="bg-orange-100 text-orange-800 border-orange-300">
