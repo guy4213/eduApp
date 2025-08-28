@@ -35,63 +35,91 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
   }, []);
 
   const fetchReportedSchedules = async () => {
-    const { data, error } = await supabase
+    // First, get all reported lesson instances
+    const { data: reportedInstances, error: instancesError } = await supabase
       .from("reported_lesson_instances")
       .select(`
         lesson_schedule_id, 
         course_instance_id, 
         lesson_id, 
         scheduled_date,
-        lesson_reports (
-          id,
-          is_completed,
-          is_lesson_ok,
-          created_at
-        )
-      `)
-      .order('created_at', { foreignTable: 'lesson_reports', ascending: false });
+        lesson_report_id
+      `);
+
+    if (instancesError) {
+      console.error("Error fetching reported lesson instances:", instancesError.message);
+      return;
+    }
+
+    // Then, get all lesson reports
+    const { data: lessonReports, error: reportsError } = await supabase
+      .from("lesson_reports")
+      .select(`
+        id,
+        is_completed,
+        is_lesson_ok,
+        created_at
+      `);
+
+    if (reportsError) {
+      console.error("Error fetching lesson reports:", reportsError.message);
+      return;
+    }
+
+    console.log('ScheduleList: Reported instances:', reportedInstances);
+    console.log('ScheduleList: Lesson reports:', lessonReports);
+
+    // Create a map of lesson report data
+    const reportsMap = new Map();
+    lessonReports?.forEach(report => {
+      reportsMap.set(report.id, report);
+    });
 
     if (error) {
       console.error("Error fetching reported lesson instances:", error.message);
       return;
     }
 
-    // Create a set of reported lesson instance IDs and status map
+        // Create a set of reported lesson instance IDs and status map
     const reportedIds = new Set<string>();
     const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
     
-          data?.forEach((instance: any) => {
-        let key = '';
-        console.log('ScheduleList: Processing instance:', instance);
-        
-        if (instance.lesson_schedule_id) {
-          // Legacy architecture: use lesson_schedule_id
-          key = instance.lesson_schedule_id;
-          reportedIds.add(instance.lesson_schedule_id);
-          console.log('ScheduleList: Using legacy key:', key);
-        } else if (instance.course_instance_id && instance.lesson_id) {
-          // New architecture: create a composite key for course_instance_id + lesson_id
-          key = `${instance.course_instance_id}_${instance.lesson_id}`;
-          reportedIds.add(key);
-          console.log('ScheduleList: Using new key:', key);
-        }
+    reportedInstances?.forEach((instance: any) => {
+      let key = '';
+      console.log('ScheduleList: Processing instance:', instance);
+      
+      if (instance.lesson_schedule_id) {
+        // Legacy architecture: use lesson_schedule_id
+        key = instance.lesson_schedule_id;
+        reportedIds.add(instance.lesson_schedule_id);
+        console.log('ScheduleList: Using legacy key:', key);
+      } else if (instance.course_instance_id && instance.lesson_id) {
+        // New architecture: create a composite key for course_instance_id + lesson_id
+        key = `${instance.course_instance_id}_${instance.lesson_id}`;
+        reportedIds.add(key);
+        console.log('ScheduleList: Using new key:', key);
+      }
 
-        // Store the status for this lesson
-        if (key && instance.lesson_reports && instance.lesson_reports.length > 0) {
-          const report = instance.lesson_reports[0]; // Get the first (most recent) report
+      // Get the lesson report data
+      if (key && instance.lesson_report_id) {
+        const report = reportsMap.get(instance.lesson_report_id);
+        if (report) {
           console.log('ScheduleList: Setting status for key:', key, 'report:', report);
           statusMap.set(key, {
             isCompleted: report.is_completed !== false, // Default to true if null
             isLessonOk: report.is_lesson_ok || false
           });
         } else {
-          console.log('ScheduleList: No lesson reports found for key:', key, 'instance:', instance);
+          console.log('ScheduleList: No lesson report found for lesson_report_id:', instance.lesson_report_id);
         }
-      });
+      } else {
+        console.log('ScheduleList: No lesson_report_id found for key:', key, 'instance:', instance);
+      }
+    });
 
     console.log('ScheduleList: Updated reported IDs:', reportedIds);
     console.log('ScheduleList: Updated status map:', statusMap);
-    console.log('ScheduleList: Raw data from DB:', data);
+    console.log('ScheduleList: Raw data from DB:', reportedInstances);
     setReportedScheduleIds(reportedIds);
     setReportStatusMap(statusMap);
   };
