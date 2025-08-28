@@ -51,6 +51,7 @@ interface LessonReportDetail {
   participants_count: number;
   total_students: number;
   is_lesson_ok: boolean;
+  is_completed: boolean;
   hourly_rate: number;
   created_at: string;
   attendanceData: AttendanceRecord[];
@@ -588,6 +589,7 @@ const Reports = () => {
           participants_count: report.participants_count || 0,
           total_students: totalStudents,
           is_lesson_ok: report.is_lesson_ok || false,
+          is_completed: report.is_completed !== false,
           hourly_rate: hourlyRate,
           created_at: report.created_at,
           attendanceData,
@@ -722,6 +724,7 @@ const Reports = () => {
             participants_count: report.participants_count || 0,
             total_students: instance.students?.length || 0,
             is_lesson_ok: report.is_lesson_ok || false,
+            is_completed: report.is_completed !== false,
             hourly_rate: instance.price_for_customer || 0,
             created_at: report.created_at,
             attendanceData,
@@ -1418,10 +1421,17 @@ const Reports = () => {
                                           הושלם בהצלחה
                                         </Badge>
                                       ) : report.lesson_status === 'reported_issues' ? (
-                                        <Badge variant="destructive">
-                                          <X className="h-3 w-3 ml-1" />
-                                          דווח עם בעיות
-                                        </Badge>
+                                        report.is_completed === false ? (
+                                          <Badge className="bg-orange-100 text-orange-800 border-orange-300">
+                                            <X className="h-3 w-3 ml-1" />
+                                            לא התקיים
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="destructive">
+                                            <X className="h-3 w-3 ml-1" />
+                                            לא התנהל כשורה
+                                          </Badge>
+                                        )
                                       ) : (
                                         <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
                                           <Calendar className="h-3 w-3 ml-1" />
@@ -1611,10 +1621,17 @@ const Reports = () => {
                                                 הושלם בהצלחה
                                               </Badge>
                                             ) : lesson.lesson_status === 'reported_issues' ? (
-                                              <Badge variant="destructive">
-                                                <X className="h-3 w-3 ml-1" />
-                                                דווח עם בעיות
-                                              </Badge>
+                                              lesson.is_completed === false ? (
+                                                <Badge className="bg-orange-100 text-orange-800 border-orange-300">
+                                                  <X className="h-3 w-3 ml-1" />
+                                                  לא התקיים
+                                                </Badge>
+                                              ) : (
+                                                <Badge variant="destructive">
+                                                  <X className="h-3 w-3 ml-1" />
+                                                  לא התנהל כשורה
+                                                </Badge>
+                                              )
                                             ) : (
                                               <Badge variant="outline" className="bg-gray-50 text-gray-600">
                                                 <Calendar className="h-3 w-3 ml-1" />
