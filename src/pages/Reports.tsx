@@ -1028,7 +1028,6 @@ const Reports = () => {
               </div>
             </CardContent>
           </Card>
-######
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
