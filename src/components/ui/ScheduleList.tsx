@@ -55,8 +55,6 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
       return;
     }
 
-    console.log('ScheduleList: Lesson reports with instances:', lessonReports);
-
     // Create a set of reported lesson instance IDs and status map
     const reportedIds = new Set<string>();
     const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
@@ -81,16 +79,9 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
             isCompleted: report.is_completed !== false, // Default to true if null
             isLessonOk: report.is_lesson_ok || false
           });
-          console.log(`ScheduleList: Set status for key ${key}:`, {
-            isCompleted: report.is_completed !== false,
-            isLessonOk: report.is_lesson_ok || false
-          });
         }
       });
     });
-
-    console.log('ScheduleList: Final reportedIds:', Array.from(reportedIds));
-    console.log('ScheduleList: Final statusMap:', Array.from(statusMap.entries()));
 
     setReportedScheduleIds(reportedIds);
     setReportStatusMap(statusMap);

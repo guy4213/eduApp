@@ -26,7 +26,16 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
     return classDateStr === selectedDateStr;
   });
 
-  const hasItems = filteredClasses.length > 0;
+  // Remove duplicates based on course_instance_id and lesson_id
+  const uniqueClasses = filteredClasses.filter((lesson, index, self) => {
+    const key = `${lesson.course_instance_id}_${lesson.lesson?.id || lesson.lesson_id}`;
+    return index === self.findIndex(l => {
+      const lKey = `${l.course_instance_id}_${l.lesson?.id || l.lesson_id}`;
+      return lKey === key;
+    });
+  });
+
+  const hasItems = uniqueClasses.length > 0;
 
   return (
     <div
@@ -54,8 +63,8 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
 
       {hasItems ? (
         <ScheduleList 
-          key={`schedule-list-${selectedDate.toISOString().split('T')[0]}-${filteredClasses.length}`}
-          lessons={filteredClasses} 
+          key={`schedule-list-${selectedDate.toISOString().split('T')[0]}-${uniqueClasses.length}`}
+          lessons={uniqueClasses} 
         />
       ) : (
         <div className="px-4 py-10 text-center text-gray-500">

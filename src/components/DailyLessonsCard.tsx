@@ -161,6 +161,15 @@ useEffect(() => {
 
   return classDateStr === selectedDateStr;
 });
+
+  // Remove duplicates based on course_instance_id and lesson_id
+  const uniqueClasses = filteredClasses.filter((lesson, index, self) => {
+    const key = `${lesson.course_instance_id}_${lesson.lesson?.id || lesson.lesson_id}`;
+    return index === self.findIndex(l => {
+      const lKey = `${l.course_instance_id}_${l.lesson?.id || l.lesson_id}`;
+      return lKey === key;
+    });
+  });
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -221,7 +230,7 @@ const instructorMap = useMemo(() => {
         </div>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
-        {filteredClasses.map((lesson,index) => {
+        {uniqueClasses.map((lesson,index) => {
           console.log("lesson",lesson)
           const colorKey = lesson.color || getColorById(lesson.id);
           const color = statusColors[colorKey];
