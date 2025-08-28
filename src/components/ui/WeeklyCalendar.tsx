@@ -53,7 +53,10 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
       </div>
 
       {hasItems ? (
-        <ScheduleList lessons={filteredClasses} />
+        <ScheduleList 
+          key={`schedule-list-${selectedDate.toISOString().split('T')[0]}-${filteredClasses.length}`}
+          lessons={filteredClasses} 
+        />
       ) : (
         <div className="px-4 py-10 text-center text-gray-500">
           אין שיעורים ביום זה
