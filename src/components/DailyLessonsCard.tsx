@@ -200,19 +200,30 @@ const instructorMap = useMemo(() => {
                     {lesson.buttonLabel}
                   </Button>
                   <div className="flex flex-col gap-2">
-                    <p className="font-bold text-[1.2rem] text-gray-900">{lesson?.institution_name}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-blue-700 text-base">{lesson?.course_name}</p>
-                      <span className="text-sm text-gray-500">•</span>
-                      <p className="font-semibold text-green-700 text-sm">שיעור {lesson?.lesson_number}</p>
+                    <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-sm">
+                      <span className="font-semibold text-gray-700">שם הקורס:</span>
+                      <span className="font-medium text-blue-700">{lesson?.course_name}</span>
+                      
+                      <span className="font-semibold text-gray-700">מספר שיעור:</span>
+                      <span className="font-medium text-green-700">{lesson?.lesson_number}</span>
+                      
+                      <span className="font-semibold text-gray-700">שם השיעור:</span>
+                      <span className="font-medium text-gray-800">{lesson?.title}</span>
+                      
+                      <span className="font-semibold text-gray-700">מוסד חינוכי:</span>
+                      <span className="font-medium text-gray-800">{lesson?.institution_name}</span>
                     </div>
-                    <p className="font-medium text-gray-800 text-sm">{lesson?.title}</p>
+                    
                     {user.user_metadata.role !== "instructor" && (
-                      <b className="text-sm text-gray-600">{instructorName}</b>
+                      <div className="mt-1">
+                        <span className="font-semibold text-gray-700 text-sm">מדריך: </span>
+                        <span className="text-sm text-gray-600">{instructorName}</span>
+                      </div>
                     )}
-                    <p className="text-[1rem] text-gray-900">
+                    
+                    <div className="mt-2 text-[1rem] font-medium text-gray-900">
                       {formatTime(lesson.scheduled_start)}-{formatTime(lesson.scheduled_end)}
-                    </p>
+                    </div>
                   </div>
                 </div>
 

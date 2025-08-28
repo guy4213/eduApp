@@ -103,18 +103,23 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
             {/* Card content */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-semibold text-blue-700">
+                <div className="flex flex-col gap-2 flex-1">
+                  <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-sm">
+                    <span className="font-semibold text-gray-700">שם הקורס:</span>
+                    <span className="font-medium text-blue-700">
                       {item?.course_instances?.course?.name || "ללא שם קורס"}
                     </span>
-                    <span className="text-sm text-gray-500">•</span>
-                    <span className="text-sm font-semibold text-green-700">
-                      שיעור {item?.lesson_number || (item?.lesson?.order_index ? item.lesson.order_index + 1 : 1)}
+                    
+                    <span className="font-semibold text-gray-700">מספר שיעור:</span>
+                    <span className="font-medium text-green-700">
+                      {item?.lesson_number || (item?.lesson?.order_index ? item.lesson.order_index + 1 : 1)}
                     </span>
-                  </div>
-                  <div className="text-sm font-medium text-gray-800">
-                    {item?.lesson?.title}
+                    
+                    <span className="font-semibold text-gray-700">שם השיעור:</span>
+                    <span className="font-medium text-gray-800">{item?.lesson?.title}</span>
+                    
+                    <span className="font-semibold text-gray-700">מוסד חינוכי:</span>
+                    <span className="font-medium text-gray-800">{item?.course_instances?.institution?.name}</span>
                   </div>
                 </div>
                 {isReported ? (
@@ -135,18 +140,15 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
                 )}
               </div>
 
-              <div className="text-[13px] text-gray-600">
-                {item?.course_instances?.institution?.name}
-              </div>
-
               {!item?.course_instances?.instructor?.full_name ? (
-                <div className="text-red-600 font-semibold text-sm">
+                <div className="text-red-600 font-semibold text-sm mt-2">
                   אין מדריך לקורס הזה
                 </div>
               ) : (
                 user.user_metadata.role !== "instructor" && (
-                  <div className="text-sm text-gray-700">
-                    מדריך: <span className="font-medium">{instructorName}</span>
+                  <div className="text-sm text-gray-700 mt-2">
+                    <span className="font-semibold text-gray-700">מדריך: </span>
+                    <span className="font-medium">{instructorName}</span>
                   </div>
                 )
               )}
