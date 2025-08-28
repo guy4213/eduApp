@@ -500,13 +500,21 @@ const pendingClosures = filteredSalesLeads.filter(
               <Target className="h-6 w-6 ml-2 text-blue-600" />
               פייפליין – התקדמות מול מוסדות
             </h2>
-            <Button 
+          {user.user_metadata.role!=="instructor"?(  <Button 
               className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg"
               onClick={() => setIsAssignmentDialogOpen(true)}
             >
               <Plus className="h-4 w-4" />
               <span>הקצה ליד למדריך</span>
-            </Button>
+            </Button>)
+            :
+            (<Button 
+              className="flex items-center space-x-2 space-x-reverse bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg"
+              onClick={() => setIsAssignmentDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              <span> הוסף ליד </span>
+            </Button>)}
           </div>
 
           {/* Comprehensive Filters */}
