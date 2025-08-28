@@ -201,7 +201,12 @@ const instructorMap = useMemo(() => {
                   </Button>
                   <div className="flex flex-col gap-2">
                     <p className="font-bold text-[1.2rem] text-gray-900">{lesson?.institution_name}</p>
-                    <p className="font-semibold text-gray-900">{lesson?.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-blue-700 text-base">{lesson?.course_name}</p>
+                      <span className="text-sm text-gray-500">•</span>
+                      <p className="font-semibold text-green-700 text-sm">שיעור {lesson?.lesson_number}</p>
+                    </div>
+                    <p className="font-medium text-gray-800 text-sm">{lesson?.title}</p>
                     {user.user_metadata.role !== "instructor" && (
                       <b className="text-sm text-gray-600">{instructorName}</b>
                     )}

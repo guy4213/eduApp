@@ -114,6 +114,10 @@ export const fetchAndGenerateSchedules = async (
           course_id,
           start_date,
           end_date,
+          course:course_id (
+            id,
+            name
+          ),
           institution:institution_id (
             id,
             name
@@ -207,12 +211,18 @@ export const fetchCombinedSchedules = async (
         id,
         scheduled_start,
         scheduled_end,
+        lesson_number,
         lesson:lesson_id (
           id,
-          title
+          title,
+          order_index
         ),
         course_instances:course_instance_id (
           id,
+          course:course_id (
+            id,
+            name
+          ),
           institution:institution_id (
             id,
             name

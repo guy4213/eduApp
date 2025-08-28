@@ -103,8 +103,19 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
             {/* Card content */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <div className="text-base font-semibold text-gray-900 truncate">
-                  {item?.lesson?.title}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-semibold text-blue-700">
+                      {item?.course_instances?.course?.name || "ללא שם קורס"}
+                    </span>
+                    <span className="text-sm text-gray-500">•</span>
+                    <span className="text-sm font-semibold text-green-700">
+                      שיעור {item?.lesson_number || (item?.lesson?.order_index ? item.lesson.order_index + 1 : 1)}
+                    </span>
+                  </div>
+                  <div className="text-sm font-medium text-gray-800">
+                    {item?.lesson?.title}
+                  </div>
                 </div>
                 {isReported ? (
                   <span className="ml-2 inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full">
