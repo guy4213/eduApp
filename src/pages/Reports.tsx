@@ -192,7 +192,7 @@ const Reports = () => {
         totalEarnings,
         totalLessons,
         totalScheduledLessons,
-        completionRate: totalScheduledLessons > 0 ? (totalLessons / totalScheduledLessons) * 100 : 0,
+        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0, // מתוך השיעורים שדווחו
         totalStudents,
         detailData: filteredInstructors
       };
@@ -218,7 +218,7 @@ const Reports = () => {
         totalEarnings,
         totalLessons,
         totalScheduledLessons,
-        completionRate: totalScheduledLessons > 0 ? (totalLessons / totalScheduledLessons) * 100 : 0,
+        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0, // מתוך השיעורים שדווחו
         totalStudents,
         detailData: filteredInstitutions
       };
@@ -434,7 +434,7 @@ const Reports = () => {
       const completedLessons = instructorData.reduce((sum, instructor) => 
         sum + instructor.reports.filter(report => report.lesson_status === 'completed').length, 0);
 
-      const completionRate = totalScheduledLessons > 0 ? (totalReportedLessons / totalScheduledLessons) * 100 : 0;
+      const completionRate = totalReportedLessons > 0 ? (completedLessons / totalReportedLessons) * 100 : 0; // מתוך השיעורים שדווחו
 
       return {
         totalLessons: totalReportedLessons,
@@ -1306,18 +1306,18 @@ const Reports = () => {
                           <div>
                             <CardTitle className="text-xl">{instructor.full_name}</CardTitle>
                             <CardDescription>
-                              דיווחים: {instructor.total_reports}/{instructor.reports.length} | 
+                              שיעורים דווחו: {instructor.total_reports} | 
                               שעות: {instructor.total_hours.toFixed(1)} | 
                               שכר: ₪{instructor.total_salary.toLocaleString()} |
-                              אחוז דיווח: {instructor.reports.length > 0 ? Math.round((instructor.total_reports / instructor.reports.length) * 100) : 0}%
+                              אחוז השלמה: {instructor.total_reports > 0 ? Math.round((instructor.reports.filter(report => report.lesson_status === 'completed').length / instructor.total_reports) * 100) : 0}%
                             </CardDescription>
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             <Badge variant="outline" className="text-lg font-bold">
                               ₪{instructor.total_salary.toLocaleString()}
                             </Badge>
-                            <Badge variant={instructor.reports.length > 0 && (instructor.total_reports / instructor.reports.length) > 0.8 ? "default" : "secondary"}>
-                              {instructor.total_reports}/{instructor.reports.length} שיעורים
+                            <Badge variant={instructor.total_reports > 0 && (instructor.reports.filter(report => report.lesson_status === 'completed').length / instructor.total_reports) > 0.8 ? "default" : "secondary"}>
+                              {instructor.reports.filter(report => report.lesson_status === 'completed').length}/{instructor.total_reports} הושלמו
                             </Badge>
                           </div>
                         </div>
@@ -1530,18 +1530,18 @@ const Reports = () => {
                               {institution.name}
                             </CardTitle>
                             <CardDescription>
-                              שיעורים דווחו: {institution.total_lessons}/{institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)} | 
+                              שיעורים דווחו: {institution.total_lessons} | 
                               תלמידים: {institution.total_students} | 
                               הכנסות: ₪{institution.total_revenue.toLocaleString()} |
-                              אחוז דיווח: {institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0) > 0 ? Math.round((institution.total_lessons / institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)) * 100) : 0}%
+                              אחוז השלמה: {institution.total_lessons > 0 ? Math.round((institution.courses.reduce((sum, course) => sum + course.lesson_details.filter(l => l.lesson_status === 'completed').length, 0) / institution.total_lessons) * 100) : 0}%
                             </CardDescription>
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             <Badge variant="outline" className="text-lg font-bold">
                               ₪{institution.total_revenue.toLocaleString()}
                             </Badge>
-                            <Badge variant={institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0) > 0 && (institution.total_lessons / institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)) > 0.8 ? "default" : "secondary"}>
-                              {institution.total_lessons}/{institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)} שיעורים
+                            <Badge variant={institution.total_lessons > 0 && (institution.courses.reduce((sum, course) => sum + course.lesson_details.filter(l => l.lesson_status === 'completed').length, 0) / institution.total_lessons) > 0.8 ? "default" : "secondary"}>
+                              {institution.courses.reduce((sum, course) => sum + course.lesson_details.filter(l => l.lesson_status === 'completed').length, 0)}/{institution.total_lessons} הושלמו
                             </Badge>
                           </div>
                         </div>
