@@ -617,8 +617,12 @@ const Reports = () => {
         const instructorReport = instructorMap.get(instructorId)!;
         instructorReport.reports.push(lessonDetail);
         instructorReport.total_reports += 1;
-        instructorReport.total_hours += actualHours; // Use actual calculated hours
-        instructorReport.total_salary += hourlyRate;
+        
+        // רק אם השיעור התקיים - להוסיף לשכר ולשעות
+        if (report.is_completed !== false) {
+          instructorReport.total_hours += actualHours; // Use actual calculated hours
+          instructorReport.total_salary += hourlyRate;
+        }
       }
 
       return Array.from(instructorMap.values());
@@ -748,7 +752,10 @@ const Reports = () => {
 
           institutionReport.courses.push(courseDetail);
           institutionReport.total_lessons += lessonsWithAttendance.length;
-          institutionReport.total_revenue += (instance.price_for_customer || 0) * lessonsWithAttendance.length;
+          
+          // רק אם השיעור התקיים - להוסיף להכנסות
+          const completedLessons = lessonsWithAttendance.filter(lesson => lesson.is_completed !== false).length;
+          institutionReport.total_revenue += (instance.price_for_customer || 0) * completedLessons;
           
           const uniqueStudents = new Set();
           (instance.students || []).forEach(student => uniqueStudents.add(student.id));
