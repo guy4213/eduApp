@@ -420,90 +420,88 @@ const Dashboard = () => {
     return createdAt >= sundayStart && createdAt < nextSunday;
   });
 }
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!user) return;
-      
-      try {
+  const fetchDashboardData = async () => {
+    if (!user) return;
     
-          const now = new Date();
-            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-            const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+    try {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-            const { data: reportsData } = await supabase
-              .from("lesson_reports")
-              .select("*")
-              .gte("created_at", firstDay)
-              .lt("created_at", firstDayNextMonth);
+      const { data: reportsData } = await supabase
+        .from("lesson_reports")
+        .select("*")
+        .gte("created_at", firstDay)
+        .lt("created_at", firstDayNextMonth);
 
-              setReports(reportsData)
-             // Calculate reports count strictly within the current month (defensive)
-             const monthStartLocal = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-             const monthEndLocal = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-             const onlyThisMonth = (reportsData || []).filter((r: any) => {
-               const d = new Date(r.created_at);
-               return d >= monthStartLocal && d <= monthEndLocal;
-             });
-             setMonthlyReportsCount(onlyThisMonth.length);
-              
+      setReports(reportsData)
+      // Calculate reports count strictly within the current month (defensive)
+      const monthStartLocal = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const monthEndLocal = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      const onlyThisMonth = (reportsData || []).filter((r: any) => {
+        const d = new Date(r.created_at);
+        return d >= monthStartLocal && d <= monthEndLocal;
+      });
+      setMonthlyReportsCount(onlyThisMonth.length);
+      
 
-              const reportsThisWeek = filterReportsCurrentWeek(reportsData);
-              setWeeklyReports(reportsThisWeek)
-        // קודם מושכים את כל ה-course_instances של המדריך
-        const { data: courses } = await supabase
-          .from("course_instances")
-          .select("id")
-         
+      const reportsThisWeek = filterReportsCurrentWeek(reportsData);
+      setWeeklyReports(reportsThisWeek)
+      // קודם מושכים את כל ה-course_instances של המדריך
+      const { data: courses } = await supabase
+        .from("course_instances")
+        .select("id")
+       
 
-        console.log("User courses:", courses);
+      console.log("User courses:", courses);
 
-        if (!courses || courses.length === 0) {
-          console.log("No courses found for instructor");
-          setLessons([]);
-          setStats({
-            totalLessons: 0,
-            activeStudents: 0,
-            activeCourses: 0,
-            monthlyEarnings: 0,
-            rewardsTotal: 0,
-            upcomingLessons: [],
-            recentActivity: [],
-          });
-          setLoading(false);
-          return;
-        }
-
-        const courseIds = courses.map(c => c.id);
-
-        // משיכה מאוחדת של כל התזמונים (מורשת + נוצר מתבנית)
-        const combined = await fetchCombinedSchedules();
-
-        // סינון לפי הקורסים הרלוונטיים בלבד
-        const combinedForCourses = (combined || []).filter((s: any) =>
-          courseIds.includes(s.course_instance_id || s?.course_instances?.id)
-        );
-
-        // טווח חודשי
-        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-        const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
-
-        const schedulesThisMonth = combinedForCourses.filter((s: any) => {
-          const d = new Date(s.scheduled_start);
-          return d >= monthStart && d <= monthEnd;
+      if (!courses || courses.length === 0) {
+        console.log("No courses found for instructor");
+        setLessons([]);
+        setStats({
+          totalLessons: 0,
+          activeStudents: 0,
+          activeCourses: 0,
+          monthlyEarnings: 0,
+          rewardsTotal: 0,
+          upcomingLessons: [],
+          recentActivity: [],
         });
+        setLoading(false);
+        return;
+      }
 
-        setMonthlySchedules(schedulesThisMonth.length);
+      const courseIds = courses.map(c => c.id);
 
-        // שמירה על הלוגיקה הקיימת לסטטיסטיקות נוספות
-        const { data: enrollments } = await supabase
-          .from("course_instances")
-          .select("*")
-         
+      // משיכה מאוחדת של כל התזמונים (מורשת + נוצר מתבנית)
+      const combined = await fetchCombinedSchedules();
+
+      // סינון לפי הקורסים הרלוונטיים בלבד
+      const combinedForCourses = (combined || []).filter((s: any) =>
+        courseIds.includes(s.course_instance_id || s?.course_instances?.id)
+      );
+
+      // טווח חודשי
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const schedulesThisMonth = combinedForCourses.filter((s: any) => {
+        const d = new Date(s.scheduled_start);
+        return d >= monthStart && d <= monthEnd;
+      });
+
+      setMonthlySchedules(schedulesThisMonth.length);
+
+      // שמירה על הלוגיקה הקיימת לסטטיסטיקות נוספות
+      const { data: enrollments } = await supabase
+        .from("course_instances")
+        .select("*")
+       
 
 
-  // Filter only schedules in the current month
+// Filter only schedules in the current month
 
-        // מושכים נתוני תלמידים
+      // מושכים נתוני תלמידים
 
 
 
@@ -512,75 +510,113 @@ const Dashboard = () => {
 //   0
 // );
 
-  const { data: students } = await supabase
-          .from("students")
-          .select("*")
+const { data: students } = await supabase
+        .from("students")
+        .select("*")
 
 const totalActive=students.length;
 console.log("Total active students:", totalActive);
 
 
 
-  console.log("All schedules:", combinedForCourses.length);
-  console.log("Schedules this month:", schedulesThisMonth.length);
-  setMonthlySchedules(schedulesThisMonth.length);
+console.log("All schedules:", combinedForCourses.length);
+console.log("Schedules this month:", schedulesThisMonth.length);
+setMonthlySchedules(schedulesThisMonth.length);
 
-        const adaptedLessons = (combinedForCourses || []).map((s: any) => ({
-          id: s.id,
-          institution_name: s.course_instances?.institution?.name || s?.course_instance?.institution?.name || "לא ידוע",
-          scheduled_start: s.scheduled_start,
-          scheduled_end: s.scheduled_end,
-          title: s.lesson?.title || "ללא כותרת",
-          course_name: s.course_instances?.course?.name || "ללא שם קורס",
-          lesson_number: s.lesson_number || (s.lesson?.order_index ? s.lesson.order_index + 1 : 1),
-          instructorName: s.course_instances?.instructor?.full_name || s?.course_instance?.instructor?.full_name || "לא ידוע",
-          instructor_id: s.course_instances?.instructor?.id || s?.course_instance?.instructor?.id || "לא ידוע",
-          lesson_id: s.lesson?.id,
-          course_instance_id: s.course_instance_id
-        }));
+const adaptedLessons = (combinedForCourses || []).map((s: any) => ({
+  id: s.id,
+  institution_name: s.course_instances?.institution?.name || s?.course_instance?.institution?.name || "לא ידוע",
+  scheduled_start: s.scheduled_start,
+  scheduled_end: s.scheduled_end,
+  title: s.lesson?.title || "ללא כותרת",
+  course_name: s.course_instances?.course?.name || "ללא שם קורס",
+  lesson_number: s.lesson_number || (s.lesson?.order_index ? s.lesson.order_index + 1 : 1),
+  instructorName: s.course_instances?.instructor?.full_name || s?.course_instance?.instructor?.full_name || "לא ידוע",
+  instructor_id: s.course_instances?.instructor?.id || s?.course_instance?.instructor?.id || "לא ידוע",
+  lesson_id: s.lesson?.id,
+  course_instance_id: s.course_instance_id
+}));
 
-        console.log("Adapted lessons:", adaptedLessons);
-        
-        // Fetch sales leads for rewards calculation
-        const { data: salesLeads } = await supabase
-          .from('sales_leads')
-          .select('potential_value, commission_percentage');
+console.log("Adapted lessons:", adaptedLessons);
 
-        // Calculate total rewards from sales leads
-        const calculateRewardsTotal = (leads: any[]) => {
-          const totalPotentialValue = leads.reduce((sum, lead) => {
-            return sum + (lead.potential_value || 0);
-          }, 0);
+// Fetch sales leads for rewards calculation
+const { data: salesLeads } = await supabase
+  .from('sales_leads')
+  .select('potential_value, commission_percentage');
 
-          // Calculate different reward types based on potential values
-          // const teaching_incentives = Math.floor(totalPotentialValue * 0.4); // 40% for teaching incentives
-          // const closing_bonuses = Math.floor(totalPotentialValue * 0.3); // 30% for closing bonuses  
-          // const team_rewards = Math.floor(totalPotentialValue * 0.1); // 10% for team rewards
-          return totalPotentialValue;
-        };
+// Calculate total rewards from sales leads
+const calculateRewardsTotal = (leads: any[]) => {
+  const totalPotentialValue = leads.reduce((sum, lead) => {
+    return sum + (lead.potential_value || 0);
+  }, 0);
 
-        const rewardsTotal = calculateRewardsTotal(salesLeads || []);
+  // Calculate different reward types based on potential values
+  // const teaching_incentives = Math.floor(totalPotentialValue * 0.4); // 40% for teaching incentives
+  // const closing_bonuses = Math.floor(totalPotentialValue * 0.3); // 30% for closing bonuses  
+  // const team_rewards = Math.floor(totalPotentialValue * 0.1); // 10% for team rewards
+  return totalPotentialValue;
+};
 
-        setLessons(adaptedLessons);
-        setStats({
-          totalLessons: adaptedLessons.length,
-          activeStudents:   totalActive,
-          activeCourses: enrollments?.length || 0,
-          monthlyEarnings: adaptedLessons.length * 150, // חישוב פשוט לפי מספר שיעורים
-          rewardsTotal: rewardsTotal,
-          upcomingLessons: adaptedLessons.slice(0, 3),
-          recentActivity: adaptedLessons.slice(-3),
-        });
+const rewardsTotal = calculateRewardsTotal(salesLeads || []);
 
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setLoading(false);
+setLessons(adaptedLessons);
+setStats({
+  totalLessons: adaptedLessons.length,
+  activeStudents:   totalActive,
+  activeCourses: enrollments?.length || 0,
+  monthlyEarnings: adaptedLessons.length * 150, // חישוב פשוט לפי מספר שיעורים
+  rewardsTotal: rewardsTotal,
+  upcomingLessons: adaptedLessons.slice(0, 3),
+  recentActivity: adaptedLessons.slice(-3),
+});
+
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+    useEffect(() => {
+    fetchDashboardData();
+  }, [user]);
+
+  // Auto-refresh dashboard data every 2 minutes
+  useEffect(() => {
+    if (!user) return;
+    
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing dashboard data...');
+      fetchDashboardData();
+    }, 2 * 60 * 1000); // 2 minutes
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Listen for lesson report updates
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'lessonReportUpdated') {
+        console.log('Lesson report updated, refreshing dashboard...');
+        fetchDashboardData();
       }
     };
 
-    fetchDashboardData();
-  }, [user]);
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events
+    const handleCustomEvent = () => {
+      console.log('Custom lesson report event, refreshing dashboard...');
+      fetchDashboardData();
+    };
+    
+    window.addEventListener('lessonReportUpdated', handleCustomEvent);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('lessonReportUpdated', handleCustomEvent);
+    };
+  }, []);
 
 const menuItems = [
   {
@@ -852,6 +888,19 @@ return (
             </p>
           </div>
         )}
+        
+        {/* Refresh Button */}
+        <div className="mt-4">
+          <Button
+            onClick={() => window.location.reload()}
+            variant="outline"
+            size="sm"
+            className="bg-white/80 hover:bg-white shadow-md"
+          >
+            <Calendar className="h-4 w-4 ml-2" />
+            רענן דשבורד
+          </Button>
+        </div>
       </div>
 
       {/* תגמולים */}
@@ -891,6 +940,7 @@ return (
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
          <div className="col-span-3">
           <DailyLessonsCard
+            key={`daily-lessons-${weeklyReports.length}-${monthlyReportsCount}`}
             dateLabel={new Date().toLocaleDateString('he-IL')}
             onAddLesson={() => nav('/courses')}
             lessons={lessons}

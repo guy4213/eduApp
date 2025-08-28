@@ -16,21 +16,58 @@ const Calendar = () => {
   const [lessons, setLessons] = useState<any[]>([]);
   const nav = useNavigate();
 
-  useEffect(() => {
-    const fetchLessonsData = async () => {
-      if (!user) return;
+  const fetchLessonsData = async () => {
+    if (!user) return;
 
-      try {
-        // Use the new combined schedules function that handles both legacy and new formats
-        const combinedSchedules = await fetchCombinedSchedules();
-        setLessons(combinedSchedules);
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
+    try {
+      // Use the new combined schedules function that handles both legacy and new formats
+      const combinedSchedules = await fetchCombinedSchedules();
+      setLessons(combinedSchedules);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchLessonsData();
+  }, [user]);
+
+  // Auto-refresh calendar data every 2 minutes
+  useEffect(() => {
+    if (!user) return;
+    
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing calendar data...');
+      fetchLessonsData();
+    }, 2 * 60 * 1000); // 2 minutes
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Listen for lesson report updates
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'lessonReportUpdated') {
+        console.log('Lesson report updated, refreshing calendar...');
+        fetchLessonsData();
       }
     };
 
-    fetchLessonsData();
-  }, [user]);
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events
+    const handleCustomEvent = () => {
+      console.log('Custom lesson report event, refreshing calendar...');
+      fetchLessonsData();
+    };
+    
+    window.addEventListener('lessonReportUpdated', handleCustomEvent);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('lessonReportUpdated', handleCustomEvent);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 p-0 sm:p-6 ">
@@ -38,8 +75,24 @@ const Calendar = () => {
         <MobileNavigation />
       </div>
       <div className="mb-4 sm:mb-8 px-3 sm:px-0 py-4 ">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">יומן אישי</h1>
-        <p className="text-sm sm:text-base text-gray-600">צפייה במערכת השעות והשיעורים הקרובים</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">יומן אישי</h1>
+            <p className="text-sm sm:text-base text-gray-600">צפייה במערכת השעות והשיעורים הקרובים</p>
+          </div>
+          
+          {/* Refresh Button */}
+          <button
+            onClick={() => {
+              console.log('Manual refresh of calendar...');
+              fetchLessonsData();
+            }}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors shadow-md"
+          >
+            <CalendarIcon className="h-4 w-4 ml-2 inline" />
+            רענן יומן
+          </button>
+        </div>
       </div>
 
       {/* Edge-to-edge mobile layout */}

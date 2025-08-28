@@ -34,32 +34,34 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
     fetchInstructors();
   }, []);
 
-  useEffect(() => {
     const fetchReportedSchedules = async () => {
-      const { data, error } = await supabase
-        .from("reported_lesson_instances")
-        .select(`
-          lesson_schedule_id, 
-          course_instance_id, 
-          lesson_id, 
-          scheduled_date,
-          lesson_reports (
-            id,
-            is_completed,
-            is_lesson_ok
-          )
-        `);
+    // Get lesson reports with their associated reported_lesson_instances
+    const { data: lessonReports, error } = await supabase
+      .from("lesson_reports")
+      .select(`
+        id,
+        is_completed,
+        is_lesson_ok,
+        reported_lesson_instances (
+          lesson_schedule_id,
+          course_instance_id,
+          lesson_id,
+          scheduled_date
+        )
+      `);
 
-      if (error) {
-        console.error("Error fetching reported lesson instances:", error.message);
-        return;
-      }
+    if (error) {
+      console.error("Error fetching lesson reports:", error.message);
+      return;
+    }
 
-      // Create a set of reported lesson instance IDs and status map
-      const reportedIds = new Set<string>();
-      const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
-      
-      data?.forEach((instance: any) => {
+    // Create a set of reported lesson instance IDs and status map
+    const reportedIds = new Set<string>();
+    const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
+    
+    lessonReports?.forEach((report: any) => {
+      // A lesson report can have multiple reported_lesson_instances
+      report.reported_lesson_instances?.forEach((instance: any) => {
         let key = '';
         if (instance.lesson_schedule_id) {
           // Legacy architecture: use lesson_schedule_id
@@ -72,20 +74,67 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
         }
 
         // Store the status for this lesson
-        if (key && instance.lesson_reports && instance.lesson_reports.length > 0) {
-          const report = instance.lesson_reports[0]; // Get the first (most recent) report
+        if (key) {
           statusMap.set(key, {
             isCompleted: report.is_completed !== false, // Default to true if null
             isLessonOk: report.is_lesson_ok || false
           });
         }
       });
+    });
 
-      setReportedScheduleIds(reportedIds);
-      setReportStatusMap(statusMap);
+    setReportedScheduleIds(reportedIds);
+    setReportStatusMap(statusMap);
+  };
+
+  useEffect(() => {
+    fetchReportedSchedules();
+    
+    // Set up real-time subscription to listen for changes
+    const channel = supabase
+      .channel('lesson_reports_changes_schedule')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lesson_reports'
+        },
+        () => {
+          console.log('ScheduleList: Lesson report changed, refreshing...');
+          fetchReportedSchedules();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Listen for lesson report updates from localStorage
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'lessonReportUpdated') {
+        console.log('ScheduleList: Lesson report updated via storage, refreshing...');
+        fetchReportedSchedules();
+      }
     };
 
-    fetchReportedSchedules();
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events
+    const handleCustomEvent = () => {
+      console.log('ScheduleList: Custom lesson report event, refreshing...');
+      fetchReportedSchedules();
+    };
+    
+    window.addEventListener('lessonReportUpdated', handleCustomEvent);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('lessonReportUpdated', handleCustomEvent);
+    };
   }, []);
 
   const formatTime = (isoString: string) => {
@@ -128,9 +177,9 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
                 onClick={() =>
                   nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
                 }
-                className="bg-gray-200 text-gray-700 px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-gray-300"
+                className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
               >
-                📋 טרם דווח
+                📋 דווח על השיעור
               </button>
             ) : (
               <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
@@ -150,7 +199,18 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
             );
           }
 
-          if (lessonStatus?.isLessonOk === false) {
+          if (lessonStatus?.isCompleted === false) {
+            return (
+              <span 
+                className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+                style={{backgroundColor: '#FFA500'}}
+              >
+                ❌ לא התקיים
+              </span>
+            );
+          }
+
+          if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
             return (
               <span 
                 className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"

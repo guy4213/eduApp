@@ -72,22 +72,23 @@ export const DailyLessonsCard: React.FC<any> = ({
 
 useEffect(() => {
   async function fetchReportedSchedules() {
-    const { data, error } = await supabase
-      .from('reported_lesson_instances')
+    // Get lesson reports with their associated reported_lesson_instances
+    const { data: lessonReports, error } = await supabase
+      .from("lesson_reports")
       .select(`
-        lesson_schedule_id, 
-        course_instance_id, 
-        lesson_id, 
-        scheduled_date,
-        lesson_reports (
-          id,
-          is_completed,
-          is_lesson_ok
+        id,
+        is_completed,
+        is_lesson_ok,
+        reported_lesson_instances (
+          lesson_schedule_id,
+          course_instance_id,
+          lesson_id,
+          scheduled_date
         )
       `);
 
     if (error) {
-      console.error('Failed to fetch reported lesson instances:', error);
+      console.error('Failed to fetch lesson reports:', error);
       return;
     }
 
@@ -95,26 +96,28 @@ useEffect(() => {
     const reportedIds = new Set<string>();
     const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
     
-    data?.forEach((instance: any) => {
-      let key = '';
-      if (instance.lesson_schedule_id) {
-        // Legacy architecture: use lesson_schedule_id
-        key = instance.lesson_schedule_id;
-        reportedIds.add(instance.lesson_schedule_id);
-      } else if (instance.course_instance_id && instance.lesson_id) {
-        // New architecture: create a composite key for course_instance_id + lesson_id
-        key = `${instance.course_instance_id}_${instance.lesson_id}`;
-        reportedIds.add(key);
-      }
+    lessonReports?.forEach((report: any) => {
+      // A lesson report can have multiple reported_lesson_instances
+      report.reported_lesson_instances?.forEach((instance: any) => {
+        let key = '';
+        if (instance.lesson_schedule_id) {
+          // Legacy architecture: use lesson_schedule_id
+          key = instance.lesson_schedule_id;
+          reportedIds.add(instance.lesson_schedule_id);
+        } else if (instance.course_instance_id && instance.lesson_id) {
+          // New architecture: create a composite key for course_instance_id + lesson_id
+          key = `${instance.course_instance_id}_${instance.lesson_id}`;
+          reportedIds.add(key);
+        }
 
-      // Store the status for this lesson
-      if (key && instance.lesson_reports && instance.lesson_reports.length > 0) {
-        const report = instance.lesson_reports[0]; // Get the first (most recent) report
-        statusMap.set(key, {
-          isCompleted: report.is_completed !== false, // Default to true if null
-          isLessonOk: report.is_lesson_ok || false
-        });
-      }
+        // Store the status for this lesson
+        if (key) {
+          statusMap.set(key, {
+            isCompleted: report.is_completed !== false, // Default to true if null
+            isLessonOk: report.is_lesson_ok || false
+          });
+        }
+      });
     });
     
     setReportedScheduleIds(reportedIds);
@@ -122,6 +125,27 @@ useEffect(() => {
   }
 
   fetchReportedSchedules();
+  
+  // Set up real-time subscription to listen for changes
+  const channel = supabase
+    .channel('lesson_reports_changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'lesson_reports'
+      },
+      () => {
+        // Refresh data when lesson reports change
+        fetchReportedSchedules();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }, []);
 
   const filteredClasses = (lessons??[]).filter((c) => {
@@ -137,6 +161,15 @@ useEffect(() => {
 
   return classDateStr === selectedDateStr;
 });
+
+  // Remove duplicates based on course_instance_id and lesson_id
+  const uniqueClasses = filteredClasses.filter((lesson, index, self) => {
+    const key = `${lesson.course_instance_id}_${lesson.lesson?.id || lesson.lesson_id}`;
+    return index === self.findIndex(l => {
+      const lKey = `${l.course_instance_id}_${l.lesson?.id || l.lesson_id}`;
+      return lKey === key;
+    });
+  });
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -197,7 +230,7 @@ const instructorMap = useMemo(() => {
         </div>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
-        {filteredClasses.map((lesson,index) => {
+        {uniqueClasses.map((lesson,index) => {
           console.log("lesson",lesson)
           const colorKey = lesson.color || getColorById(lesson.id);
           const color = statusColors[colorKey];
@@ -220,9 +253,9 @@ const instructorMap = useMemo(() => {
             return user.user_metadata?.role === "instructor" ? (
               <button
                 onClick={() => nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}`)}
-                className="bg-gray-200 text-gray-700 rounded-full px-4 py-3 font-bold text-base transition-colors hover:bg-gray-300"
+                className="bg-blue-500 text-white rounded-full px-4 py-3 font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
               >
-                📋 טרם דווח
+                📋 דווח על השיעור
               </button>
             ) : (
               <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
@@ -244,7 +277,7 @@ const instructorMap = useMemo(() => {
             );
           }
 
-          if (lessonStatus?.isLessonOk === false) {
+          if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
             return (
               <button
                 disabled
