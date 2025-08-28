@@ -56,7 +56,8 @@ interface CourseInstanceSchedule {
 interface Lesson {
   id: string;
   title: string;
-  order_index?: number;
+  description: string;
+  order_index: number;
   tasks?: any[];
 }
 
@@ -253,7 +254,7 @@ const CourseAssignDialog = ({
     try {
       const { data, error } = await supabase
         .from("lessons")
-        .select("id, title, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
+        .select("id, title, description, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
         .eq("course_id", courseId)
         .order("order_index");
 

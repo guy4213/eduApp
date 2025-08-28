@@ -221,7 +221,7 @@ const Courses = () => {
 
   // Filter courses based on school type
   useEffect(() => {
-    if (!schoolTypeFilter) {
+    if (!schoolTypeFilter || schoolTypeFilter === 'all') {
       setFilteredCourses(courses);
     } else {
       const filtered = courses.filter(course => course.school_type === schoolTypeFilter);
@@ -361,18 +361,18 @@ const Courses = () => {
                       <SelectValue placeholder="כל סוגי בתי הספר" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">כל סוגי בתי הספר</SelectItem>
+                      <SelectItem value="all">כל סוגי בתי הספר</SelectItem>
                       <SelectItem value="elementary">יסודי</SelectItem>
                       <SelectItem value="middle">חטיבה</SelectItem>
                       <SelectItem value="high">תיכון</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                {schoolTypeFilter && (
+                {schoolTypeFilter && schoolTypeFilter !== 'all' && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setSchoolTypeFilter('')}
+                    onClick={() => setSchoolTypeFilter('all')}
                     className="text-gray-600"
                   >
                     נקה סינון
@@ -388,10 +388,10 @@ const Courses = () => {
             <CardContent>
               <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-6" />
               <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                {schoolTypeFilter ? 'לא נמצאו תוכניות לימוד מהסוג הנבחר' : 'אין תוכניות לימוד עדיין'}
+                {schoolTypeFilter && schoolTypeFilter !== 'all' ? 'לא נמצאו תוכניות לימוד מהסוג הנבחר' : 'אין תוכניות לימוד עדיין'}
               </h3>
               <p className="text-gray-600 mb-6 text-lg">
-                {schoolTypeFilter ? 'נסה לשנות את הסינון או לצור תוכנית לימוד חדשה' : 'התחל ליצור את תוכנית הלימוד הראשונה שלך'}
+                {schoolTypeFilter && schoolTypeFilter !== 'all' ? 'נסה לשנות את הסינון או לצור תוכנית לימוד חדשה' : 'התחל ליצור את תוכנית הלימוד הראשונה שלך'}
               </p>
               <Button
                 onClick={() => setShowCreateDialog(true)}

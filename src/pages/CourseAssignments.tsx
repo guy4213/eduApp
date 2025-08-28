@@ -334,28 +334,28 @@ const CourseAssignments = () => {
   useEffect(() => {
     let filtered = assignments;
 
-    if (instructorFilter) {
+    if (instructorFilter && instructorFilter !== 'all') {
       filtered = filtered.filter(assignment => 
         assignment.instructor_name.includes(instructorFilter) ||
         instructors.find(instructor => instructor.id === instructorFilter)?.full_name === assignment.instructor_name
       );
     }
 
-    if (institutionFilter) {
+    if (institutionFilter && institutionFilter !== 'all') {
       filtered = filtered.filter(assignment => 
         assignment.institution_name.includes(institutionFilter) ||
         institutions.find(institution => institution.id === institutionFilter)?.name === assignment.institution_name
       );
     }
 
-    if (courseFilter) {
+    if (courseFilter && courseFilter !== 'all') {
       filtered = filtered.filter(assignment => 
         assignment.name.includes(courseFilter) ||
         courseTemplates.find(course => course.id === courseFilter)?.name === assignment.name
       );
     }
 
-    if (schoolTypeFilter) {
+    if (schoolTypeFilter && schoolTypeFilter !== 'all') {
       filtered = filtered.filter(assignment => assignment.school_type === schoolTypeFilter);
     }
 
@@ -486,7 +486,7 @@ const CourseAssignments = () => {
                           <SelectValue placeholder="כל המדריכים" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">כל המדריכים</SelectItem>
+                          <SelectItem value="all">כל המדריכים</SelectItem>
                           {instructors.map((instructor) => (
                             <SelectItem key={instructor.id} value={instructor.full_name}>
                               {instructor.full_name}
@@ -503,7 +503,7 @@ const CourseAssignments = () => {
                           <SelectValue placeholder="כל המוסדות" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">כל המוסדות</SelectItem>
+                          <SelectItem value="all">כל המוסדות</SelectItem>
                           {institutions.map((institution) => (
                             <SelectItem key={institution.id} value={institution.name}>
                               {institution.name}
@@ -520,7 +520,7 @@ const CourseAssignments = () => {
                           <SelectValue placeholder="כל הקורסים" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">כל הקורסים</SelectItem>
+                          <SelectItem value="all">כל הקורסים</SelectItem>
                           {courseTemplates.map((course) => (
                             <SelectItem key={course.id} value={course.name}>
                               {course.name}
@@ -537,7 +537,7 @@ const CourseAssignments = () => {
                           <SelectValue placeholder="כל סוגי בתי הספר" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">כל סוגי בתי הספר</SelectItem>
+                          <SelectItem value="all">כל סוגי בתי הספר</SelectItem>
                           <SelectItem value="elementary">יסודי</SelectItem>
                           <SelectItem value="middle">חטיבה</SelectItem>
                           <SelectItem value="high">תיכון</SelectItem>
@@ -574,13 +574,13 @@ const CourseAssignments = () => {
             <CardContent>
               <Users className="h-16 w-16 text-gray-400 mx-auto mb-6" />
               <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                {(instructorFilter || institutionFilter || courseFilter || schoolTypeFilter) 
+                {(instructorFilter && instructorFilter !== 'all' || institutionFilter && institutionFilter !== 'all' || courseFilter && courseFilter !== 'all' || schoolTypeFilter && schoolTypeFilter !== 'all') 
                   ? "לא נמצאו הקצאות התואמות לסינון" 
                   : (isInstructor ? "אין קורסים מוקצים" : "אין הקצאות קורסים עדיין")
                 }
               </h3>
               <p className="text-gray-600 mb-6 text-lg">
-                {(instructorFilter || institutionFilter || courseFilter || schoolTypeFilter)
+                {(instructorFilter && instructorFilter !== 'all' || institutionFilter && institutionFilter !== 'all' || courseFilter && courseFilter !== 'all' || schoolTypeFilter && schoolTypeFilter !== 'all')
                   ? "נסה לשנות את הסינון או לנקות את הסינונים"
                   : (isInstructor 
                     ? "לא נמצאו קורסים שהוקצו לך"
