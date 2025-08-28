@@ -531,9 +531,12 @@ console.log("Total active students:", totalActive);
           scheduled_start: s.scheduled_start,
           scheduled_end: s.scheduled_end,
           title: s.lesson?.title || "ללא כותרת",
+          course_name: s.course_instances?.course?.name || "ללא שם קורס",
+          lesson_number: s.lesson_number || (s.lesson?.order_index ? s.lesson.order_index + 1 : 1),
           instructorName: s.course_instances?.instructor?.full_name || s?.course_instance?.instructor?.full_name || "לא ידוע",
           instructor_id: s.course_instances?.instructor?.id || s?.course_instance?.instructor?.id || "לא ידוע",
-          lesson_id: s.lesson?.id 
+          lesson_id: s.lesson?.id,
+          course_instance_id: s.course_instance_id
         }));
 
         console.log("Adapted lessons:", adaptedLessons);

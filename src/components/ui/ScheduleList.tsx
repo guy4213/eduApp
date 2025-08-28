@@ -91,24 +91,43 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
         return (
           <div
             key={index}
-            className="schedule-list-item grid grid-cols-[64px_1fr] gap-3 items-stretch p-3 bg-white rounded-2xl shadow-sm border border-gray-100"
+            className="p-4 rounded-2xl shadow bg-white border text-right space-y-1"
           >
-            {/* Time rail */}
-            <div className="flex flex-col items-center justify-center text-gray-500">
-              <div className="text-xs">{startTime}</div>
-              <div className="h-4 w-px bg-gray-200 my-1" />
-              <div className="text-xs">{endTime}</div>
-            </div>
+            <div className="flex justify-between items-start">
+              {/* lesson info */}
+              <div className="flex-1">
+                <h3 className="text-lg font-bold mb-2">
+                  📘 {item?.course_instances?.course?.name || "ללא שם קורס"} – שיעור מס׳ {item?.lesson_number || (item?.lesson?.order_index ? item.lesson.order_index + 1 : 1)}
+                </h3>
+                <p className="text-base mb-1">
+                  <span className="font-semibold">📖 שם השיעור:</span> {item?.lesson?.title}
+                </p>
+                <p className="text-base mb-1">
+                  <span className="font-semibold">🏫 מוסד:</span> {item?.course_instances?.institution?.name}
+                </p>
+                
+                {!item?.course_instances?.instructor?.full_name ? (
+                  <p className="text-base mb-1 text-red-600 font-semibold">
+                    <span className="font-semibold">👨‍🏫 מדריך:</span> אין מדריך לקורס הזה
+                  </p>
+                ) : (
+                  user.user_metadata.role !== "instructor" && (
+                    <p className="text-base mb-1">
+                      <span className="font-semibold">👨‍🏫 מדריך:</span> {instructorName}
+                    </p>
+                  )
+                )}
+                
+                <p className="text-base font-medium text-gray-900 mt-3">
+                  🕐 {startTime}-{endTime}
+                </p>
+              </div>
 
-            {/* Card content */}
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <div className="text-base font-semibold text-gray-900 truncate">
-                  {item?.lesson?.title}
-                </div>
+              {/* lesson action right */}
+              <div className="text-left">
                 {isReported ? (
-                  <span className="ml-2 inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full">
-                    <Check className="w-4 h-4" /> דווח
+                  <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
+                    <Check className="w-5 h-5" /> דווח
                   </span>
                 ) : (
                   user.user_metadata.role === "instructor" && (
@@ -116,29 +135,13 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
                       onClick={() =>
                         nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
                       }
-                      className="ml-2 text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-full font-semibold shadow-sm transition-colors"
+                      className="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-full font-bold text-base transition-colors"
                     >
-                      דיווח שיעור
+                      📋 דיווח שיעור
                     </button>
                   )
                 )}
               </div>
-
-              <div className="text-[13px] text-gray-600">
-                {item?.course_instances?.institution?.name}
-              </div>
-
-              {!item?.course_instances?.instructor?.full_name ? (
-                <div className="text-red-600 font-semibold text-sm">
-                  אין מדריך לקורס הזה
-                </div>
-              ) : (
-                user.user_metadata.role !== "instructor" && (
-                  <div className="text-sm text-gray-700">
-                    מדריך: <span className="font-medium">{instructorName}</span>
-                  </div>
-                )
-              )}
             </div>
           </div>
         );
