@@ -60,7 +60,7 @@ const salesLeadSchema = z.object({
     .max(100, "אחוז עמלה חייב להיות בין 0 ל-100"),
  
   notes: z.string().optional(),
-  target_date:z.string().min(1, " נא למלא תאריך בבקשה   ")
+  target_date:z.date()
 
 });
 
@@ -240,14 +240,14 @@ export default function SalesLeadAssignmentDialog({
 
     try {
       // Check and create institution if it doesn't exist
-          if(!data.potential_value||data.potential_value==0){
-         toast({
-            title: 'שגיאה',
-            description: `תגמול פוטנציאלי חייב להיות גדול מ 0!     `,
-            variant: 'destructive',
-          });
-          return;
-    }
+    //       if(!data.potential_value){
+    //      toast({
+    //         title: 'שגיאה',
+    //         description: `תגמול פוטנציאלי חייב להיות גדול מ 0!     `,
+    //         variant: 'destructive',
+    //       });
+    //       return;
+    // }
    setIsSubmitting(true);
       const leadData = {
         institution_name: data.institution_name,
@@ -449,7 +449,7 @@ export default function SalesLeadAssignmentDialog({
                     <FormLabel>כתובת המוסד</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="רחוב, עיר..."
+                        placeholder="חייב להיות בפורמט הבא: רחוב,עיר. לדוגמא: דיזינגוף 58,תל אביב "
                         {...field}
                         className="text-right"
                       />
