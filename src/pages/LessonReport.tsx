@@ -1004,6 +1004,10 @@ const handleSubmit = async () => {
 
             toast({ title: 'הצלחה!', description: 'דיווח השיעור נשמר בהצלחה' });
 
+            // Trigger dashboard refresh
+            localStorage.setItem('lessonReportUpdated', Date.now().toString());
+            window.dispatchEvent(new Event('lessonReportUpdated'));
+
             // Reset form
             setLessonTitle('');
             setNotes('');

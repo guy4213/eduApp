@@ -86,6 +86,27 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
     };
 
     fetchReportedSchedules();
+    
+    // Set up real-time subscription to listen for changes
+    const channel = supabase
+      .channel('lesson_reports_changes_schedule')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lesson_reports'
+        },
+        () => {
+          // Refresh data when lesson reports change
+          fetchReportedSchedules();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const formatTime = (isoString: string) => {
