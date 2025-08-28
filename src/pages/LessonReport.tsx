@@ -47,6 +47,7 @@ const LessonReport = () => {
     const [allReports, setAllReports] = useState([]);
     const [loading, setLoading] = useState(false);
     const [isLessonOk, setIsLessonOk] = useState(false);
+    const [isCompleted, setIsCompleted] = useState(true); // האם השיעור התקיים
     const [maxPar, setMaxPar] = useState(null);
     const { user } = useAuth();
     const [selectedReport, setSelectedReport] = useState(null);
@@ -789,7 +790,8 @@ const handleSubmit = async () => {
         const presentStudents = attendanceList.filter(student => student.isPresent).length;
         const participantsCount = presentStudents;
 
-        if (participantsCount === 0) {
+        // If lesson didn't take place, allow submission without participants
+        if (isCompleted && participantsCount === 0) {
             toast({
                 title: 'שגיאה',
                 description: `נדרש לבחור לפחות תלמיד אחד ועד ${maxPar} משתתפים`,
@@ -807,7 +809,8 @@ const handleSubmit = async () => {
             return;
         }
 
-        if (!isLessonOk && !feedback.trim()) {
+        // בדיקת משוב רק אם השיעור התקיים ולא התנהל כשורה
+        if (isCompleted && !isLessonOk && !feedback.trim()) {
             toast({
                 title: 'שגיאה',
                 description: 'בבקשה הזן משוב במידה והשיעור לא התנהל כשורה',
@@ -864,7 +867,8 @@ const handleSubmit = async () => {
                 feedback,
                 marketing_consent: marketingConsent,
                 instructor_id: user.id,
-                is_lesson_ok: isLessonOk,
+                is_lesson_ok: isCompleted ? isLessonOk : null, // רק אם השיעור התקיים
+                is_completed: isCompleted,
                 completed_task_ids: checkedTasks,
                 lesson_id: id,
             };
@@ -934,8 +938,8 @@ const handleSubmit = async () => {
 
             // --- START: NEW EMAIL SENDING LOGIC ---
       
-            // If the lesson was not OK, call our secure Edge Function
-            if (!isLessonOk && feedback.trim()) {
+            // If the lesson was not OK and it actually took place, call our secure Edge Function
+            if (isCompleted && !isLessonOk && feedback.trim()) {
                 console.log('Lesson not OK, invoking Edge Function to notify admins...');
                 
                 // 1. Get course name (you still need this on the client)
@@ -1000,6 +1004,10 @@ const handleSubmit = async () => {
 
             toast({ title: 'הצלחה!', description: 'דיווח השיעור נשמר בהצלחה' });
 
+            // Trigger dashboard refresh
+            localStorage.setItem('lessonReportUpdated', Date.now().toString());
+            window.dispatchEvent(new Event('lessonReportUpdated'));
+
             // Reset form
             setLessonTitle('');
             setNotes('');
@@ -1007,6 +1015,8 @@ const handleSubmit = async () => {
             setFiles([]);
             setCheckedTasks([]);
             setMarketingConsent(false);
+            setIsCompleted(true);
+            setIsLessonOk(false);
             setAttendanceList(prev => prev.map(student => ({ ...student, isPresent: false, isNew: false })));
             if (fileInputRef.current) fileInputRef.current.value = '';
 
@@ -1060,6 +1070,14 @@ const handleSubmit = async () => {
                                         </Badge>
                                     )}
                                 </Label>
+                                
+                                {!isCompleted && (
+                                    <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                        <p className="text-sm text-yellow-800">
+                                            ⚠️ השיעור לא התקיים - שדה הנוכחות לא רלוונטי
+                                        </p>
+                                    </div>
+                                )}
 
                                 {/* Add new student */}
                                 <div className="flex gap-2 mb-4">
@@ -1069,11 +1087,13 @@ const handleSubmit = async () => {
                                         onChange={(e) => setNewStudentName(e.target.value)}
                                         onKeyPress={(e) => e.key === 'Enter' && handleAddStudent()}
                                         className="flex-1"
+                                        disabled={!isCompleted}
                                     />
                                     <Button 
                                         type="button" 
                                         onClick={handleAddStudent} 
                                         variant="outline"
+                                        disabled={!isCompleted}
                                     >
                                         <Plus className="h-4 w-4" />
                                         הוסף
@@ -1101,8 +1121,9 @@ const handleSubmit = async () => {
                                                             checked={student.isPresent}
                                                             onChange={() => handleTogglePresence(student.id)}
                                                             className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                                            disabled={!isCompleted}
                                                         />
-                                                        <span className={`font-medium ${student.isPresent ? 'text-green-700' : 'text-gray-700'}`}>
+                                                        <span className={`font-medium ${student.isPresent ? 'text-green-700' : 'text-gray-700'} ${!isCompleted ? 'text-gray-400' : ''}`}>
                                                             {student.name}
                                                         </span>
                                                         {student.isNew && (
@@ -1117,6 +1138,7 @@ const handleSubmit = async () => {
                                                         size="sm"
                                                         onClick={() => handleRemoveStudent(student.id)}
                                                         className="text-red-500 hover:text-red-700"
+                                                        disabled={!isCompleted}
                                                     >
                                                         <X className="h-4 w-4" />
                                                     </Button>
@@ -1137,6 +1159,13 @@ const handleSubmit = async () => {
                             </div>
                             <div>
                                 <Label>משימות</Label>
+                                {!isCompleted && (
+                                    <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                        <p className="text-sm text-yellow-800">
+                                            ⚠️ השיעור לא התקיים - שדה המשימות לא רלוונטי
+                                        </p>
+                                    </div>
+                                )}
                                 {lessonTasks.map((task) => (
                                     <div key={task.id} className="flex items-center gap-2 mb-2">
                                         <input
@@ -1144,8 +1173,9 @@ const handleSubmit = async () => {
                                             checked={checkedTasks.includes(task.id)}
                                             onChange={() => handleToggleTask(task.id)}
                                             className="w-4 h-4"
+                                            disabled={!isCompleted}
                                         />
-                                        <label className="text-sm">{task.title}</label>
+                                        <label className={`text-sm ${!isCompleted ? 'text-gray-400' : ''}`}>{task.title}</label>
                                     </div>
                                 ))}
                             </div>
@@ -1153,12 +1183,24 @@ const handleSubmit = async () => {
                             <div className="flex items-center ">
                                 <input
                                     type="checkbox"
-                                    checked={isLessonOk}
-                                    onChange={() => setIsLessonOk(!isLessonOk)}
+                                    checked={isCompleted}
+                                    onChange={() => setIsCompleted(!isCompleted)}
                                     className="w-4 h-4"
                                 />
-                                <label className="text-sm pr-1">האם השיעור התנהל כשורה </label>
+                                <label className="text-sm pr-1">האם השיעור התקיים? </label>
                             </div>
+
+                            {isCompleted && (
+                                <div className="flex items-center ">
+                                    <input
+                                        type="checkbox"
+                                        checked={isLessonOk}
+                                        onChange={() => setIsLessonOk(!isLessonOk)}
+                                        className="w-4 h-4"
+                                    />
+                                    <label className="text-sm pr-1">האם השיעור התנהל כשורה? </label>
+                                </div>
+                            )}
 
                             <div>
                                 <Label htmlFor="notes">הערות נוספות</Label>
@@ -1167,7 +1209,13 @@ const handleSubmit = async () => {
 
                             <div>
                                 <Label htmlFor="feedback">משוב כללי</Label>
-                                <Textarea id="feedback" value={feedback} required={!isLessonOk} onChange={(e) => setFeedback(e.target.value)} rows={3} />
+                                <Textarea 
+                                    id="feedback" 
+                                    value={feedback} 
+                                    required={isCompleted && !isLessonOk} 
+                                    onChange={(e) => setFeedback(e.target.value)} 
+                                    rows={3} 
+                                />
                             </div>
 
                             <Button 
@@ -1357,6 +1405,7 @@ const handleSubmit = async () => {
                                                     <TableHead className="font-bold text-primary py-4 px-6 text-right">תאריך</TableHead>
                                                     <TableHead className="font-bold text-primary py-4 px-6 text-right">משוב</TableHead>
                                                     <TableHead className="font-bold text-primary py-4 px-6 text-right">התנהל כשורה</TableHead>
+                                                    <TableHead className="font-bold text-primary py-4 px-6 text-right">סטטוס שיעור</TableHead>
                                                     <TableHead className="font-bold text-primary py-4 px-6 text-right">צפייה</TableHead>
                                                 </TableRow>
                                             </TableHeader>
@@ -1469,6 +1518,21 @@ const handleSubmit = async () => {
                                                                     </Badge>
                                                                 )}
                                                             </TableCell>
+                                                            <TableCell className='px-6'>
+                                                                {report.is_completed === false ? (
+                                                                    <Badge variant="outline" className="bg-orange-100 text-white border-orange-200 hover:bg-orange-200" style={{backgroundColor: '#FFA500', color: 'white'}}>
+                                                                        לא התקיים
+                                                                    </Badge>
+                                                                ) : !report.is_lesson_ok ? (
+                                                                    <Badge variant="outline" className="bg-red-100 text-white border-red-200 hover:bg-red-200" style={{backgroundColor: '#FF0000', color: 'white'}}>
+                                                                        לא התנהל כשורה
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
+                                                                        דווח
+                                                                    </Badge>
+                                                                )}
+                                                            </TableCell>
                                                             <TableCell>
                                                                 <Button
                                                                     variant="outline"
@@ -1487,7 +1551,7 @@ const handleSubmit = async () => {
                                                         {/* Expandable row for attendance details */}
                                                         {expandedRows.has(report.id) && (
                                                             <TableRow>
-                                                                <TableCell colSpan={10} className="bg-gray-50 p-4">
+                                                                <TableCell colSpan={11} className="bg-gray-50 p-4">
                                                                     <div className="grid grid-cols-2 gap-6">
                                                                         <div>
                                                                             <h4 className="font-semibold text-green-700 mb-2 flex items-center">

@@ -51,6 +51,7 @@ interface LessonReportDetail {
   participants_count: number;
   total_students: number;
   is_lesson_ok: boolean;
+  is_completed: boolean;
   hourly_rate: number;
   created_at: string;
   attendanceData: AttendanceRecord[];
@@ -191,7 +192,7 @@ const Reports = () => {
         totalEarnings,
         totalLessons,
         totalScheduledLessons,
-        completionRate: totalScheduledLessons > 0 ? (totalLessons / totalScheduledLessons) * 100 : 0,
+        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0, // מתוך השיעורים שדווחו
         totalStudents,
         detailData: filteredInstructors
       };
@@ -217,7 +218,7 @@ const Reports = () => {
         totalEarnings,
         totalLessons,
         totalScheduledLessons,
-        completionRate: totalScheduledLessons > 0 ? (totalLessons / totalScheduledLessons) * 100 : 0,
+        completionRate: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0, // מתוך השיעורים שדווחו
         totalStudents,
         detailData: filteredInstitutions
       };
@@ -423,8 +424,9 @@ const Reports = () => {
       for (const inst of institutionData) {
         for (const course of inst.courses) {
           const scheduledInMonth = scheduledCountByInstance.get(course.id) || 0;
+          const completedLessons = course.lesson_details.filter(lesson => lesson.lesson_status === 'completed').length;
           course.scheduled_in_month = scheduledInMonth;
-          course.completion_percentage = scheduledInMonth > 0 ? (course.lesson_count / scheduledInMonth) * 100 : 0;
+          course.completion_percentage = scheduledInMonth > 0 ? (completedLessons / scheduledInMonth) * 100 : 0;
         }
       }
 
@@ -433,7 +435,7 @@ const Reports = () => {
       const completedLessons = instructorData.reduce((sum, instructor) => 
         sum + instructor.reports.filter(report => report.lesson_status === 'completed').length, 0);
 
-      const completionRate = totalScheduledLessons > 0 ? (totalReportedLessons / totalScheduledLessons) * 100 : 0;
+      const completionRate = totalScheduledLessons > 0 ? (completedLessons / totalScheduledLessons) * 100 : 0; // מתוך השיעורים המתוכננים
 
       return {
         totalLessons: totalReportedLessons,
@@ -472,6 +474,7 @@ const Reports = () => {
           lesson_title,
           participants_count,
           is_lesson_ok,
+          is_completed,
           created_at,
           instructor_id,
           course_instance_id,
@@ -577,7 +580,7 @@ const Reports = () => {
         }
 
         const lessonStatus: 'completed' | 'reported_issues' | 'not_reported' = 
-          report.is_lesson_ok ? 'completed' : 'reported_issues';
+          report.is_completed !== false ? 'completed' : 'reported_issues';
 
         const lessonDetail: LessonReportDetail = {
           id: report.id,
@@ -588,7 +591,8 @@ const Reports = () => {
           participants_count: report.participants_count || 0,
           total_students: totalStudents,
           is_lesson_ok: report.is_lesson_ok || false,
-          hourly_rate: hourlyRate,
+          is_completed: report.is_completed !== false,
+          hourly_rate: report.is_completed !== false ? hourlyRate : 0, // 0 שקל אם השיעור לא התקיים
           created_at: report.created_at,
           attendanceData,
           course_instance_id: courseInstanceId,
@@ -615,7 +619,7 @@ const Reports = () => {
         instructorReport.reports.push(lessonDetail);
         instructorReport.total_reports += 1;
         instructorReport.total_hours += actualHours; // Use actual calculated hours
-        instructorReport.total_salary += hourlyRate;
+        instructorReport.total_salary += lessonDetail.hourly_rate; // כבר 0 אם השיעור לא התקיים
       }
 
       return Array.from(instructorMap.values());
@@ -655,6 +659,7 @@ const Reports = () => {
             lesson_title,
             participants_count,
             is_lesson_ok,
+            is_completed,
             created_at,
             lesson_schedule_id,
             lesson_attendance (
@@ -711,7 +716,7 @@ const Reports = () => {
           }
 
           const lessonStatus: 'completed' | 'reported_issues' | 'not_reported' = 
-            report.is_lesson_ok ? 'completed' : 'reported_issues';
+            report.is_completed !== false ? 'completed' : 'reported_issues';
 
           return {
             id: report.id,
@@ -722,7 +727,8 @@ const Reports = () => {
             participants_count: report.participants_count || 0,
             total_students: instance.students?.length || 0,
             is_lesson_ok: report.is_lesson_ok || false,
-            hourly_rate: instance.price_for_customer || 0,
+            is_completed: report.is_completed !== false,
+            hourly_rate: report.is_completed !== false ? (instance.price_for_customer || 0) : 0, // 0 שקל אם השיעור לא התקיים
             created_at: report.created_at,
             attendanceData,
             lesson_status: lessonStatus,
@@ -743,7 +749,10 @@ const Reports = () => {
 
           institutionReport.courses.push(courseDetail);
           institutionReport.total_lessons += lessonsWithAttendance.length;
-          institutionReport.total_revenue += (instance.price_for_customer || 0) * lessonsWithAttendance.length;
+          
+          // סכום ההכנסות - כבר כולל 0 אם השיעור לא התקיים
+          const totalRevenue = lessonsWithAttendance.reduce((sum, lesson) => sum + lesson.hourly_rate, 0);
+          institutionReport.total_revenue += totalRevenue;
           
           const uniqueStudents = new Set();
           (instance.students || []).forEach(student => uniqueStudents.add(student.id));
@@ -861,7 +870,7 @@ const Reports = () => {
           };
 
           instructor.reports.push(unreportedLesson);
-          instructor.total_hours += actualHours; // Add actual hours to instructor total
+          // לא מוסיפים שעות לשיעורים שלא התקיימו
         } else {
           // Institution processing
           const institutionId = courseInstance.educational_institutions?.id;
@@ -1020,7 +1029,6 @@ const Reports = () => {
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -1043,7 +1051,7 @@ const Reports = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-2xl font-bold text-purple-600">{filteredMonthData.completionRate.toFixed(1)}%</p>
-                  <p className="text-gray-600 font-medium">אחוז דיווח</p>
+                  <p className="text-gray-600 font-medium">אחוז השלמה</p>
                 </div>
                 <div className="p-3 rounded-full bg-purple-500">
                   <TrendingUp className="h-6 w-6 text-white" />
@@ -1180,7 +1188,7 @@ const Reports = () => {
                     <th className="py-3 px-4 font-medium text-gray-900">הושלמו</th>
                     <th className="py-3 px-4 font-medium text-gray-900">לא הושלמו</th>
                     <th className="py-3 px-4 font-medium text-gray-900">הכנסות</th>
-                    <th className="py-3 px-4 font-medium text-gray-900">אחוז דיווח</th>
+                    <th className="py-3 px-4 font-medium text-gray-900">אחוז השלמה</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -1298,18 +1306,30 @@ const Reports = () => {
                           <div>
                             <CardTitle className="text-xl">{instructor.full_name}</CardTitle>
                             <CardDescription>
-                              דיווחים: {instructor.total_reports}/{instructor.reports.length} | 
+                              שיעורים דווחו: {instructor.total_reports} | 
                               שעות: {instructor.total_hours.toFixed(1)} | 
                               שכר: ₪{instructor.total_salary.toLocaleString()} |
-                              אחוז דיווח: {instructor.reports.length > 0 ? Math.round((instructor.total_reports / instructor.reports.length) * 100) : 0}%
+                              אחוז השלמה: {(() => {
+                                const totalScheduled = instructor.reports.length;
+                                const totalCompleted = instructor.reports.filter(report => report.lesson_status === 'completed').length;
+                                return totalScheduled > 0 ? Math.round((totalCompleted / totalScheduled) * 100) : 0;
+                              })()}%
                             </CardDescription>
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             <Badge variant="outline" className="text-lg font-bold">
                               ₪{instructor.total_salary.toLocaleString()}
                             </Badge>
-                            <Badge variant={instructor.reports.length > 0 && (instructor.total_reports / instructor.reports.length) > 0.8 ? "default" : "secondary"}>
-                              {instructor.total_reports}/{instructor.reports.length} שיעורים
+                            <Badge variant={(() => {
+                              const totalScheduled = instructor.reports.length;
+                              const totalCompleted = instructor.reports.filter(report => report.lesson_status === 'completed').length;
+                              return totalScheduled > 0 && (totalCompleted / totalScheduled) > 0.8 ? "default" : "secondary";
+                            })()}>
+                              {(() => {
+                                const totalScheduled = instructor.reports.length;
+                                const totalCompleted = instructor.reports.filter(report => report.lesson_status === 'completed').length;
+                                return `${totalCompleted}/${totalScheduled} הושלמו`;
+                              })()}
                             </Badge>
                           </div>
                         </div>
@@ -1392,36 +1412,56 @@ const Reports = () => {
                                     </td>
                                     <td className="py-3 px-4 font-medium">
                                       <div className="flex items-center gap-2">
-                                        <span className="text-blue-600 font-bold">
-                                          {report.actual_hours?.toFixed(1) || '1'} ש'
-                                        </span>
-                                        {report.scheduled_start && report.scheduled_end && (
-                                          <span className="text-xs text-gray-500">
-                                            {new Date(report.scheduled_start).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
-                                            -
-                                            {new Date(report.scheduled_end).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
-                                          </span>
+                                        {report.lesson_status === 'not_reported' ? (
+                                          <span className="text-yellow-600 font-medium">טרם דווח</span>
+                                        ) : (
+                                          <>
+                                            <span className="text-blue-600 font-bold">
+                                              {report.actual_hours?.toFixed(1) || '1'} ש'
+                                            </span>
+                                            {report.scheduled_start && report.scheduled_end && (
+                                              <span className="text-xs text-gray-500">
+                                                {new Date(report.scheduled_start).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                                                -
+                                                {new Date(report.scheduled_end).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                                              </span>
+                                            )}
+                                          </>
                                         )}
                                       </div>
                                     </td>
                                     <td className="py-3 px-4 font-bold">
                                       {report.lesson_status === 'not_reported' ? (
-                                        <span className="text-yellow-600 font-medium">טרם דווח - ₪{report.hourly_rate.toLocaleString()}</span>
+                                        <span className="text-yellow-600 font-medium">טרם דווח</span>
                                       ) : (
                                         <span className="text-green-600">₪{report.hourly_rate.toLocaleString()}</span>
                                       )}
                                     </td>
                                     <td className="py-3 px-4">
                                       {report.lesson_status === 'completed' ? (
-                                        <Badge className="bg-green-100 text-green-800">
-                                          <CheckCircle className="h-3 w-3 ml-1" />
-                                          הושלם בהצלחה
-                                        </Badge>
+                                        report.is_lesson_ok ? (
+                                          <Badge className="bg-green-100 text-green-800">
+                                            <CheckCircle className="h-3 w-3 ml-1" />
+                                            הושלם בהצלחה
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="destructive">
+                                            <X className="h-3 w-3 ml-1" />
+                                            לא התנהל כשורה
+                                          </Badge>
+                                        )
                                       ) : report.lesson_status === 'reported_issues' ? (
-                                        <Badge variant="destructive">
-                                          <X className="h-3 w-3 ml-1" />
-                                          דווח עם בעיות
-                                        </Badge>
+                                        report.is_completed === false ? (
+                                          <Badge className="bg-orange-100 text-orange-800 border-orange-300">
+                                            <X className="h-3 w-3 ml-1" />
+                                            לא התקיים
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="destructive">
+                                            <X className="h-3 w-3 ml-1" />
+                                            לא התנהל כשורה
+                                          </Badge>
+                                        )
                                       ) : (
                                         <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
                                           <Calendar className="h-3 w-3 ml-1" />
@@ -1515,18 +1555,30 @@ const Reports = () => {
                               {institution.name}
                             </CardTitle>
                             <CardDescription>
-                              שיעורים דווחו: {institution.total_lessons}/{institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)} | 
+                              שיעורים דווחו: {institution.total_lessons} | 
                               תלמידים: {institution.total_students} | 
                               הכנסות: ₪{institution.total_revenue.toLocaleString()} |
-                              אחוז דיווח: {institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0) > 0 ? Math.round((institution.total_lessons / institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)) * 100) : 0}%
+                              אחוז השלמה: {(() => {
+                                const totalScheduled = institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0);
+                                const totalCompleted = institution.courses.reduce((sum, course) => sum + course.lesson_details.filter(l => l.lesson_status === 'completed').length, 0);
+                                return totalScheduled > 0 ? Math.round((totalCompleted / totalScheduled) * 100) : 0;
+                              })()}%
                             </CardDescription>
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             <Badge variant="outline" className="text-lg font-bold">
                               ₪{institution.total_revenue.toLocaleString()}
                             </Badge>
-                            <Badge variant={institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0) > 0 && (institution.total_lessons / institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)) > 0.8 ? "default" : "secondary"}>
-                              {institution.total_lessons}/{institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0)} שיעורים
+                            <Badge variant={(() => {
+                              const totalScheduled = institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0);
+                              const totalCompleted = institution.courses.reduce((sum, course) => sum + course.lesson_details.filter(l => l.lesson_status === 'completed').length, 0);
+                              return totalScheduled > 0 && (totalCompleted / totalScheduled) > 0.8 ? "default" : "secondary";
+                            })()}>
+                              {(() => {
+                                const totalScheduled = institution.courses.reduce((sum, course) => sum + course.lesson_details.length, 0);
+                                const totalCompleted = institution.courses.reduce((sum, course) => sum + course.lesson_details.filter(l => l.lesson_status === 'completed').length, 0);
+                                return `${totalCompleted}/${totalScheduled} הושלמו`;
+                              })()}
                             </Badge>
                           </div>
                         </div>
@@ -1557,7 +1609,7 @@ const Reports = () => {
                                     {course.lesson_details.filter(l => l.lesson_status !== 'not_reported').length}/{course.lesson_details.length} דווחו
                                   </Badge>
                                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                    ₪{(course.price_per_lesson * course.lesson_count).toLocaleString()}
+                                    ₪{(course.price_per_lesson * course.lesson_details.filter(l => l.lesson_status === 'completed').length).toLocaleString()}
                                   </Badge>
                                 </div>
                                 {expandedRows.has(course.id) ? 
@@ -1593,7 +1645,10 @@ const Reports = () => {
                                             <div className="flex items-center gap-2">
                                               <Users className="h-4 w-4 text-gray-500" />
                                               <span className="font-medium">
-                                                {lesson.participants_count} מתוך {lesson.total_students}
+                                                {lesson.lesson_status === 'not_reported' 
+                                                  ? `0 מתוך ${lesson.total_students} (מתוכנן)`
+                                                  : `${lesson.participants_count} מתוך ${lesson.total_students}`
+                                                }
                                               </span>
                                             </div>
                                           </td>
@@ -1606,15 +1661,29 @@ const Reports = () => {
                                           </td>
                                           <td className="py-3 px-4">
                                             {lesson.lesson_status === 'completed' ? (
-                                              <Badge className="bg-green-100 text-green-800">
-                                                <CheckCircle className="h-3 w-3 ml-1" />
-                                                הושלם בהצלחה
-                                              </Badge>
+                                              lesson.is_lesson_ok ? (
+                                                <Badge className="bg-green-100 text-green-800">
+                                                  <CheckCircle className="h-3 w-3 ml-1" />
+                                                  הושלם בהצלחה
+                                                </Badge>
+                                              ) : (
+                                                <Badge variant="destructive">
+                                                  <X className="h-3 w-3 ml-1" />
+                                                  לא התנהל כשורה
+                                                </Badge>
+                                              )
                                             ) : lesson.lesson_status === 'reported_issues' ? (
-                                              <Badge variant="destructive">
-                                                <X className="h-3 w-3 ml-1" />
-                                                דווח עם בעיות
-                                              </Badge>
+                                              lesson.is_completed === false ? (
+                                                <Badge className="bg-orange-100 text-orange-800 border-orange-300">
+                                                  <X className="h-3 w-3 ml-1" />
+                                                  לא התקיים
+                                                </Badge>
+                                              ) : (
+                                                <Badge variant="destructive">
+                                                  <X className="h-3 w-3 ml-1" />
+                                                  לא התנהל כשורה
+                                                </Badge>
+                                              )
                                             ) : (
                                               <Badge variant="outline" className="bg-gray-50 text-gray-600">
                                                 <Calendar className="h-3 w-3 ml-1" />

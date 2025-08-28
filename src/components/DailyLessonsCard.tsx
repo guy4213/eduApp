@@ -68,35 +68,84 @@ export const DailyLessonsCard: React.FC<any> = ({
 }) => {
 
   const [reportedScheduleIds, setReportedScheduleIds] = useState<Set<string>>(new Set());
+  const [reportStatusMap, setReportStatusMap] = useState<Map<string, {isCompleted: boolean, isLessonOk: boolean}>>(new Map());
 
 useEffect(() => {
   async function fetchReportedSchedules() {
-    const { data, error } = await supabase
-      .from('reported_lesson_instances')
-      .select('lesson_schedule_id, course_instance_id, lesson_id, scheduled_date');
+    // Get lesson reports with their associated reported_lesson_instances
+    const { data: lessonReports, error } = await supabase
+      .from("lesson_reports")
+      .select(`
+        id,
+        is_completed,
+        is_lesson_ok,
+        reported_lesson_instances (
+          lesson_schedule_id,
+          course_instance_id,
+          lesson_id,
+          scheduled_date
+        )
+      `);
 
     if (error) {
-      console.error('Failed to fetch reported lesson instances:', error);
+      console.error('Failed to fetch lesson reports:', error);
       return;
     }
 
-    // Create a set of reported lesson instance IDs
+    // Create a set of reported lesson instance IDs and status map
     const reportedIds = new Set<string>();
+    const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
     
-    data?.forEach((instance: { lesson_schedule_id: string | null, course_instance_id: string | null, lesson_id: string, scheduled_date: string }) => {
-      if (instance.lesson_schedule_id) {
-        // Legacy architecture: use lesson_schedule_id
-        reportedIds.add(instance.lesson_schedule_id);
-      } else if (instance.course_instance_id && instance.lesson_id) {
-        // New architecture: create a composite key for course_instance_id + lesson_id
-        reportedIds.add(`${instance.course_instance_id}_${instance.lesson_id}`);
-      }
+    lessonReports?.forEach((report: any) => {
+      // A lesson report can have multiple reported_lesson_instances
+      report.reported_lesson_instances?.forEach((instance: any) => {
+        let key = '';
+        if (instance.lesson_schedule_id) {
+          // Legacy architecture: use lesson_schedule_id
+          key = instance.lesson_schedule_id;
+          reportedIds.add(instance.lesson_schedule_id);
+        } else if (instance.course_instance_id && instance.lesson_id) {
+          // New architecture: create a composite key for course_instance_id + lesson_id
+          key = `${instance.course_instance_id}_${instance.lesson_id}`;
+          reportedIds.add(key);
+        }
+
+        // Store the status for this lesson
+        if (key) {
+          statusMap.set(key, {
+            isCompleted: report.is_completed !== false, // Default to true if null
+            isLessonOk: report.is_lesson_ok || false
+          });
+        }
+      });
     });
     
     setReportedScheduleIds(reportedIds);
+    setReportStatusMap(statusMap);
   }
 
   fetchReportedSchedules();
+  
+  // Set up real-time subscription to listen for changes
+  const channel = supabase
+    .channel('lesson_reports_changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'lesson_reports'
+      },
+      () => {
+        // Refresh data when lesson reports change
+        fetchReportedSchedules();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }, []);
 
   const filteredClasses = (lessons??[]).filter((c) => {
@@ -112,6 +161,15 @@ useEffect(() => {
 
   return classDateStr === selectedDateStr;
 });
+
+  // Remove duplicates based on course_instance_id and lesson_id
+  const uniqueClasses = filteredClasses.filter((lesson, index, self) => {
+    const key = `${lesson.course_instance_id}_${lesson.lesson?.id || lesson.lesson_id}`;
+    return index === self.findIndex(l => {
+      const lKey = `${l.course_instance_id}_${l.lesson?.id || l.lesson_id}`;
+      return lKey === key;
+    });
+  });
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -172,7 +230,7 @@ const instructorMap = useMemo(() => {
         </div>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
-        {filteredClasses.map((lesson,index) => {
+        {uniqueClasses.map((lesson,index) => {
           console.log("lesson",lesson)
           const colorKey = lesson.color || getColorById(lesson.id);
           const color = statusColors[colorKey];
@@ -183,6 +241,67 @@ const instructorMap = useMemo(() => {
    const isReported = reportedScheduleIds.has(lesson.id) || 
                      (lesson.course_instance_id && lesson.lesson_id && 
                       reportedScheduleIds.has(`${lesson.course_instance_id}_${lesson.lesson_id}`));
+
+        // Get lesson status for reported lessons
+        const statusKey = reportedScheduleIds.has(lesson.id) ? lesson.id : 
+                         (lesson.course_instance_id && lesson.lesson_id ? `${lesson.course_instance_id}_${lesson.lesson_id}` : '');
+        const lessonStatus = reportStatusMap.get(statusKey);
+
+        // Function to render status badge
+        const renderStatusBadge = () => {
+          if (!isReported) {
+            return user.user_metadata?.role === "instructor" ? (
+              <button
+                onClick={() => nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}`)}
+                className="bg-blue-500 text-white rounded-full px-4 py-3 font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
+              >
+                📋 דווח על השיעור
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
+                📋 טרם דווח
+              </span>
+            );
+          }
+
+          if (lessonStatus?.isCompleted === false) {
+            return (
+              <button
+                disabled
+                className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
+                style={{backgroundColor: '#FFA500'}}
+                title="השיעור לא התקיים"
+              >
+                ❌ לא התקיים
+              </button>
+            );
+          }
+
+          if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
+            return (
+              <button
+                disabled
+                className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
+                style={{backgroundColor: '#FF0000'}}
+                title="השיעור לא התנהל כשורה"
+              >
+                ⚠️ לא התנהל כשורה
+              </button>
+            );
+          }
+
+          return (
+            <button
+              disabled
+              className="bg-green-400 rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base"
+              title="השיעור דווח בהצלחה"
+            >
+              <Check className="w-6 h-6 ml-2" />
+              דווח
+            </button>
+          );
+        };
+
             return (
             <div
               key={lesson.lesson_id}
@@ -214,25 +333,7 @@ const instructorMap = useMemo(() => {
 
                 {/* lesson action right */}
                 <div className="text-left">
-                  {isReported ? (
-                    <button
-                      disabled
-                      className="bg-green-400 rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base"
-                      title="השיעור דווח בהצלחה"
-                    >
-                      <Check className="w-6 h-6 ml-2" />
-                      השיעור דווח בהצלחה
-                    </button>
-                  ) : (
-                    user.user_metadata?.role === "instructor" && (
-                      <button
-                        onClick={() => nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}`)}
-                        className="bg-green-500 hover:bg-green-600 rounded-full px-4 py-3 text-white font-bold text-base transition-colors"
-                      >
-                        📋 דיווח שיעור
-                      </button>
-                    )
-                  )}
+                  {renderStatusBadge()}
                 </div>
               </div>
             </div>
