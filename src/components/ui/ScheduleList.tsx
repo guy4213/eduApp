@@ -45,9 +45,11 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
         lesson_reports (
           id,
           is_completed,
-          is_lesson_ok
+          is_lesson_ok,
+          created_at
         )
-      `);
+      `)
+      .order('created_at', { foreignTable: 'lesson_reports', ascending: false });
 
     if (error) {
       console.error("Error fetching reported lesson instances:", error.message);
@@ -58,30 +60,38 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
     const reportedIds = new Set<string>();
     const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
     
-    data?.forEach((instance: any) => {
-      let key = '';
-      if (instance.lesson_schedule_id) {
-        // Legacy architecture: use lesson_schedule_id
-        key = instance.lesson_schedule_id;
-        reportedIds.add(instance.lesson_schedule_id);
-      } else if (instance.course_instance_id && instance.lesson_id) {
-        // New architecture: create a composite key for course_instance_id + lesson_id
-        key = `${instance.course_instance_id}_${instance.lesson_id}`;
-        reportedIds.add(key);
-      }
+          data?.forEach((instance: any) => {
+        let key = '';
+        console.log('ScheduleList: Processing instance:', instance);
+        
+        if (instance.lesson_schedule_id) {
+          // Legacy architecture: use lesson_schedule_id
+          key = instance.lesson_schedule_id;
+          reportedIds.add(instance.lesson_schedule_id);
+          console.log('ScheduleList: Using legacy key:', key);
+        } else if (instance.course_instance_id && instance.lesson_id) {
+          // New architecture: create a composite key for course_instance_id + lesson_id
+          key = `${instance.course_instance_id}_${instance.lesson_id}`;
+          reportedIds.add(key);
+          console.log('ScheduleList: Using new key:', key);
+        }
 
-      // Store the status for this lesson
-      if (key && instance.lesson_reports && instance.lesson_reports.length > 0) {
-        const report = instance.lesson_reports[0]; // Get the first (most recent) report
-        statusMap.set(key, {
-          isCompleted: report.is_completed !== false, // Default to true if null
-          isLessonOk: report.is_lesson_ok || false
-        });
-      }
-    });
+        // Store the status for this lesson
+        if (key && instance.lesson_reports && instance.lesson_reports.length > 0) {
+          const report = instance.lesson_reports[0]; // Get the first (most recent) report
+          console.log('ScheduleList: Setting status for key:', key, 'report:', report);
+          statusMap.set(key, {
+            isCompleted: report.is_completed !== false, // Default to true if null
+            isLessonOk: report.is_lesson_ok || false
+          });
+        } else {
+          console.log('ScheduleList: No lesson reports found for key:', key, 'instance:', instance);
+        }
+      });
 
     console.log('ScheduleList: Updated reported IDs:', reportedIds);
     console.log('ScheduleList: Updated status map:', statusMap);
+    console.log('ScheduleList: Raw data from DB:', data);
     setReportedScheduleIds(reportedIds);
     setReportStatusMap(statusMap);
   };
@@ -171,16 +181,48 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
         const endTime = formatTime(item.scheduled_end);
 
         // Check if lesson is reported - handle both old and new architecture
+        const compositeKey = item.course_instance_id && item.lesson?.id ? `${item.course_instance_id}_${item.lesson.id}` : '';
         const isReported = reportedScheduleIds.has(item.id) || 
-                          (item.course_instance_id && item.lesson?.id && 
-                           reportedScheduleIds.has(`${item.course_instance_id}_${item.lesson.id}`));
+                          (compositeKey && reportedScheduleIds.has(compositeKey));
 
         // Get lesson status for reported lessons
-        const statusKey = reportedScheduleIds.has(item.id) ? item.id : 
-                         (item.course_instance_id && item.lesson?.id ? `${item.course_instance_id}_${item.lesson.id}` : '');
-        const lessonStatus = reportStatusMap.get(statusKey);
+        // Try multiple key formats to find the status
+        let statusKey = '';
+        let lessonStatus = null;
+        
+        // First try the exact item ID
+        if (reportedScheduleIds.has(item.id)) {
+          statusKey = item.id;
+          lessonStatus = reportStatusMap.get(statusKey);
+        }
+        
+        // If not found and we have composite key, try that
+        if (!lessonStatus && compositeKey && reportedScheduleIds.has(compositeKey)) {
+          statusKey = compositeKey;
+          lessonStatus = reportStatusMap.get(statusKey);
+        }
+        
+        // If still not found, try all keys in the map to find a match
+        if (!lessonStatus && item.course_instance_id && item.lesson?.id) {
+          for (const [key, status] of reportStatusMap.entries()) {
+            if (key.includes(item.course_instance_id) && key.includes(item.lesson.id)) {
+              statusKey = key;
+              lessonStatus = status;
+              break;
+            }
+          }
+        }
         
         console.log(`ScheduleList: Lesson ${item.id} - isReported: ${isReported}, statusKey: ${statusKey}, lessonStatus:`, lessonStatus);
+        console.log(`ScheduleList: Lesson data:`, {
+          id: item.id,
+          course_instance_id: item.course_instance_id,
+          lesson_id: item.lesson?.id,
+          isGenerated: item.id.startsWith('generated-'),
+          statusKey,
+          reportedScheduleIds: Array.from(reportedScheduleIds),
+          reportStatusMap: Array.from(reportStatusMap.entries())
+        });
 
         // Function to render status badge
         const renderStatusBadge = () => {
