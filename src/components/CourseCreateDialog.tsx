@@ -29,6 +29,7 @@ interface CourseCreateDialogProps {
     tasks: any[];
     start_date:string;
     approx_end_date:string;
+    school_type?: string;
   } | null;
   
 }
@@ -39,6 +40,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [formData, setFormData] = useState({
     name: '',
+    school_type: '',
   });
 
   useEffect(() => {
@@ -47,6 +49,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         // Pre-fill form with existing course data
         setFormData({
           name: editCourse.name,
+          school_type: editCourse.school_type || '',
         });
         
         loadExistingLessons(editCourse.id);
@@ -54,6 +57,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         // Reset form for new course
         setFormData({
           name: '',
+          school_type: '',
         });
         setLessons([]);
       }
@@ -185,6 +189,18 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.name.trim()) {
+      alert('נא להזין שם תוכנית לימוד');
+      return;
+    }
+    
+    if (!formData.school_type) {
+      alert('נא לבחור סוג בית ספר');
+      return;
+    }
+    
     await handleSubmit(formData, lessons, editCourse?.id);
   };
 

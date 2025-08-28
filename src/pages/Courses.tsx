@@ -60,6 +60,7 @@ interface Course {
   tasks: Task[];
   start_date: string;
   approx_end_date: string;
+  school_type?: string;
 }
 
 const Courses = () => {
@@ -101,6 +102,7 @@ const Courses = () => {
       ).select(`
           id,
           name,
+          school_type,
           created_at
         `);
 
@@ -182,6 +184,7 @@ const Courses = () => {
           start_date: null,
           approx_end_date: null,
           is_assigned: false,
+          school_type: course.school_type,
           tasks: allCourseTasks.map((task: any) => ({
             id: task.id,
             title: task.title,
@@ -243,6 +246,7 @@ const Courses = () => {
       tasks: course.tasks,
       start_date: course?.start_date,
       approx_end_date: course?.approx_end_date,
+      school_type: course.school_type,
     });
     setShowCreateDialog(true);
   };
@@ -425,7 +429,17 @@ const Courses = () => {
                   )}
 
                   {/* Course Details */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <div className="flex items-center justify-evenly">
+                      <span className="text-sm text-gray-600 font-medium">
+                        סוג בית ספר:
+                      </span>
+                      <span className="text-sm font-bold text-blue-600">
+                        {course.school_type === 'elementary' ? 'יסודי' : 
+                         course.school_type === 'middle' ? 'חטיבה' : 
+                         course.school_type === 'high' ? 'תיכון' : 'לא צוין'}
+                      </span>
+                    </div>
                     <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">
                         שם המדריך:
