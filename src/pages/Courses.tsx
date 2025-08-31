@@ -495,7 +495,7 @@ const Courses = () => {
                         {getSchoolTypeDisplayName(course.school_type)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-evenly">
+                    {/* <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">
                         שם המדריך:
                       </span>
@@ -510,8 +510,8 @@ const Courses = () => {
                           ? course.instructor_name
                           : "לא צוין"}
                       </span>
-                    </div>
-                    <div className="flex items-center justify-evenly">
+                    </div> */}
+                    {/* <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">
                         כיתה:
                       </span>
@@ -541,7 +541,7 @@ const Courses = () => {
                       <span className="text-sm font-bold text-green-600">
                         ₪{course.price_per_lesson}
                       </span>
-                    </div>
+                    </div> */}
                   </div>
 
                   {/* Tasks Section */}
