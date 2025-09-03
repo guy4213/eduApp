@@ -615,16 +615,19 @@ const CourseAssignments = () => {
                           מוקצה
                         </Badge>
                       </div>
-                      {assignment.presentation_link && (
+                      {assignment.presentation_link ? (
                         <a
                           href={assignment.presentation_link}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="underline text-sm text-blue-100"
                         >
-                          צפה במצגת הקורס
+                       <b>   צפה במצגת הקורס</b>
                         </a>
-                      )}
+                      )
+                   :(
+                     <span className="text-black">לא קיימת מצגת המשוייכת להקצאה זו  </span> 
+                    )}
                       <CardDescription className="text-blue-100 text-base">
                         {assignment.institution_name} • מדריך: {assignment.instructor_name}
                       </CardDescription>

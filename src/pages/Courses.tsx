@@ -442,7 +442,7 @@ const Courses = () => {
                           </Badge>
                         )}
                       </div>
-                      {course.presentation_link && (
+                      {course.presentation_link ? (
                         <a
                           href={course.presentation_link}
                           target="_blank"
@@ -451,9 +451,12 @@ const Courses = () => {
                             course.is_assigned ? "text-blue-100" : "text-amber-100"
                           }`}
                         >
-                          צפה במצגת הקורס
+                        <b> צפה במצגת הקורס</b>
                         </a>
-                      )}
+                      )
+                    :(
+                     <span className="text-black">לא קיימת מצגת המשוייכת לקורס זה  </span> 
+                    )}
                       <CardDescription
                         className={`text-base ${
                           course.is_assigned
@@ -463,7 +466,7 @@ const Courses = () => {
                       >
                         {course.is_assigned
                           ? course.institution_name
-                          : "ממתין להקצאה למוסד"}
+                          : "ממתין להקצאה "}
                       </CardDescription>
                     </div>
                     {user.user_metadata.role !== "instructor" && (
