@@ -137,18 +137,21 @@ export type Database = {
           created_at: string | null
           id: string
           name: string
+          presentation_link: string | null
           school_type: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           name: string
+          presentation_link?: string | null
           school_type?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
           name?: string
+          presentation_link?: string | null
           school_type?: string | null
         }
         Relationships: []
@@ -274,8 +277,8 @@ export type Database = {
           feedback: string | null
           id: string
           instructor_id: string | null
+          is_completed: boolean | null
           is_lesson_ok: boolean | null
-          isCompleted: boolean | null
           lesson_id: string | null
           lesson_schedule_id: string | null
           lesson_title: string
@@ -291,8 +294,8 @@ export type Database = {
           feedback?: string | null
           id?: string
           instructor_id?: string | null
+          is_completed?: boolean | null
           is_lesson_ok?: boolean | null
-          isCompleted?: boolean | null
           lesson_id?: string | null
           lesson_schedule_id?: string | null
           lesson_title: string
@@ -308,8 +311,8 @@ export type Database = {
           feedback?: string | null
           id?: string
           instructor_id?: string | null
+          is_completed?: boolean | null
           is_lesson_ok?: boolean | null
-          isCompleted?: boolean | null
           lesson_id?: string | null
           lesson_schedule_id?: string | null
           lesson_title?: string
