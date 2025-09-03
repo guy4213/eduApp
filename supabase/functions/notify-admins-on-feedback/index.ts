@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
         
         const emailPayload = {
           sender: {
-            name: "Course Admin System",
+            name: "Leaders Admin System",
             email: "fransesguy1@gmail.com"  // Your email as sender
           },
           to: [
