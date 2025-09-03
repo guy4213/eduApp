@@ -64,6 +64,7 @@ interface Course {
   start_date: string;
   approx_end_date: string;
   school_type?: string;
+  presentation_link?: string;
 }
 
 const Courses = () => {
@@ -108,6 +109,7 @@ const Courses = () => {
           id,
           name,
           school_type,
+          presentation_link,
           created_at
         `);
 
@@ -190,6 +192,7 @@ const Courses = () => {
           approx_end_date: null,
           is_assigned: false,
           school_type: course.school_type,
+          presentation_link: course.presentation_link,
           tasks: allCourseTasks.map((task: any) => ({
             id: task.id,
             title: task.title,
@@ -263,6 +266,7 @@ const Courses = () => {
       start_date: course?.start_date,
       approx_end_date: course?.approx_end_date,
       school_type: course.school_type,
+      presentation_link: course.presentation_link,
     });
     setShowCreateDialog(true);
   };
@@ -438,6 +442,18 @@ const Courses = () => {
                           </Badge>
                         )}
                       </div>
+                      {course.presentation_link && (
+                        <a
+                          href={course.presentation_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`underline text-sm ${
+                            course.is_assigned ? "text-blue-100" : "text-amber-100"
+                          }`}
+                        >
+                          צפה במצגת הקורס
+                        </a>
+                      )}
                       <CardDescription
                         className={`text-base ${
                           course.is_assigned

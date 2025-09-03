@@ -62,6 +62,7 @@ interface CourseAssignment {
   start_date: string;
   approx_end_date: string;
   school_type?: string;
+  presentation_link?: string;
 }
 
 const CourseAssignments = () => {
@@ -156,7 +157,8 @@ const CourseAssignments = () => {
         course:course_id (
           id,
           name,
-          school_type
+          school_type,
+          presentation_link
         ),
         instructor:instructor_id (
           id,
@@ -296,6 +298,7 @@ const CourseAssignments = () => {
           start_date: instanceData.start_date || null,
           approx_end_date: instanceData.end_date || null,
           school_type: course.school_type,
+          presentation_link: course.presentation_link,
           tasks: allCourseTasks.map((task: any) => ({
             id: task.id,
             title: task.title,
@@ -612,6 +615,16 @@ const CourseAssignments = () => {
                           מוקצה
                         </Badge>
                       </div>
+                      {assignment.presentation_link && (
+                        <a
+                          href={assignment.presentation_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline text-sm text-blue-100"
+                        >
+                          צפה במצגת הקורס
+                        </a>
+                      )}
                       <CardDescription className="text-blue-100 text-base">
                         {assignment.institution_name} • מדריך: {assignment.instructor_name}
                       </CardDescription>

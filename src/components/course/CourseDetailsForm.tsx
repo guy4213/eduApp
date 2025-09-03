@@ -13,6 +13,7 @@ interface CourseDetailsFormProps {
   formData: {
     name: string;
     school_type?: string;
+    presentation_link?: string;
   };
   onInputChange: (field: string, value: string) => void;
 }
@@ -47,6 +48,17 @@ const CourseDetailsForm = ({ formData, onInputChange }: CourseDetailsFormProps) 
             <SelectItem value="high">תיכון</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="presentation_link">קישור למצגת</Label>
+        <Input
+          id="presentation_link"
+          value={formData.presentation_link || ''}
+          onChange={(e) => onInputChange('presentation_link', e.target.value)}
+          placeholder="https://..."
+          type="url"
+        />
       </div>
     </div>
   );

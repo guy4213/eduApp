@@ -18,6 +18,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           .update({
             name: formData.name,
             school_type: formData.school_type,
+            presentation_link: formData.presentation_link || null,
           })
           .eq('id', editCourseId);
 
@@ -32,6 +33,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           .insert({
             name: formData.name,
             school_type: formData.school_type,
+            presentation_link: formData.presentation_link || null,
           })
           .select('id')
           .single();

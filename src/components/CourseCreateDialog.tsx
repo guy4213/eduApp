@@ -41,6 +41,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
   const [formData, setFormData] = useState({
     name: '',
     school_type: '',
+    presentation_link: '',
   });
 
   useEffect(() => {
@@ -50,6 +51,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         setFormData({
           name: editCourse.name,
           school_type: editCourse.school_type || '',
+          presentation_link: (editCourse as any).presentation_link || '',
         });
         
         loadExistingLessons(editCourse.id);
@@ -58,6 +60,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
         setFormData({
           name: '',
           school_type: '',
+          presentation_link: '',
         });
         setLessons([]);
       }
