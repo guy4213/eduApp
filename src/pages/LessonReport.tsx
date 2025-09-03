@@ -983,6 +983,48 @@ const handleSubmit = async () => {
                     console.log('Admin notification function invoked successfully.');
                 }
             }
+            
+            // Low attendance alert: if attendance is below 70%, notify admins/pedagogical manager
+            if (isCompleted) {
+                const totalStudentsForLesson = updatedAttendanceList.length;
+                if (totalStudentsForLesson > 0) {
+                    const attendanceRate = participantsCount / totalStudentsForLesson;
+                    if (attendanceRate < 0.7) {
+                        console.log('Low attendance detected (<70%). Notifying admins...');
+                        // Reuse course name resolution
+                        let courseNameForAttendance = 'לא ידוע';
+                        if (lesson?.course_id) {
+                            const { data: courseData2 } = await supabase
+                                .from('courses')
+                                .select('name')
+                                .eq('id', lesson.course_id)
+                                .single();
+                            if (courseData2) courseNameForAttendance = courseData2.name;
+                        }
+                        const attendancePercent = Math.round(attendanceRate * 100);
+                        const lowAttendancePayload = {
+                            courseName: courseNameForAttendance,
+                            lessonTitle: lessonTitle,
+                            lessonNumber: reportedInstanceData.lesson_number,
+                            participantsCount: participantsCount,
+                            notes: notes,
+                            // Use feedback field to indicate low attendance reason
+                            feedback: `נוכחות נמוכה (${attendancePercent}%) - מתחת לסף 70%`,
+                            marketingConsent: marketingConsent,
+                            instructorName: user?.user_metadata?.full_name || 'מדריך לא ידוע',
+                        };
+                        const { error: lowAttendanceNotifyError } = await supabase.functions.invoke(
+                            'notify-admins-on-feedback',
+                            { body: lowAttendancePayload }
+                        );
+                        if (lowAttendanceNotifyError) {
+                            console.error('Error invoking low-attendance notification:', lowAttendanceNotifyError);
+                        } else {
+                            console.log('Low-attendance notification sent successfully.');
+                        }
+                    }
+                }
+            }
             // --- END: MODIFIED EMAIL LOGIC ---
 
            
