@@ -33,6 +33,8 @@ import { getSchoolTypeDisplayName, getSchoolTypeColors } from "@/utils/schoolTyp
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
+import LessonStatusDisplay from "@/components/LessonStatusDisplay";
+import { getCourseLessonStatus, CourseLessonStatus } from "@/services/lessonStatusService";
 
 interface Task {
   id: string;
@@ -63,6 +65,7 @@ interface CourseAssignment {
   approx_end_date: string;
   school_type?: string;
   presentation_link?: string;
+  lessonStatus?: CourseLessonStatus;
 }
 
 const CourseAssignments = () => {
@@ -78,6 +81,7 @@ const CourseAssignments = () => {
     name: string;
   } | null>(null);
   const [editData, setEditData] = useState<CourseAssignment | null>(null);
+  const [lessonStatusLoading, setLessonStatusLoading] = useState(false);
   
   // Filter states
   const [instructorFilter, setInstructorFilter] = useState<string>('');
@@ -138,6 +142,34 @@ const CourseAssignments = () => {
       setCourseTemplates(coursesData || []);
     } catch (error) {
       console.error('Error fetching filter options:', error);
+    }
+  };
+
+  const fetchLessonStatusForAssignments = async (assignments: CourseAssignment[]) => {
+    setLessonStatusLoading(true);
+    try {
+      const courseInstanceIds = assignments.map(assignment => assignment.instance_id);
+      const lessonStatuses = await Promise.all(
+        courseInstanceIds.map(id => getCourseLessonStatus(id))
+      );
+
+      // Update assignments with lesson status
+      const updatedAssignments = assignments.map(assignment => {
+        const lessonStatus = lessonStatuses.find(status => 
+          status?.courseInstanceId === assignment.instance_id
+        );
+        return {
+          ...assignment,
+          lessonStatus
+        };
+      });
+
+      setAssignments(updatedAssignments);
+      setFilteredAssignments(updatedAssignments);
+    } catch (error) {
+      console.error('Error fetching lesson status:', error);
+    } finally {
+      setLessonStatusLoading(false);
     }
   };
 
@@ -320,8 +352,15 @@ const CourseAssignments = () => {
         tasks_count: a.tasks.length,
         lesson_count: a.lesson_count 
       })));
+      
+      // Set initial assignments without lesson status
       setAssignments(formattedAssignments);
       setFilteredAssignments(formattedAssignments);
+      
+      // Fetch lesson status for all assignments
+      if (formattedAssignments.length > 0) {
+        await fetchLessonStatusForAssignments(formattedAssignments);
+      }
     } catch (error) {
       console.error("Error fetching assignments:", error);
     } finally {
@@ -614,6 +653,19 @@ const CourseAssignments = () => {
                         <Badge className="bg-green-500/20 text-green-100 border-green-300/30">
                           מוקצה
                         </Badge>
+                        {lessonStatusLoading ? (
+                          <div className="mr-2 text-blue-100 text-sm">
+                            טוען סטטוס שיעורים...
+                          </div>
+                        ) : assignment.lessonStatus ? (
+                          <div className="mr-2">
+                            <LessonStatusDisplay 
+                              lessonStatuses={assignment.lessonStatus.lessons}
+                              showDetails={false}
+                              compact={true}
+                            />
+                          </div>
+                        ) : null}
                       </div>
                       {assignment.presentation_link ? (
                         <a
@@ -715,6 +767,24 @@ const CourseAssignments = () => {
                       </span>
                     </div>
                   </div>
+
+                  {/* Lesson Status Section */}
+                  {lessonStatusLoading ? (
+                    <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 ml-2"></div>
+                        <span className="text-gray-600">טוען סטטוס שיעורים...</span>
+                      </div>
+                    </div>
+                  ) : assignment.lessonStatus ? (
+                    <div className="mb-6">
+                      <LessonStatusDisplay 
+                        lessonStatuses={assignment.lessonStatus.lessons}
+                        showDetails={false}
+                        compact={false}
+                      />
+                    </div>
+                  ) : null}
 
                   {/* Tasks Section */}
                   {assignment.tasks.length > 0 && (
