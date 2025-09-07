@@ -85,7 +85,9 @@ const LessonReport = () => {
   const [dateFrom, setDateFrom] = useState(undefined);
   const [dateTo, setDateTo] = useState(undefined);
   const [filteredReports, setFilteredReports] = useState([]);
+  const [lessonNumber, setLessonNumber] = useState<any>();
 
+  
   async function getMaxParticipantsByScheduleId(scheduleId) {
     console.log("Getting max participants for schedule ID:", scheduleId);
 
@@ -397,6 +399,7 @@ const LessonReport = () => {
   };
 
   useEffect(() => {
+   
     if (isInstructor && !id) return;
 
     if (isInstructor) {
@@ -646,7 +649,6 @@ const LessonReport = () => {
     return true;
   };
 
-  // const handleSubmit = async () => {
   //     // Count present students
   //     const presentStudents = attendanceList.filter(student => student.isPresent).length;
   //     const participantsCount = presentStudents;
@@ -1221,6 +1223,7 @@ const LessonReport = () => {
           console.error("Error fetching lesson order_index:", lessonError);
         } else {
           reportedInstanceData.lesson_number = lessonData.order_index + 1;
+         
         }
       } else if (lessonScheduleId) {
         reportedInstanceData.lesson_schedule_id = lessonScheduleId;
@@ -1421,6 +1424,7 @@ const LessonReport = () => {
       setIsSubmitting(false);
     }
   };
+  console.log("xxx",lesson)
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="md:hidden">
@@ -1429,7 +1433,7 @@ const LessonReport = () => {
       <div className="max-w-7xl mx-auto ">
         {isInstructor ? (
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            דיווח שיעור - {lesson?.title}
+            דיווח שיעור  {lesson?.order_index+1} - {lesson?.title}
             {!scheduleId && !courseInstanceIdFromUrl && (
               <Badge variant="destructive" className="mr-2 text-xs">
                 שגיאה: לא נמצא לוח זמנים
@@ -1558,7 +1562,8 @@ const LessonReport = () => {
                                 </Badge>
                               )}
                             </div>
-                            <Button
+                        
+                     {lesson?.order_index+1 ==1 &&  <Button
                               type="button"
                               variant="ghost"
                               size="sm"
@@ -1567,7 +1572,7 @@ const LessonReport = () => {
                               disabled={!isCompleted}
                             >
                               <X className="h-4 w-4" />
-                            </Button>
+                            </Button>}
                           </div>
                         ))}
                       </div>
