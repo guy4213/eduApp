@@ -45,6 +45,12 @@ interface Task {
   order_index: number;
   scheduled_start?: string;
   scheduled_end?: string;
+  lesson_status?: {
+    is_completed: boolean;
+    is_lesson_ok: boolean;
+    feedback: string;
+    report_date: string;
+  } | null;
 }
 
 interface CourseAssignment {
@@ -104,6 +110,38 @@ const CourseAssignments = () => {
       grouped[task.lesson_number].push(task);
     }
     return grouped;
+  };
+
+  const getLessonStatusBadge = (lessonStatus: Task['lesson_status']) => {
+    if (!lessonStatus) {
+      return (
+        <Badge variant="outline" className="text-gray-500">
+          📋 טרם דווח
+        </Badge>
+      );
+    }
+
+    if (lessonStatus.is_completed === false) {
+      return (
+        <Badge className="bg-orange-500 text-white">
+          ❌ לא התקיים
+        </Badge>
+      );
+    }
+
+    if (lessonStatus.is_completed && lessonStatus.is_lesson_ok === false) {
+      return (
+        <Badge className="bg-red-500 text-white">
+          ⚠️ לא התנהל כשורה
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge className="bg-green-500 text-white">
+        ✅ דווח
+      </Badge>
+    );
   };
 
   const fetchFilterOptions = async () => {
@@ -192,6 +230,7 @@ const CourseAssignments = () => {
       let lessonsData: any[] = [];
       let tasksData: any[] = [];
       let schedulesData: any[] = [];
+      let lessonReportsData: any[] = [];
 
       if (courseIds.length > 0) {
         // Fetch lessons
@@ -238,8 +277,42 @@ const CourseAssignments = () => {
           }
         }
 
-        // Fetch combined lesson schedules (legacy + new architecture)
+        // Fetch lesson reports for status tracking
         const courseInstanceIds = coursesData?.map((instance) => instance.id) || [];
+        if (courseInstanceIds.length > 0) {
+          try {
+            // Fetch lesson reports with their associated lesson instances
+            const { data: reports, error: reportsError } = await supabase
+              .from("lesson_reports")
+              .select(`
+                id,
+                is_completed,
+                is_lesson_ok,
+                feedback,
+                lesson_title,
+                created_at,
+                reported_lesson_instances (
+                  lesson_id,
+                  course_instance_id,
+                  lesson_schedule_id,
+                  lesson_number
+                )
+              `)
+              .in("reported_lesson_instances.course_instance_id", courseInstanceIds);
+
+            if (reportsError) {
+              console.error("Error fetching lesson reports:", reportsError);
+            } else {
+              lessonReportsData = reports || [];
+              console.log(`[DEBUG] Found ${lessonReportsData.length} lesson reports:`, lessonReportsData);
+            }
+          } catch (error) {
+            console.error("Error fetching lesson reports:", error);
+            lessonReportsData = [];
+          }
+        }
+
+        // Fetch combined lesson schedules (legacy + new architecture)
         if (courseInstanceIds.length > 0) {
           try {
             const allSchedules = await fetchCombinedSchedules();
@@ -273,7 +346,14 @@ const CourseAssignments = () => {
               schedule.course_instance_id === instanceData.id
           );
 
-
+          // Find lesson report for this specific lesson and course instance
+          const lessonReport = lessonReportsData.find((report) => {
+            const reportedInstance = report.reported_lesson_instances?.[0];
+            return reportedInstance && 
+                   reportedInstance.lesson_id === lesson.id &&
+                   (reportedInstance.course_instance_id === instanceData.id ||
+                    reportedInstance.lesson_schedule_id === lessonSchedule?.id);
+          });
 
           return lessonTasks.map((task) => ({
             ...task,
@@ -281,6 +361,12 @@ const CourseAssignments = () => {
             lesson_number: courseLessons.findIndex((l) => l.id === lesson.id) + 1,
             scheduled_start: lessonSchedule?.scheduled_start || null,
             scheduled_end: lessonSchedule?.scheduled_end || null,
+            lesson_status: lessonReport ? {
+              is_completed: lessonReport.is_completed,
+              is_lesson_ok: lessonReport.is_lesson_ok,
+              feedback: lessonReport.feedback,
+              report_date: lessonReport.created_at
+            } : null,
           }));
         });
 
@@ -716,6 +802,63 @@ const CourseAssignments = () => {
                     </div>
                   </div>
 
+                  {/* Lesson Status Summary */}
+                  {assignment.tasks.length > 0 && (
+                    <div className="mb-6">
+                      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+                        <CardContent className="p-4">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                            <CheckCircle2 className="h-5 w-5 ml-2 text-blue-600" />
+                            סיכום סטטוס שיעורים
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {(() => {
+                              const lessonGroups = Object.entries(groupTasksByLesson(assignment.tasks));
+                              const totalLessons = lessonGroups.length;
+                              const reportedLessons = lessonGroups.filter(([_, tasks]) => tasks[0]?.lesson_status).length;
+                              const completedLessons = lessonGroups.filter(([_, tasks]) => 
+                                tasks[0]?.lesson_status?.is_completed === true
+                              ).length;
+                              const problemLessons = lessonGroups.filter(([_, tasks]) => 
+                                tasks[0]?.lesson_status?.is_completed === false || 
+                                (tasks[0]?.lesson_status?.is_completed === true && tasks[0]?.lesson_status?.is_lesson_ok === false)
+                              ).length;
+
+                              return (
+                                <>
+                                  <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                    <div className="text-center">
+                                      <div className="text-2xl font-bold text-gray-900">{totalLessons}</div>
+                                      <div className="text-sm text-gray-600">סה"כ שיעורים</div>
+                                    </div>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                    <div className="text-center">
+                                      <div className="text-2xl font-bold text-green-600">{completedLessons}</div>
+                                      <div className="text-sm text-gray-600">דווחו בהצלחה</div>
+                                    </div>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                    <div className="text-center">
+                                      <div className="text-2xl font-bold text-orange-600">{problemLessons}</div>
+                                      <div className="text-sm text-gray-600">בעיות</div>
+                                    </div>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                    <div className="text-center">
+                                      <div className="text-2xl font-bold text-blue-600">{totalLessons - reportedLessons}</div>
+                                      <div className="text-sm text-gray-600">טרם דווחו</div>
+                                    </div>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
                   {/* Tasks Section */}
                   {assignment.tasks.length > 0 && (
                     <div>
@@ -727,10 +870,17 @@ const CourseAssignments = () => {
                       <div className="space-y-6">
                         {Object.entries(groupTasksByLesson(assignment.tasks)).map(([lessonNumber, tasks]) => (
                           <div key={lessonNumber} className="bg-gray-50 rounded-lg p-4">
-                            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-                              <Calendar className="h-4 w-4 ml-2" />
-                              שיעור {lessonNumber}: {tasks[0]?.lesson_title || "ללא כותרת"}
-                            </h4>
+                            <div className="flex justify-between items-center mb-3">
+                              <h4 className="font-semibold text-gray-800 flex items-center">
+                                <Calendar className="h-4 w-4 ml-2" />
+                                שיעור {lessonNumber}: {tasks[0]?.lesson_title || "ללא כותרת"}
+                              </h4>
+                              {tasks[0]?.lesson_status && (
+                                <div className="flex items-center gap-2">
+                                  {getLessonStatusBadge(tasks[0].lesson_status)}
+                                </div>
+                              )}
+                            </div>
 
                             <Table>
                               <TableHeader>
@@ -738,6 +888,7 @@ const CourseAssignments = () => {
                                   <TableHead className="text-right">משימה</TableHead>
                                   <TableHead className="text-right">זמן משוער</TableHead>
                                   <TableHead className="text-right">סטטוס</TableHead>
+                                  <TableHead className="text-right">סטטוס שיעור</TableHead>
                                   <TableHead className="text-right">זמן מתוכנן</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -772,6 +923,16 @@ const CourseAssignments = () => {
                                           <span className={task.is_mandatory ? "text-red-600 font-medium" : "text-gray-600"}>
                                             {task.is_mandatory ? "חובה" : "רשות"}
                                           </span>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="flex items-center gap-2">
+                                          {getLessonStatusBadge(task.lesson_status)}
+                                          {task.lesson_status?.feedback && (
+                                            <div className="text-xs text-gray-600 max-w-xs truncate" title={task.lesson_status.feedback}>
+                                              💬 {task.lesson_status.feedback}
+                                            </div>
+                                          )}
                                         </div>
                                       </TableCell>
                                       <TableCell>
