@@ -31,6 +31,73 @@ interface GeneratedLessonSchedule {
 /**
  * Generates lesson schedules from course instance schedule patterns
  */
+// export const generateLessonSchedulesFromPattern = (
+//   courseInstanceSchedule: CourseInstanceSchedule,
+//   lessons: any[],
+//   courseStartDate: string,
+//   courseEndDate?: string
+// ): GeneratedLessonSchedule[] => {
+//   const generatedSchedules: GeneratedLessonSchedule[] = [];
+//   const { days_of_week, time_slots, total_lessons } = courseInstanceSchedule;
+  
+//   if (!days_of_week.length || !time_slots.length || !lessons.length || !courseStartDate) {
+//     return generatedSchedules;
+//   }
+
+//   const startDateTime = new Date(courseStartDate);
+//   const endDateTime = courseEndDate ? new Date(courseEndDate) : null;
+//   const maxLessons = total_lessons || lessons.length;
+  
+//   let currentDate = new Date(startDateTime);
+//   let lessonCount = 0;
+//   let lessonIndex = 0;
+
+//   while (lessonCount < maxLessons && lessonIndex < lessons.length) {
+//     const dayOfWeek = currentDate.getDay();
+    
+//     if (days_of_week.includes(dayOfWeek)) {
+//       // Find the time slot for this day
+//       const timeSlot = time_slots.find(ts => ts.day === dayOfWeek);
+      
+//       if (timeSlot && timeSlot.start_time && timeSlot.end_time) {
+//         // Check if we're within the end date (if specified)
+//         if (endDateTime && currentDate > endDateTime) {
+//           break;
+//         }
+
+//         const dateStr = currentDate.toISOString().split('T')[0];
+//         const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
+//         const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
+
+//         generatedSchedules.push({
+//           id: `generated-${courseInstanceSchedule.course_instance_id}-${lessonCount}`,
+//           course_instance_id: courseInstanceSchedule.course_instance_id,
+//           lesson_id: lessons[lessonIndex].id,
+//           scheduled_start: scheduledStart,
+//           scheduled_end: scheduledEnd,
+//           lesson_number: lessonCount + 1,
+//           lesson: lessons[lessonIndex],
+//         });
+
+//         lessonCount++;
+//         lessonIndex = (lessonIndex + 1) % lessons.length; // Cycle through lessons if needed
+//       }
+//     }
+
+//     // Move to next day
+//     currentDate.setDate(currentDate.getDate() + 1);
+    
+//     // Safety check to prevent infinite loop
+//     if (currentDate.getTime() - startDateTime.getTime() > 365 * 24 * 60 * 60 * 1000) {
+//       console.warn('Schedule generation stopped: exceeded 1 year from start date');
+//       break;
+//     }
+//   }
+
+//   return generatedSchedules;
+// };
+
+
 export const generateLessonSchedulesFromPattern = (
   courseInstanceSchedule: CourseInstanceSchedule,
   lessons: any[],
@@ -40,63 +107,70 @@ export const generateLessonSchedulesFromPattern = (
   const generatedSchedules: GeneratedLessonSchedule[] = [];
   const { days_of_week, time_slots, total_lessons } = courseInstanceSchedule;
   
-  if (!days_of_week.length || !time_slots.length || !lessons.length || !courseStartDate) {
+  if (!days_of_week.length || !time_slots.length || !lessons.length) {
     return generatedSchedules;
   }
 
-  const startDateTime = new Date(courseStartDate);
   const endDateTime = courseEndDate ? new Date(courseEndDate) : null;
   const maxLessons = total_lessons || lessons.length;
   
-  let currentDate = new Date(startDateTime);
   let lessonCount = 0;
   let lessonIndex = 0;
 
-  while (lessonCount < maxLessons && lessonIndex < lessons.length) {
-    const dayOfWeek = currentDate.getDay();
+  // מיון ימי השבוע וחריצי הזמן
+  const sortedDays = [...days_of_week].sort();
+  
+  for (const dayOfWeek of sortedDays) {
+    if (lessonCount >= maxLessons || lessonIndex >= lessons.length) break;
     
-    if (days_of_week.includes(dayOfWeek)) {
-      // Find the time slot for this day
-      const timeSlot = time_slots.find(ts => ts.day === dayOfWeek);
-      
-      if (timeSlot && timeSlot.start_time && timeSlot.end_time) {
-        // Check if we're within the end date (if specified)
-        if (endDateTime && currentDate > endDateTime) {
-          break;
-        }
+    const timeSlot = time_slots.find(ts => ts.day === dayOfWeek);
+    if (!timeSlot || !timeSlot.start_time || !timeSlot.end_time) continue;
 
-        const dateStr = currentDate.toISOString().split('T')[0];
-        const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
-        const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
-
-        generatedSchedules.push({
-          id: `generated-${courseInstanceSchedule.course_instance_id}-${lessonCount}`,
-          course_instance_id: courseInstanceSchedule.course_instance_id,
-          lesson_id: lessons[lessonIndex].id,
-          scheduled_start: scheduledStart,
-          scheduled_end: scheduledEnd,
-          lesson_number: lessonCount + 1,
-          lesson: lessons[lessonIndex],
-        });
-
-        lessonCount++;
-        lessonIndex = (lessonIndex + 1) % lessons.length; // Cycle through lessons if needed
+    // השתמש בתאריך שכבר חושב עם הדילוג
+    let currentDate: Date;
+    
+    if (timeSlot.first_lesson_date) {
+      // אם יש תאריך מותאם, השתמש בו
+      currentDate = new Date(timeSlot.first_lesson_date);
+    } else {
+      // אחרת, חזור ללוגיקה הישנה
+      currentDate = new Date(courseStartDate);
+      while (currentDate.getDay() !== dayOfWeek) {
+        currentDate.setDate(currentDate.getDate() + 1);
       }
     }
 
-    // Move to next day
-    currentDate.setDate(currentDate.getDate() + 1);
-    
-    // Safety check to prevent infinite loop
-    if (currentDate.getTime() - startDateTime.getTime() > 365 * 24 * 60 * 60 * 1000) {
-      console.warn('Schedule generation stopped: exceeded 1 year from start date');
-      break;
+    // יצירת שיעורים עבור היום הזה בשבוע
+    while (lessonCount < maxLessons && lessonIndex < lessons.length) {
+      // בדיקת תאריך סיום
+      if (endDateTime && currentDate > endDateTime) {
+        break;
+      }
+
+      const dateStr = currentDate.toISOString().split('T')[0];
+      const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
+      const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
+
+      generatedSchedules.push({
+        id: `generated-${courseInstanceSchedule.course_instance_id}-${lessonCount}`,
+        course_instance_id: courseInstanceSchedule.course_instance_id,
+        lesson_id: lessons[lessonIndex].id,
+        scheduled_start: scheduledStart,
+        scheduled_end: scheduledEnd,
+        lesson_number: lessonCount + 1,
+        lesson: lessons[lessonIndex],
+      });
+
+      lessonCount++;
+      lessonIndex++;
+      
+      // מעבר לשבוע הבא באותו יום
+      currentDate.setDate(currentDate.getDate() + 7);
     }
   }
 
   return generatedSchedules;
 };
-
 /**
  * Fetches course instance schedules and generates lesson schedules
  */

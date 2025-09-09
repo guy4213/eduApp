@@ -437,63 +437,178 @@ const CourseAssignDialog = ({
     }
   };
 
-  const saveCourseInstanceSchedule = async (instanceId: string) => {
-    try {
-      // Check if schedule already exists
-      const { data: existingSchedule } = await supabase
+  // const saveCourseInstanceSchedule = async (instanceId: string) => {
+  //   try {
+  //     // Check if schedule already exists
+  //     const { data: existingSchedule } = await supabase
+  //       .from("course_instance_schedules")
+  //       .select("id")
+  //       .eq("course_instance_id", instanceId)
+  //       .single();
+
+  //     const scheduleData = {
+  //       course_instance_id: instanceId,
+  //       days_of_week: courseSchedule.days_of_week,
+  //       time_slots: courseSchedule.time_slots,
+  //       total_lessons: courseSchedule.total_lessons,
+  //       lesson_duration_minutes: courseSchedule.lesson_duration_minutes,
+  //     };
+
+  //     if (existingSchedule) {
+  //       // Update existing schedule
+  //       const { error } = await supabase
+  //         .from("course_instance_schedules")
+  //         .update(scheduleData)
+  //         .eq("id", existingSchedule.id);
+
+  //       if (error) throw error;
+  //     } else {
+  //       // Create new schedule
+  //       const { error } = await supabase
+  //         .from("course_instance_schedules")
+  //         .insert([scheduleData]);
+
+  //       if (error) throw error;
+  //     }
+
+  //     // Only clean up old lesson_schedules if we're updating schedule pattern in edit mode
+  //     if (mode === 'edit' && (courseSchedule.days_of_week.length > 0 || courseSchedule.time_slots.length > 0)) {
+  //       // Check if there are any existing course_instance_schedules
+  //       const { data: existingCourseSchedule } = await supabase
+  //         .from("course_instance_schedules")
+  //         .select("id")
+  //         .eq("course_instance_id", instanceId)
+  //         .single();
+          
+  //       // Only delete legacy schedules if we're migrating to new schedule format
+  //       if (existingCourseSchedule) {
+  //         await supabase
+  //           .from('lesson_schedules')
+  //           .delete()
+  //           .eq('course_instance_id', instanceId);
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error("Error saving course instance schedule:", error);
+  //     throw error;
+  //   }
+  // };
+
+
+const saveCourseInstanceSchedule = async (instanceId: string) => {
+  try {
+    console.log('=== STARTING SCHEDULE CALCULATION ===');
+    console.log('formData.start_date:', formData.start_date);
+    console.log('courseSchedule.time_slots:', courseSchedule.time_slots);
+    console.log('courseSchedule.days_of_week:', courseSchedule.days_of_week);
+    
+    // חישוב התאריך הראשון הזמין לכל יום
+    const adjustedTimeSlots = courseSchedule.time_slots.map(timeSlot => {
+      console.log('\n=== Processing timeSlot ===', timeSlot);
+      
+      const startDate = new Date(formData.start_date + 'T00:00:00');
+      const now = new Date();
+      
+      console.log('Start date:', startDate.toLocaleString());
+      console.log('Current time:', now.toLocaleString());
+      console.log('Target day of week:', timeSlot.day);
+      console.log('Current day of week:', now.getDay());
+      
+      // מצא את היום הראשון שמתאים ליום השבוע
+      let targetDate = new Date(startDate);
+      console.log('Initial target date:', targetDate.toLocaleString());
+      
+      while (targetDate.getDay() !== timeSlot.day) {
+        targetDate.setDate(targetDate.getDate() + 1);
+        console.log('Moving to next day:', targetDate.toLocaleString(), 'Day of week:', targetDate.getDay());
+      }
+      
+      console.log('Found matching day:', targetDate.toLocaleString());
+      
+      // הוסף את השעה
+      const [hours, minutes] = timeSlot.start_time.split(':').map(Number);
+      console.log('Setting time to:', hours, ':', minutes);
+      targetDate.setHours(hours, minutes, 0, 0);
+      
+      console.log('Target date with time:', targetDate.toLocaleString());
+      console.log('Target timestamp:', targetDate.getTime());
+      console.log('Current timestamp:', now.getTime());
+      console.log('Difference (minutes):', (targetDate.getTime() - now.getTime()) / (1000 * 60));
+      
+      // בדוק אם התאריך והשעה כבר עברו
+      if (targetDate.getTime() <= now.getTime()) {
+        console.log('*** TIME HAS PASSED - SKIPPING TO NEXT WEEK ***');
+        targetDate.setDate(targetDate.getDate() + 7);
+        console.log('New target date:', targetDate.toLocaleString());
+      } else {
+        console.log('*** TIME HAS NOT PASSED - KEEPING CURRENT DATE ***');
+      }
+      
+      const result = {
+        ...timeSlot,
+        first_lesson_date: targetDate.toISOString().split('T')[0],
+        actual_start_time: timeSlot.start_time,
+        actual_end_time: timeSlot.end_time
+      };
+      
+      console.log('Final result for this slot:', result);
+      return result;
+    });
+
+    console.log('\n=== FINAL ADJUSTED TIME SLOTS ===');
+    console.log(adjustedTimeSlots);
+
+    // Check if schedule already exists
+    const { data: existingSchedule } = await supabase
+      .from("course_instance_schedules")
+      .select("id")
+      .eq("course_instance_id", instanceId)
+      .single();
+
+    const scheduleData = {
+      course_instance_id: instanceId,
+      days_of_week: courseSchedule.days_of_week,
+      time_slots: adjustedTimeSlots,
+      total_lessons: courseSchedule.total_lessons,
+      lesson_duration_minutes: courseSchedule.lesson_duration_minutes,
+    };
+
+    console.log('Saving schedule data:', scheduleData);
+
+    if (existingSchedule) {
+      const { error } = await supabase
+        .from("course_instance_schedules")
+        .update(scheduleData)
+        .eq("id", existingSchedule.id);
+
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from("course_instance_schedules")
+        .insert([scheduleData]);
+
+      if (error) throw error;
+    }
+
+    if (mode === 'edit' && (courseSchedule.days_of_week.length > 0 || courseSchedule.time_slots.length > 0)) {
+      const { data: existingCourseSchedule } = await supabase
         .from("course_instance_schedules")
         .select("id")
         .eq("course_instance_id", instanceId)
         .single();
-
-      const scheduleData = {
-        course_instance_id: instanceId,
-        days_of_week: courseSchedule.days_of_week,
-        time_slots: courseSchedule.time_slots,
-        total_lessons: courseSchedule.total_lessons,
-        lesson_duration_minutes: courseSchedule.lesson_duration_minutes,
-      };
-
-      if (existingSchedule) {
-        // Update existing schedule
-        const { error } = await supabase
-          .from("course_instance_schedules")
-          .update(scheduleData)
-          .eq("id", existingSchedule.id);
-
-        if (error) throw error;
-      } else {
-        // Create new schedule
-        const { error } = await supabase
-          .from("course_instance_schedules")
-          .insert([scheduleData]);
-
-        if (error) throw error;
+        
+      if (existingCourseSchedule) {
+        await supabase
+          .from('lesson_schedules')
+          .delete()
+          .eq('course_instance_id', instanceId);
       }
-
-      // Only clean up old lesson_schedules if we're updating schedule pattern in edit mode
-      if (mode === 'edit' && (courseSchedule.days_of_week.length > 0 || courseSchedule.time_slots.length > 0)) {
-        // Check if there are any existing course_instance_schedules
-        const { data: existingCourseSchedule } = await supabase
-          .from("course_instance_schedules")
-          .select("id")
-          .eq("course_instance_id", instanceId)
-          .single();
-          
-        // Only delete legacy schedules if we're migrating to new schedule format
-        if (existingCourseSchedule) {
-          await supabase
-            .from('lesson_schedules')
-            .delete()
-            .eq('course_instance_id', instanceId);
-        }
-      }
-    } catch (error) {
-      console.error("Error saving course instance schedule:", error);
-      throw error;
     }
-  };
-
+  } catch (error) {
+    console.error("Error saving course instance schedule:", error);
+    throw error;
+  }
+};
   const handleFinalSave = async () => {
     setLoading(true);
     try {
