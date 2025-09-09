@@ -118,7 +118,7 @@ const CourseAssignDialog = ({
   const { toast } = useToast();
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [lessons, setLessons] = useState<any>([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -254,8 +254,8 @@ const CourseAssignDialog = ({
     try {
       const { data, error } = await supabase
         .from("lessons")
-        .select("id, title, description, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
-        .eq("course_id", courseId)
+      .select("id, title, order_index, lesson_tasks (id, title, description, estimated_duration, is_mandatory, order_index)")
+          .eq("course_id", courseId)
         .order("order_index");
 
       if (error) throw error;
