@@ -30,6 +30,7 @@ const Profile = () => {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
+    full_name: "",
     img: "",
     email: "",
     phone: "",
@@ -115,54 +116,105 @@ const Profile = () => {
     });
   };
 
-  const handleSave = async () => {
-    if (!user || !profile) return;
+  // const handleSave = async () => {
+  //   if (!user || !profile) return;
 
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          img: editForm.img || null,
-          email: editForm.email || null,
-          phone: editForm.phone || null,
-          birthdate: editForm.birthdate || null,
-        })
-        .eq("id", user.id);
+  //   setSaving(true);
+  //   try {
+  //     const { error } = await supabase
+  //       .from("profiles")
+  //       .update({
+  //         full_name: profile.full_name||null,
+  //         img: editForm.img || null,
+  //         email: editForm.email || null,
+  //         phone: editForm.phone || null,
+  //         birthdate: editForm.birthdate || null,
+  //       })
+  //       .eq("id", user.id);
 
-      if (error) {
-        toast({
-          title: "שגיאה",
-          description: "לא ניתן לעדכן את הפרופיל",
-          variant: "destructive",
-        });
-        return;
-      }
+  //     if (error) {
+  //       toast({
+  //         title: "שגיאה",
+  //         description: "לא ניתן לעדכן את הפרופיל",
+  //         variant: "destructive",
+  //       });
+  //       return;
+  //     }
 
-      setProfile({
-        ...profile,
+  //     setProfile({
+  //       ...profile,
+  //       img: editForm.img || null,
+  //       email: editForm.email || null,
+  //       phone: editForm.phone || null,
+  //     });
+
+  //     setEditing(false);
+  //     toast({
+  //       title: "הפרופיל עודכן בהצלחה",
+  //       description: "השינויים נשמרו במערכת",
+  //     });
+  //   } catch (error) {
+  //     console.error("Error updating profile:", error);
+  //     toast({
+  //       title: "שגיאה",
+  //       description: "אירעה שגיאה בעדכון הפרופיל",
+  //       variant: "destructive",
+  //     });
+  //   } finally {
+  //     setSaving(false);
+  //   }
+  // };
+const handleSave = async () => {
+  if (!user || !profile) return;
+
+  setSaving(true);
+  try {
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: editForm.full_name || null, // Use editForm, not profile
         img: editForm.img || null,
         email: editForm.email || null,
         phone: editForm.phone || null,
-      });
+        birthdate: editForm.birthdate || null,
+      })
+      .eq("id", user.id);
 
-      setEditing(false);
-      toast({
-        title: "הפרופיל עודכן בהצלחה",
-        description: "השינויים נשמרו במערכת",
-      });
-    } catch (error) {
-      console.error("Error updating profile:", error);
+    if (error) {
       toast({
         title: "שגיאה",
-        description: "אירעה שגיאה בעדכון הפרופיל",
+        description: "לא ניתן לעדכן את הפרופיל",
         variant: "destructive",
       });
-    } finally {
-      setSaving(false);
+      return;
     }
-  };
 
+    // Update local state with all the fields that were updated in DB
+    setProfile({
+      ...profile,
+      full_name: editForm.full_name || null, // Add this
+      img: editForm.img || null,
+      email: editForm.email || null,
+      phone: editForm.phone || null,
+      birthdate: editForm.birthdate || null, // Add this
+    });
+
+    setEditing(false);
+    toast({
+      title: "הפרופיל עודכן בהצלחה",
+      description: "השינויים נשמרו במערכת",
+    });
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    toast({
+      title: "שגיאה",
+      description: "אירעה שגיאה בעדכון הפרופיל",
+      variant: "destructive",
+    });
+  } finally {
+    setSaving(false);
+  }
+};
   console.log("profiles", profile);
   useEffect(() => {
     if (authLoading || !user) return;
@@ -283,11 +335,15 @@ const Profile = () => {
                 <Label htmlFor="name">שם מלא</Label>
                 <Input
                   id="name"
-                  value={profile.full_name}
-                  disabled
-                  className="bg-muted cursor-not-allowed"
+                  value={!editing?profile.full_name:editForm.full_name}
+                  disabled={!editing}
+                  className={!editing?"bg-muted cursor-not-allowed":""}
+                     onChange={(e) =>
+                      setEditForm({ ...editForm, full_name: e.target.value })
+                    }
                 />
               </div>
+              
               <div>
                 <Label htmlFor="email">אימייל</Label>
                 {editing ? (
