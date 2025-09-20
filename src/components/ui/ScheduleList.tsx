@@ -170,63 +170,133 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
         const lessonStatus = reportStatusMap.get(statusKey);
 
         // Function to render status badge
-        const renderStatusBadge = () => {
-          if (!isReported) {
-            return user.user_metadata.role === "instructor" ? (
-              <button
-                onClick={() =>
-                  nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
-                }
-                className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
-              >
-                📋 דווח על השיעור
-              </button>
-            ) : (
-              <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
-                📋 טרם דווח
-              </span>
-            );
-          }
+        // const renderStatusBadge = () => {
+        //   if (!isReported) {
+        //     return user.user_metadata.role === "instructor" ? (
+        //       <button
+        //         onClick={() =>
+        //           nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
+        //         }
+        //         className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
+        //       >
+        //         📋 דווח על השיעור
+        //       </button>
+        //     ) : (
+        //       <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
+        //         📋 טרם דווח
+        //       </span>
+        //     );
+        //   }
 
-          if (lessonStatus?.isCompleted === false) {
-            return (
-              <span 
-                className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-                style={{backgroundColor: '#FFA500'}}
-              >
-                ❌ לא התקיים
-              </span>
-            );
-          }
+        //   if (lessonStatus?.isCompleted === false) {
+        //     return (
+        //       <span 
+        //         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+        //         style={{backgroundColor: '#FFA500'}}
+        //       >
+        //         ❌ לא התקיים
+        //       </span>
+        //     );
+        //   }
 
-          if (lessonStatus?.isCompleted === false) {
-            return (
-              <span 
-                className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-                style={{backgroundColor: '#FFA500'}}
-              >
-                ❌ לא התקיים
-              </span>
-            );
-          }
+        //   if (lessonStatus?.isCompleted === false) {
+        //     return (
+        //       <span 
+        //         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+        //         style={{backgroundColor: '#FFA500'}}
+        //       >
+        //         ❌ לא התקיים
+        //       </span>
+        //     );
+        //   }
 
-          if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
-            return (
-              <span 
-                className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-                style={{backgroundColor: '#FF0000'}}
-              >
-                ⚠️ לא התנהל כשורה
-              </span>
-            );
-          }
+        //   if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
+        //     return (
+        //       <span 
+        //         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+        //         style={{backgroundColor: '#FF0000'}}
+        //       >
+        //         ⚠️ לא התנהל כשורה
+        //       </span>
+        //     );
+        //   }
 
-          return (
-            <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
-              <Check className="w-5 h-5" /> דווח
-            </span>
-          );
-        };
+        //   return (
+        //     <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
+        //       <Check className="w-5 h-5" /> דווח
+        //     </span>
+        //   );
+        // };
+
+const renderStatusBadge = () => {
+  // הוסף את זה כדי לדבג מה קורה
+  console.log('Debug info:', {
+    isReported,
+    lessonStatus,
+    userRole: user.user_metadata.role,
+    itemId: item?.id,
+    lessonId: item?.lesson?.id
+  });
+
+  // בדיקות הלוגיקה הקיימת
+  if (lessonStatus?.isCompleted === false) {
+    console.log('Returning: לא התקיים');
+    return (
+      <span 
+        className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+        style={{backgroundColor: '#FFA500'}}
+      >
+        ❌ לא התקיים
+      </span>
+    );
+  }
+
+  if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
+    console.log('Returning: לא התנהל כשורה');
+    return (
+      <span 
+        className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+        style={{backgroundColor: '#FF0000'}}
+      >
+        ⚠️ לא התנהל כשורה
+      </span>
+    );
+  }
+
+  if (lessonStatus?.isCompleted === true) {
+    console.log('Returning: דווח (completed=true)');
+    return (
+      <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
+        <Check className="w-5 h-5" /> דווח
+      </span>
+    );
+  }
+
+  if (!isReported) {
+    console.log('Returning: not reported, role:', user.user_metadata.role);
+    return user.user_metadata.role === "instructor" ? (
+      <button
+        onClick={() =>
+          nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
+        }
+        className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
+      >
+        📋 דווח על השיעור
+      </button>
+    ) : (
+      <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
+        📋 טרם דווח
+      </span>
+    );
+  }
+
+  console.log('Returning: fallback - דווח');
+  return (
+    <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
+      <Check className="w-5 h-5" /> דווח
+    </span>
+  );
+};
 
         return (
           <div
@@ -246,7 +316,7 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
                   <span className="font-semibold">🏫 מוסד:</span> {item?.course_instances?.institution?.name}
                 </p>
                 
-                {!item?.course_instances?.instructor?.full_name ? (
+                {!item?.course_instances?.instructor?.full_name && user.user_metadata.role!=="instructor" ? (
                   <p className="text-base mb-1 text-red-600 font-semibold">
                     <span className="font-semibold">👨‍🏫 מדריך:</span> אין מדריך לקורס הזה
                   </p>

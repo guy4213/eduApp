@@ -92,6 +92,7 @@ const Profile = () => {
       console.log("datatata ", data);
       setProfile(data);
       setEditForm({
+        full_name: data?.full_name || "",  
         img: data.img || "",
         email: data.email || "",
         phone: data.phone || "",
@@ -109,10 +110,11 @@ const Profile = () => {
   const handleCancel = () => {
     setEditing(false);
     setEditForm({
-      img: profile.img || "",
+      full_name: profile?.full_name || "", // ← הוסף שורה זו
+      img: profile?.img || "",
       email: profile?.email || "",
       phone: profile?.phone || "",
-      birthdate : profile?.birthdate || "",
+      birthdate: profile?.birthdate || "",
     });
   };
 

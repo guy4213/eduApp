@@ -171,8 +171,8 @@ const Auth = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="instructor">מדריך/מרצה</SelectItem>
-                    <SelectItem value="pedagogical_manager">מנהל פדגוגי</SelectItem>
-                    <SelectItem value="admin">מנהל מערכת</SelectItem>
+                    {/* <SelectItem value="pedagogical_manager">מנהל פדגוגי</SelectItem> */}
+                    {/* <SelectItem value="admin">מנהל מערכת</SelectItem> */}
                   </SelectContent>
                 </Select>
               </div>

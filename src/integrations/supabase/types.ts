@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      blocked_dates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          date: string | null
+          end_date: string | null
+          id: string
+          reason: string | null
+          start_date: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          date?: string | null
+          end_date?: string | null
+          id?: string
+          reason?: string | null
+          start_date?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          date?: string | null
+          end_date?: string | null
+          id?: string
+          reason?: string | null
+          start_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blocked_dates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocked_dates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_instance_schedules: {
         Row: {
           course_instance_id: string | null
@@ -49,7 +94,7 @@ export type Database = {
           {
             foreignKeyName: "course_instance_schedules_course_instance_id_fkey"
             columns: ["course_instance_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "course_instances"
             referencedColumns: ["id"]
           },
@@ -138,6 +183,7 @@ export type Database = {
           id: string
           name: string
           presentation_link: string | null
+          program_link: string | null
           school_type: string | null
         }
         Insert: {
@@ -145,6 +191,7 @@ export type Database = {
           id?: string
           name: string
           presentation_link?: string | null
+          program_link?: string | null
           school_type?: string | null
         }
         Update: {
@@ -152,6 +199,7 @@ export type Database = {
           id?: string
           name?: string
           presentation_link?: string | null
+          program_link?: string | null
           school_type?: string | null
         }
         Relationships: []
@@ -159,30 +207,36 @@ export type Database = {
       educational_institutions: {
         Row: {
           address: string | null
+          city: string | null
           contact_email: string | null
           contact_person: string | null
           contact_phone: string | null
           created_at: string | null
           id: string
           name: string
+          notes: string | null
         }
         Insert: {
           address?: string | null
+          city?: string | null
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
           created_at?: string | null
           id?: string
           name: string
+          notes?: string | null
         }
         Update: {
           address?: string | null
+          city?: string | null
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
           created_at?: string | null
           id?: string
           name?: string
+          notes?: string | null
         }
         Relationships: []
       }
@@ -480,7 +534,9 @@ export type Database = {
           actual_end: string | null
           actual_start: string | null
           course_id: string
+          course_instance_id: string | null
           created_at: string | null
+          description: string | null
           feedback: string | null
           id: string
           instructor_id: string | null
@@ -496,7 +552,9 @@ export type Database = {
           actual_end?: string | null
           actual_start?: string | null
           course_id: string
+          course_instance_id?: string | null
           created_at?: string | null
+          description?: string | null
           feedback?: string | null
           id?: string
           instructor_id?: string | null
@@ -512,7 +570,9 @@ export type Database = {
           actual_end?: string | null
           actual_start?: string | null
           course_id?: string
+          course_instance_id?: string | null
           created_at?: string | null
+          description?: string | null
           feedback?: string | null
           id?: string
           instructor_id?: string | null
@@ -530,6 +590,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lessons_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
             referencedColumns: ["id"]
           },
           {
@@ -744,6 +811,33 @@ export type Database = {
           },
         ]
       }
+      system_defaults: {
+        Row: {
+          created_at: string | null
+          default_break_duration: number
+          default_lesson_duration: number
+          default_task_duration: number
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_break_duration?: number
+          default_lesson_duration?: number
+          default_task_duration?: number
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_break_duration?: number
+          default_lesson_duration?: number
+          default_task_duration?: number
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -831,7 +925,9 @@ export type Database = {
           actual_end: string | null
           actual_start: string | null
           course_id: string
+          course_instance_id: string | null
           created_at: string | null
+          description: string | null
           feedback: string | null
           id: string
           instructor_id: string | null
@@ -851,6 +947,18 @@ export type Database = {
       is_admin_or_manager: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      report_work_hour: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      update_user_auth_data: {
+        Args: {
+          new_email?: string
+          new_metadata?: Json
+          target_user_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {

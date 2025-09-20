@@ -861,12 +861,16 @@ import {
   Circle,
   UserPlus,
   Filter,
+  Trash,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSchoolTypeDisplayName, getSchoolTypeColors } from "@/utils/schoolTypeUtils";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
+import { DeleteConfirmationPopup } from "@/components/ui/DeleteConfirmationPopup ";
 
 interface Task {
   id: string;
@@ -904,6 +908,7 @@ interface CourseAssignment {
   approx_end_date: string;
   school_type?: string;
   presentation_link?: string;
+  program_link?: string;
 }
 
 // מטמון זמני לשיפור ביצועים
@@ -912,7 +917,9 @@ const CACHE_TTL = 30 * 1000; // 30 שניות
 
 const CourseAssignments = () => {
   const { user } = useAuth();
+  
   const [assignments, setAssignments] = useState<CourseAssignment[]>([]);
+const [deleteTargetAssignment, setDeleteTargetAssignment] = useState<CourseAssignment | null>(null);
   const [filteredAssignments, setFilteredAssignments] = useState<CourseAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
@@ -934,7 +941,8 @@ const CourseAssignments = () => {
   const [instructors, setInstructors] = useState<any[]>([]);
   const [institutions, setInstitutions] = useState<any[]>([]);
   const [courseTemplates, setCourseTemplates] = useState<any[]>([]);
-  
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+
   // Report status state
   const [reportStatusMap, setReportStatusMap] = useState<Map<string, {isCompleted: boolean, isLessonOk: boolean, reportId?: string}>>(
     new Map()
@@ -945,6 +953,20 @@ const CourseAssignments = () => {
   const hasAdminAccess = ['admin', 'pedagogical_manager'].includes(userRole);
   const isInstructor = userRole === 'instructor';
 
+
+
+  // Function to toggle card expansion
+const toggleCardExpansion = (cardId: string) => {
+  setExpandedCards(prev => {
+    const newSet = new Set(prev);
+    if (newSet.has(cardId)) {
+      newSet.delete(cardId);
+    } else {
+      newSet.add(cardId);
+    }
+    return newSet;
+  });
+};
   // שיפור פונקציית fetchReportStatuses
   const fetchReportStatuses = async (courseInstanceIds: string[]): Promise<Map<string, {isCompleted: boolean, isLessonOk: boolean, reportId?: string}>> => {
     if (!courseInstanceIds || courseInstanceIds.length === 0) {
@@ -1118,7 +1140,8 @@ const CourseAssignments = () => {
           id,
           name,
           school_type,
-          presentation_link
+          presentation_link,
+          program_link
         ),
         instructor:instructor_id (
           id,
@@ -1286,6 +1309,7 @@ const CourseAssignments = () => {
           approx_end_date: instanceData.end_date || null,
           school_type: course.school_type,
           presentation_link: course.presentation_link,
+          program_link: course.program_link,
           tasks: allCourseTasks.map((task: any) => ({
             id: task.id,
             title: task.title,
@@ -1323,6 +1347,13 @@ const CourseAssignments = () => {
     fetchFilterOptions();
   }, [user]);
 
+
+
+  const handleDeleteConfirm = () => {
+    // רענון הרשימה אחרי מחיקה מוצלחת
+    fetchAssignments();
+    alert('ההקצאה נמחקה בהצלחה!');
+  };
   // שיפור ה-real-time updates עם debouncing
   useEffect(() => {
     if (!user) return;
@@ -2013,7 +2044,7 @@ return (
       </div>
 
       {/* Filters - only for admin */}
-      {hasAdminAccess && (
+      
         <div className="mb-6">
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardContent className="p-4 space-y-4">
@@ -2021,9 +2052,9 @@ return (
                 <Filter className="h-4 w-4 text-gray-500" />
                 <span className="font-medium text-gray-700">סינון:</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className={hasAdminAccess? "grid grid-cols-1 md:grid-cols-4 gap-4" :"grid grid-cols-1 md:grid-cols-3 gap-4"}>
                 {/* Instructor Filter */}
-                <div className="flex flex-col gap-2">
+                {hasAdminAccess && (<div className="flex flex-col gap-2">
                   <span className="text-sm text-gray-600">מדריך:</span>
                   <Select value={instructorFilter} onValueChange={setInstructorFilter}>
                     <SelectTrigger>
@@ -2039,7 +2070,7 @@ return (
                     </SelectContent>
                   </Select>
                 </div>
-
+                  )}
                 {/* Institution Filter */}
                 <div className="flex flex-col gap-2">
                   <span className="text-sm text-gray-600">מוסד חינוכי:</span>
@@ -2095,15 +2126,17 @@ return (
             </CardContent>
           </Card>
         </div>
-      )}
+      
 
       {/* Assignments List */}
     <div className="space-y-8">
   {filteredAssignments.map((assignment) => (
+    
     <Card
       key={assignment.instance_id}
       className="shadow-xl border-0 backdrop-blur-sm bg-white/80"
     >
+      
       <CardHeader className="text-white rounded-t-lg bg-gradient-to-r from-blue-600 to-blue-700">
         <div className="flex justify-between items-start">
           <div>
@@ -2126,15 +2159,32 @@ return (
                 <b>צפה במצגת הקורס</b>
               </a>
             ) : (
-              <span className="text-black">לא קיימת מצגת המשוייכת להקצאה זו</span>
+              <span className="text-black font-bold">לא קיימת מצגת המשוייכת להקצאה זו</span>
             )}
+              <div className="mt-2">
+                      {assignment.program_link ? (
+                        <a
+                          href={assignment.program_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                         className="underline text-sm text-blue-100"
+                        >
+                        <b> צפה בתכנית הפדגוגית</b>
+                        </a>
+                      )
+                    :(
+                     <span className="text-black font-bold">לא קיימת תכנית פדגוגית להקצאה זו  </span> 
+                    )}
+                    </div>
             <CardDescription className="text-blue-100 text-base">
               {assignment.institution_name} • מדריך: {assignment.instructor_name}
             </CardDescription>
           </div>
 
-          {hasAdminAccess && (
+          
             <div className="flex gap-2">
+           {hasAdminAccess && (
+            <> 
               <Button
                 variant="ghost"
                 size="sm"
@@ -2148,22 +2198,33 @@ return (
                 variant="ghost"
                 size="sm"
                 className="text-white hover:bg-white/20"
-                onClick={() =>
-                  handleAssignCourse(
-                    assignment.id,
-                    assignment.instance_id,
-                    assignment.name
-                  )
-                }
-                title="הקצאה חדשה"
+                onClick={() =>setDeleteTargetAssignment(assignment)}
+                title=" מחיקת הקצאה  "
               >
-                <UserPlus className="h-4 w-4" />
+                <Trash className="h-4 w-4" />
               </Button>
+              </> )}
+        <Button
+        variant="ghost"
+        size="sm"
+        className="text-white hover:bg-white/20"
+        onClick={() => toggleCardExpansion(assignment.instance_id )}  // <-- שמור את ההקצאה הספציפית
+        title={expandedCards.has(assignment.instance_id) ? "הסתר פרטים" : "הצג פרטים"}
+      >
+        {expandedCards.has(assignment.instance_id) ? (
+          <ChevronUp className="h-5 w-5" />
+        ) : (
+          <ChevronDown className="h-5 w-5" />
+        )}
+      </Button>
+
+     
             </div>
-          )}
+         
         </div>
       </CardHeader>
 
+     {expandedCards.has(assignment.instance_id) && ( 
       <CardContent className="p-6">
         {/* Course Info Grid */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
@@ -2292,11 +2353,44 @@ return (
             })}
           </div>
         )}
-      </CardContent>
+      </CardContent>)}
     </Card>
   ))}
 </div>
-
+{deleteTargetAssignment && (
+  <DeleteConfirmationPopup
+    assignment={deleteTargetAssignment}
+    isOpen={!!deleteTargetAssignment}
+    onClose={() => setDeleteTargetAssignment(null)}
+    onConfirm={() => {
+      handleDeleteConfirm();
+      setDeleteTargetAssignment(null);
+    }}
+  />)}
+   
+    {hasAdminAccess && (
+          <CourseAssignDialog
+            open={showDialog}
+            onOpenChange={setShowDialog}
+            mode={dialogMode}
+            courseId={selectedCourse?.id}
+            courseName={selectedCourse?.name}
+            instanceId={selectedCourse?.instanceId}
+            editData={editData ? {
+              instance_id: editData.instance_id,
+              name: editData.name,
+              grade_level: editData.grade_level,
+              max_participants: editData.max_participants,
+              price_for_customer: editData.price_for_customer,
+              price_for_instructor: editData.price_for_instructor,
+              institution_name: editData.institution_name,
+              instructor_name: editData.instructor_name,
+              start_date: editData.start_date,
+              approx_end_date: editData.approx_end_date,
+            } : undefined}
+            onAssignmentComplete={handleAssignmentComplete}
+          />
+          )}
     </main>
   </div>
 );

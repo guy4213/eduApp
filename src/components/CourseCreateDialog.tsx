@@ -42,6 +42,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
     name: '',
     school_type: '',
     presentation_link: '',
+    program_link: '',
   });
 
   useEffect(() => {
@@ -52,6 +53,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
           name: editCourse.name,
           school_type: editCourse.school_type || '',
           presentation_link: (editCourse as any).presentation_link || '',
+          program_link: (editCourse as any).program_link || '',
         });
         
         loadExistingLessons(editCourse.id);
@@ -61,6 +63,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
           name: '',
           school_type: '',
           presentation_link: '',
+          program_link: '',
         });
         setLessons([]);
       }
@@ -79,6 +82,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
           id,
           title,
           order_index,
+          description,
           lesson_tasks (
             id,
             title,
@@ -89,6 +93,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
           )
         `)
         .eq('course_id', actualCourseId)
+         .is('course_instance_id', null)  
         .order('order_index');
 
       // If no lessons found, try to get course_id from instance_id
@@ -108,6 +113,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
               id,
               title,
               order_index,
+              description,
               lesson_tasks (
                 id,
                 title,

@@ -19,6 +19,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
             name: formData.name,
             school_type: formData.school_type,
             presentation_link: formData.presentation_link || null,
+            program_link: formData.program_link || null,
           })
           .eq('id', editCourseId);
 
@@ -34,6 +35,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
             name: formData.name,
             school_type: formData.school_type,
             presentation_link: formData.presentation_link || null,
+            program_link: formData.program_link || null,
           })
           .select('id')
           .single();
@@ -85,6 +87,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
           .insert({
             course_id: courseId,
             title: lesson.title,
+            description: lesson.description || null,
             scheduled_start: new Date().toISOString(),
             scheduled_end: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
             status: 'scheduled',
@@ -213,6 +216,7 @@ export function useCourseSubmit(onCourseCreated: () => void, onClose: (open: boo
         .insert({
           course_id: courseId,
           title: lesson.title,
+          description: lesson.description || null,
           scheduled_start: new Date().toISOString(),
           scheduled_end: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
           status: 'scheduled',

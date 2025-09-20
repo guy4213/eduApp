@@ -19,6 +19,7 @@ import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import MobileNavigation from "./components/layout/MobileNavigation";
 import { VerifyPage } from "./pages/VerifyPage";
+import AdminSettings from "./pages/AdminSettings";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,7 @@ const App = () => (
                   </ProtectedRoute>
                 } 
               />
+           
                   <Route 
                 path="/lesson-report" 
                 element={
@@ -131,6 +133,17 @@ const App = () => (
                     <div className="min-h-screen">
                       <Navigation />
                       <Profile />
+                    </div>
+                  </ProtectedRoute>
+                } 
+              />
+                   <Route 
+                path="/AdminSettings" 
+                element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen">
+                      <Navigation />
+                      <AdminSettings />
                     </div>
                   </ProtectedRoute>
                 } 

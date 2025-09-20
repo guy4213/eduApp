@@ -14,6 +14,7 @@ interface CourseDetailsFormProps {
     name: string;
     school_type?: string;
     presentation_link?: string;
+    program_link?: string;
   };
   onInputChange: (field: string, value: string) => void;
 }
@@ -56,6 +57,16 @@ const CourseDetailsForm = ({ formData, onInputChange }: CourseDetailsFormProps) 
           id="presentation_link"
           value={formData.presentation_link || ''}
           onChange={(e) => onInputChange('presentation_link', e.target.value)}
+          placeholder="https://..."
+          type="url"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="program_link">קישור לתכנית הפדגוגית</Label>
+        <Input
+          id="program_link"
+          value={formData.program_link || ''}
+          onChange={(e) => onInputChange('program_link', e.target.value)}
           placeholder="https://..."
           type="url"
         />

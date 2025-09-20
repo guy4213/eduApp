@@ -649,13 +649,15 @@ const menuItems = [
     path: "/course-assignments",
     gradient: "from-indigo-500 to-indigo-600",
   },
-  {
+ user?.user_metadata.role === "admin"
+    ? {
     icon: BarChart3,
     title: "דוחות ושכר",
     description: "צפייה בדוחות חודשיים וחישוב שכר",
     path: "/reports",
     gradient: "from-orange-500 to-red-500",
-  },
+    }:null ,
+
   {
     icon: Settings,
     title: "הגדרות פרופיל",

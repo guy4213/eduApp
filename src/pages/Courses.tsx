@@ -29,12 +29,17 @@ import {
   Circle,
   UserPlus,
   Filter,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSchoolTypeDisplayName } from "@/utils/schoolTypeUtils";
 import CourseCreateDialog from "@/components/CourseCreateDialog";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
+// Step 1: Add new imports
+import { Trash2 } from "lucide-react";
+import DeleteCourseDialog from "@/components/DeleteCourseDialog"; // Import the new dialog
 
 interface Task {
   id: string;
@@ -65,6 +70,7 @@ interface Course {
   approx_end_date: string;
   school_type?: string;
   presentation_link?: string;
+  program_link?: string;
 }
 
 const Courses = () => {
@@ -81,19 +87,99 @@ const Courses = () => {
   } | null>(null);
   const [editCourse, setEditCourse] = useState<any | null>(null);
   const [schoolTypeFilter, setSchoolTypeFilter] = useState<string>('');
-
+const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   console.log("ROLE  " + user.user_metadata.role);
+ // Step 2: Add new state for the delete dialog
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState<any | null>(null);
+  const [assignmentDetails, setAssignmentDetails] = useState<any[]>([]);
 
-  const groupTasksByLesson = (tasks: Task[]) => {
-    const grouped: Record<number, Task[]> = {};
-    for (const task of tasks) {
-      if (!grouped[task.lesson_number]) {
-        grouped[task.lesson_number] = [];
-      }
-      grouped[task.lesson_number].push(task);
+  const userRole = user?.user_metadata?.role;
+  const hasAdminAccess = ['admin', 'pedagogical_manager'].includes(userRole);
+
+  const toggleCardExpansion = (cardId: string) => {
+  setExpandedCards(prev => {
+    const newSet = new Set(prev);
+    if (newSet.has(cardId)) {
+      newSet.delete(cardId);
+    } else {
+      newSet.add(cardId);
     }
-    return grouped;
+    return newSet;
+  });
+};
+const groupTasksByLesson = (tasks: Task[]) => {
+  const grouped: Record<number, Task[]> = {};
+  
+  // קיבוץ המשימות לפי מספר שיעור
+  for (const task of tasks) {
+    if (!grouped[task.lesson_number]) {
+      grouped[task.lesson_number] = [];
+    }
+    grouped[task.lesson_number].push(task);
+  }
+  
+  // מיון המשימות בתוך כל שיעור לפי order_index
+  for (const lessonNumber in grouped) {
+    grouped[lessonNumber].sort((a, b) => a.order_index - b.order_index);
+  }
+  
+  return grouped;
+};
+
+// Step 3: Add functions to handle deletion
+  const handleDeleteClick = async (course: any) => {
+    setCourseToDelete(course);
+    setLoading(true);
+
+    try {
+      // Check for course assignments by querying course_instances
+      const { data, error } = await supabase
+        .from("course_instances")
+        .select(`
+          id,
+          educational_institutions (name),
+          profiles (full_name)
+        `)
+        .eq("course_id", course.id);
+
+      if (error) {
+        console.error("Error checking for course assignments:", error);
+        // You can add a toast notification here for the user
+        return;
+      }
+
+      setAssignmentDetails(data || []);
+      setShowDeleteDialog(true);
+    } catch (error) {
+        console.error("An unexpected error occurred:", error);
+    } finally {
+        setLoading(false);
+    }
   };
+
+
+ const confirmDelete = async () => {
+    if (!courseToDelete || assignmentDetails.length > 0) return;
+    
+    setLoading(true);
+    // Use the RPC function to safely delete the course and its dependencies
+    const { error } = await supabase.rpc('delete_course_template', { p_course_id: courseToDelete.id });
+    
+    if (error) {
+      console.error("Error deleting course:", error);
+      // You can add an error toast here for the user
+    } else {
+      // Deletion was successful
+      console.log("Course deleted successfully");
+      setShowDeleteDialog(false);
+      setCourseToDelete(null);
+      await fetchCourses(); // Refresh the list of courses
+      // You can add a success toast here
+    }
+    setLoading(false);
+  };
+  
 
   const fetchCourses = async () => {
     if (!user) return;
@@ -110,6 +196,7 @@ const Courses = () => {
           name,
           school_type,
           presentation_link,
+          program_link,
           created_at
         `);
 
@@ -128,7 +215,8 @@ const Courses = () => {
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
         } else {
-          lessonsData = lessons || [];
+
+        lessonsData = (lessons || []).filter(lesson => lesson.course_instance_id === null);
         }
 
         // Fetch tasks for all lessons
@@ -161,50 +249,77 @@ const Courses = () => {
       }
 
       // Helper function to format template course data
-      const formatCourseData = (course: any) => {
-        const courseLessons = lessonsData.filter(
-          (lesson) => lesson.course_id === course.id
-        );
-        const allCourseTasks = courseLessons.flatMap((lesson) => {
-          const lessonTasks = tasksData.filter(
-            (task) => task.lesson_id === lesson.id
-          );
+     // בתוך פונקציית formatCourseData, החלף את החלק הזה:
 
-          return lessonTasks.map((task) => ({
-            ...task,
-            lesson_title: lesson.title,
-            lesson_number:
-              courseLessons.findIndex((l) => l.id === lesson.id) + 1,
-          }));
-        });
+const formatCourseData = (course: any) => {
+  // שלב 1: סינון ומיון השיעורים לפי order_index
+  const courseLessons = lessonsData
+    .filter((lesson) => lesson.course_id === course.id)
+    .sort((a, b) => {
+      // מיון לפי order_index, ואם הם שווים אז לפי id
+      if (a.order_index !== b.order_index) {
+        return a.order_index - b.order_index;
+      }
+      return a.id.localeCompare(b.id);
+    });
 
-        return {
-          id: course.id,
-          instance_id: null,
-          name: course.name || "ללא שם קורס",
-          grade_level: "לא צוין",
-          max_participants: 0,
-          price_per_lesson: 0,
-          institution_name: "תבנית קורס",
-          instructor_name: "לא הוקצה",
-          lesson_count: courseLessons.length,
-          start_date: null,
-          approx_end_date: null,
-          is_assigned: false,
-          school_type: course.school_type,
-          presentation_link: course.presentation_link,
-          tasks: allCourseTasks.map((task: any) => ({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            estimated_duration: task.estimated_duration,
-            is_mandatory: task.is_mandatory,
-            lesson_number: task.lesson_number,
-            lesson_title: task.lesson_title,
-            order_index: task.order_index,
-          })),
-        };
-      };
+  console.log(`Lessons for course ${course.name}:`, courseLessons.map(l => ({
+    title: l.title,
+    order_index: l.order_index,
+    id: l.id
+  })));
+
+  // שלב 2: יצירת מפה של lesson_id למספר השיעור הנכון
+  const lessonNumberMap = new Map();
+  courseLessons.forEach((lesson, index) => {
+    lessonNumberMap.set(lesson.id, index + 1);
+  });
+
+  // שלב 3: בניית רשימת המשימות עם המספור הנכון
+  const allCourseTasks = [];
+  
+  courseLessons.forEach((lesson) => {
+    const lessonNumber = lessonNumberMap.get(lesson.id);
+    const lessonTasks = tasksData
+      .filter((task) => task.lesson_id === lesson.id)
+      .sort((a, b) => a.order_index - b.order_index) // מיון משימות לפי order_index
+      .map((task) => ({
+        ...task,
+        lesson_title: lesson.title,
+        lesson_number: lessonNumber,
+      }));
+    
+    allCourseTasks.push(...lessonTasks);
+  });
+
+  return {
+    id: course.id,
+    instance_id: null,
+    name: course.name || "ללא שם קורס",
+    grade_level: "לא צוין",
+    max_participants: 0,
+    price_per_lesson: 0,
+    institution_name: "תבנית קורס",
+    instructor_name: "לא הוקצה",
+    lesson_count: courseLessons.length,
+    start_date: null,
+    approx_end_date: null,
+    is_assigned: false,
+    school_type: course.school_type,
+    presentation_link: course.presentation_link,
+    program_link: course.program_link,
+    tasks: allCourseTasks.map((task: any) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      estimated_duration: task.estimated_duration,
+      is_mandatory: task.is_mandatory,
+      lesson_number: task.lesson_number,
+      lesson_title: task.lesson_title,
+      order_index: task.order_index,
+    })),
+  };
+};
 
       // Format template courses only
       const formattedTemplateCourses = allCoursesData?.map(formatCourseData) || [];
@@ -410,6 +525,7 @@ const Courses = () => {
         ) : (
           <div className="space-y-8">
             {filteredCourses.map((course) => (
+              console.log('course',course),
               <Card
                 key={course.instance_id || course.id}
                 className={`shadow-xl border-0 backdrop-blur-sm ${
@@ -427,11 +543,11 @@ const Courses = () => {
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <div>
+                      {/* <div>
                         {" "}
                         {formatDate(course.approx_end_date)} -{" "}
                         {formatDate(course.start_date)}
-                      </div>
+                      </div> */}
                       <div className="flex items-center gap-2 mb-2">
                         <CardTitle className="text-2xl text-white">
                           {course.name}
@@ -442,6 +558,7 @@ const Courses = () => {
                           </Badge>
                         )}
                       </div>
+                    <div>
                       {course.presentation_link ? (
                         <a
                           href={course.presentation_link}
@@ -455,9 +572,28 @@ const Courses = () => {
                         </a>
                       )
                     :(
-                     <span className="text-black">לא קיימת מצגת המשוייכת לקורס זה  </span> 
+                     <span className="text-black font-bold">לא קיימת מצגת המשוייכת לקורס זה  </span> 
                     )}
-                      <CardDescription
+                    </div>
+                      <div className="mt-1">
+                      {course.program_link ? (
+                        <a
+                          href={course.program_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`underline text-sm ${
+                            course.is_assigned ? "text-blue-100" : "text-amber-100"
+                          }`}
+                        >
+                        <b> צפה בתכנית הפדגוגית</b>
+                        </a>
+                      )
+                    :(
+                     <span className="text-black font-bold">לא קיימת תכנית פדגוגית לקורס זה  </span> 
+                    )}
+                    </div>
+                    
+                      {/* <CardDescription
                         className={`text-base ${
                           course.is_assigned
                             ? "text-blue-100"
@@ -467,10 +603,12 @@ const Courses = () => {
                         {course.is_assigned
                           ? course.institution_name
                           : "ממתין להקצאה "}
-                      </CardDescription>
+                      </CardDescription> */}
                     </div>
-                    {user.user_metadata.role !== "instructor" && (
-                      <div className="flex gap-2">
+                    
+                      
+                      {/* <div className="flex gap-2">
+                        {user.user_metadata.role !== "instructor" && (<>
                          <Button
                            variant="ghost"
                            size="sm"
@@ -486,11 +624,69 @@ const Courses = () => {
                            <UserPlus className="h-4 w-4" />
                            <span className="mr-1">הקצה</span>
                          </Button>
+                         </>)}
+                          <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white hover:bg-white/20"
+                        onClick={() => toggleCardExpansion(course.instance_id || course.id)}
+                        title={expandedCards.has(course.instance_id || course.id) ? "הסתר פרטים" : "הצג פרטים"}
+                      >
+                        {expandedCards.has(course.instance_id || course.id) ? (
+                          <ChevronUp className="h-5 w-5" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5" />
+                        )}
+                      </Button>
                       </div>
-                    )}
+                     */}
+                      <div className="flex gap-2">
+    {hasAdminAccess && (
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-white hover:bg-white/20"
+          onClick={() =>
+            handleAssignCourse(
+              course.id,
+              course.instance_id || "",
+              course.name
+            )
+          }
+        >
+          <UserPlus className="h-4 w-4" />
+          <span className="mr-1">הקצה</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-white hover:bg-white/20"
+          onClick={() => handleDeleteClick(course)}
+        >
+          <Trash2 className="h-4 w-4" />
+          <span className="mr-1">מחק</span>
+        </Button>
+      </>
+    )}
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-white hover:bg-white/20"
+      onClick={() => toggleCardExpansion(course.instance_id || course.id)}
+      title={expandedCards.has(course.instance_id || course.id) ? "הסתר פרטים" : "הצג פרטים"}
+    >
+      {expandedCards.has(course.instance_id || course.id) ? (
+        <ChevronUp className="h-5 w-5" />
+      ) : (
+        <ChevronDown className="h-5 w-5" />
+      )}
+    </Button>
+  </div>
                   </div>
                 </CardHeader>
 
+           {expandedCards.has(course.instance_id || course.id) && ( 
                 <CardContent className="p-6">
                   {/* Assignment Status Alert */}
                   {!course.is_assigned && (
@@ -595,9 +791,9 @@ const Courses = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {Object.entries(
-                              groupTasksByLesson(course.tasks)
-                            ).map(([lessonNumber, lessonTasks]) => (
+                            {Object.entries(groupTasksByLesson(course.tasks))
+                              .sort(([a], [b]) => Number(a) - Number(b)) // מיון לפי מספר השיעור
+                              .map(([lessonNumber, lessonTasks]) => (
                               <React.Fragment key={lessonNumber}>
                                 {/* כותרת שיעור */}
                                 <TableRow className="bg-blue-100">
@@ -726,6 +922,7 @@ const Courses = () => {
                       )}
                   </div>
                 </CardContent>
+                )}
               </Card>
             ))}
           </div>
@@ -748,6 +945,15 @@ const Courses = () => {
             onAssignmentComplete={handleAssignmentComplete}
           />
         )}
+         {courseToDelete && (
+        <DeleteCourseDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          courseName={courseToDelete.name}
+          assignments={assignmentDetails}
+          onConfirmDelete={confirmDelete}
+        />
+      )}
       </main>
     </div>
   );

@@ -1089,6 +1089,17 @@ const LessonReport = () => {
   //         }
   //     };
   const handleSubmit = async () => {
+
+    const { error } = await supabase.rpc('report_work_hour');
+
+  if (error) {
+    console.error('Error reporting work hour:', error);
+    // Show an error toast
+  } else {
+    console.log('Successfully reported 1 work hour!');
+    // Show a success toast
+  }
+
     // Count present students
     const presentStudents = attendanceList.filter(
       (student) => student.isPresent

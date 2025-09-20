@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Calendar, FileText, Users, BarChart3, LogOut, Menu, X, User } from 'lucide-react';
+import { BookOpen, Calendar, FileText, Users, BarChart3, LogOut, Menu, X, User,Settings2Icon } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 const Navigation = () => {
@@ -23,6 +23,8 @@ const navigationItems = [
   isAdmin && { path: '/reports', label: 'דוחות ושכר', icon: BarChart3 },
   { path: '/rewards', label: 'תגמולים', icon: BarChart3 },
   { path: '/profile', label: 'פרופיל', icon: User },
+   isAdminOrManager && { path: '/AdminSettings', label: 'הגדרות מנהל ', icon: Settings2Icon },
+
 ].filter(Boolean);
 
   const handleSignOut = async () => {
