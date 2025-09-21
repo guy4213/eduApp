@@ -1804,12 +1804,17 @@ export const fetchAndGenerateSchedules = async (
     for (const schedule of schedules) {
       if (!schedule.course_instances) continue;
 
+      // const { data: lessons, error: lessonsError } = await supabase
+      //   .from('lessons')
+      //   .select('id, title, course_id, order_index')
+      //   .eq('course_id', schedule.course_instances.course_id)
+      //   .order('order_index');
       const { data: lessons, error: lessonsError } = await supabase
         .from('lessons')
-        .select('id, title, course_id, order_index')
+        .select('id, title, course_id, order_index, course_instance_id')
         .eq('course_id', schedule.course_instances.course_id)
+        .or(`course_instance_id.is.null,course_instance_id.eq.${schedule.course_instance_id}`)
         .order('order_index');
-
       if (lessonsError) {
         console.error('Error fetching lessons:', lessonsError);
         continue;
