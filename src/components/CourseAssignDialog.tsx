@@ -3031,7 +3031,7 @@ const saveInstanceLessons = async (assignmentInstanceId: string) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return date <= today || disabledDates.some(disabledDate =>
+  return  disabledDates.some(disabledDate =>
     formatDate(disabledDate) === dateStr
   );
 }}
@@ -3069,7 +3069,7 @@ const saveInstanceLessons = async (assignmentInstanceId: string) => {
           const dateStr = date.toISOString().split('T')[0];
           const startDate = formData.start_date ? new Date(formData.start_date) : new Date();
           
-          return date <= startDate || disabledDates.some(disabledDate => 
+          return  disabledDates.some(disabledDate => 
             disabledDate.toISOString().split('T')[0] === dateStr
           );
         }}
