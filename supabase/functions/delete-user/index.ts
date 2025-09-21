@@ -62,25 +62,44 @@ Deno.serve(async (req) => {
 
     console.log(`📬 Admin emails found: ${adminEmails.length}`, adminEmails);
     if (adminEmails.length > 0) {
-        const subject = `התראה: המדריך ${payload.instructorName} הוסר מהמערכת`;
-        const assignmentsHtml = payload.assignments.length > 0
-            ? `<ul>${payload.assignments.map(a => `<li><b>${a.course_name}</b> במוסד ${a.institution_name}</li>`).join('')}</ul>`
-            : "<p>לא היו למדריך זה הקצאות פעילות.</p>";
-        const htmlContent = `<div dir="rtl"><h2>התראה על הסרת מדריך</h2><p>המדריך <strong>${payload.instructorName}</strong> הוסר מהמערכת.</p><p>הקצאות משויכות:</p>${assignmentsHtml}</div>`;
+    const subject = `התראה: המדריך ${payload.instructorName} הוסר מהמערכת`;
+    const assignmentsHtml = payload.assignments.length > 0
+        ? `<ul>${payload.assignments.map(a => `<li><b>${a.course_name}</b> במוסד ${a.institution_name}</li>`).join('')}</ul>`
+        : "<p>לא היו למדריך זה הקצאות פעילות.</p>";
+    const htmlContent = `<div dir="rtl"><h2>התראה על הסרת מדריך</h2><p>המדריך <strong>${payload.instructorName}</strong> הוסר מהמערכת.</p><p>הקצאות משויכות:</p>${assignmentsHtml}</div>`;
+    
+    // 🔥 לולאה על כל האדמינים
+    for (const adminEmail of adminEmails) {
+        console.log(`📮 Sending email to: ${adminEmail}`);
+        
         const emailPayload = {
             sender: { name: "Leaders Admin System", email: "fransesguy1@gmail.com" },
-            to: [{ email: adminEmails[0], name: "Admin" }],
+            to: [{ email: adminEmail, name: "Admin" }],
             subject: subject,
             htmlContent: htmlContent
         };
         
-        await fetch('https://api.brevo.com/v3/smtp/email', {
+        const emailResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
             method: 'POST',
-            headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
+            headers: {
+                'accept': 'application/json',
+                'api-key': BREVO_API_KEY,
+                'content-type': 'application/json'
+            },
             body: JSON.stringify(emailPayload)
         });
-        console.log('✅ Notification email sent.');
+        
+        const emailResult = await emailResponse.text();
+        console.log(`📧 Brevo Response for ${adminEmail}:`, emailResponse.status, emailResult);
+        
+        if (!emailResponse.ok) {
+            console.error(`❌ Failed to send to ${adminEmail}: ${emailResult}`);
+            // ממשיכים לשאר האדמינים גם אם אחד נכשל
+        }
     }
+    
+    console.log('✅ All notification emails sent.');
+}
 
     // --- Part 2: Securely Delete the User ---
     console.log(`🔥 Deleting user with ID: ${payload.userId}`);
