@@ -1050,7 +1050,7 @@ const Reports = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold text-purple-600">{filteredMonthData.completionRate.toFixed(1)}%</p>
+                  <p className="text-2xl font-bold text-purple-600">{(filteredMonthData.totalLessons / filteredMonthData.totalScheduledLessons) * 100}%</p>
                   <p className="text-gray-600 font-medium">אחוז השלמה</p>
                 </div>
                 <div className="p-3 rounded-full bg-purple-500">
@@ -1059,7 +1059,7 @@ const Reports = () => {
               </div>
               <div className="mt-2">
                 <Progress 
-                  value={filteredMonthData.completionRate} 
+                  value={(filteredMonthData.totalLessons / filteredMonthData.totalScheduledLessons) * 100} 
                   className="w-full h-2" 
                 />
               </div>
