@@ -1892,6 +1892,7 @@ const CourseAssignDialog = ({
 const [systemDefaults, setSystemDefaults] = useState<any>(null);
 const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 
+console.log(" instance id from dialog assign ",instanceId)
   const isMounted = useRef(false);
   
   const dayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -3258,7 +3259,7 @@ const lessonsToDisplay = [...templateLessons, ...instanceLessons];
             </div>
           </div>
           {hasCustomLessons || templateLessons.length === 0 ? (
-            <CourseLessonsSection lessons={instanceLessons} onLessonsChange={handleInstanceLessonsChange} courseStartDate={formData.start_date} courseEndDate={formData.end_date} />
+            <CourseLessonsSection  instanceId={instanceId} lessons={instanceLessons} onLessonsChange={handleInstanceLessonsChange} courseStartDate={formData.start_date} courseEndDate={formData.end_date} />
           ) : (
             <div className="text-center py-8 bg-gray-50 rounded-lg">
               <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />

@@ -122,26 +122,11 @@
 //     setNewTask({ title: '', description: '', estimated_duration: 30, is_mandatory: false });
 //   };
 
-//   const removeTaskFromLesson = (lessonId: string, taskId: string) => {
-//     const updatedLessons = lessons.map(lesson => {
-//       if (lesson.id === lessonId) {
-//         return { ...lesson, tasks: lesson.tasks.filter(task => task.id !== taskId) };
-//       }
-//       return lesson;
-//     });
-//     onLessonsChange(updatedLessons);
-//   };
+
 
 //   // Edit functions
-//   const handleEditLesson = (lesson: Lesson) => {
-//     setCurrentEditLesson(lesson);
-//     setEditLessonDialog(true);
-//   };
 
-//   const handleEditTask = (task: Task) => {
-//     setCurrentEditTask(task);
-//     setEditTaskDialog(true);
-//   };
+
 
 //   const handleSaveLesson = (updatedLesson: Lesson) => {
 //     const updatedLessons = lessons.map(lesson => 
@@ -472,10 +457,11 @@ interface CourseLessonsSectionProps {
   onLessonsChange: (lessons: Lesson[]) => void;
   courseStartDate?: string;
   courseEndDate?: string;
+  instanceId: string; // מזהה של מופע הקורס הנוכחי
 }
 
 // ✨ 3. הסרנו את lessonDefaults מה-props
-const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, courseEndDate }: CourseLessonsSectionProps) => {
+const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, courseEndDate,instanceId }: CourseLessonsSectionProps) => {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [index, setIndex] = useState<number>(0);
   const [newLesson, setNewLesson] = useState({ title: '', description: '', lesson_date: '' });
@@ -527,6 +513,19 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
     fetchSystemDefaults();
   }, []); // המערך הריק מבטיח שהקוד ירוץ פעם אחת בלבד
 
+  const handleEditTask = (task: Task) => {
+    setCurrentEditTask(task);
+    setEditTaskDialog(true);
+  };
+    const removeTaskFromLesson = (lessonId: string, taskId: string) => {
+    const updatedLessons = lessons.map(lesson => {
+      if (lesson.id === lessonId) {
+        return { ...lesson, tasks: lesson.tasks.filter(task => task.id !== taskId) };
+      }
+      return lesson;
+    });
+    onLessonsChange(updatedLessons);
+  };
   const addTaskToLesson = (lessonId: string) => {
     if (!newTask.title.trim()) return;
 
@@ -558,6 +557,10 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
   
   // --- שאר הפונקציות נשארות ללא שינוי ---
 
+    const handleEditLesson = (lesson: Lesson) => {
+    setCurrentEditLesson(lesson);
+    setEditLessonDialog(true);
+  };
   const addLesson = () => {
     if (!newLesson.title.trim()) return;
 
@@ -574,32 +577,81 @@ const CourseLessonsSection = ({ lessons, onLessonsChange, courseStartDate, cours
     setSelectedLessonId(lesson.id);
   };
 
-  const removeLesson = (lessonId: string) => {
+  // const removeLesson = (lessonId: string) => {
+  //   onLessonsChange(lessons.filter(lesson => lesson.id !== lessonId));
+  //   if (selectedLessonId === lessonId) {
+  //     setSelectedLessonId(null);
+  //   }
+  // };
+const removeLesson = async (lessonId: string) => {
+  try {
+    // Check if this lesson exists in the database
+    const { data: existingLesson, error: fetchError } = await supabase
+      .from('lessons')
+      .select('id, course_instance_id')
+      .eq('id', lessonId)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      // PGRST116 is "not found" error, which is expected for new lessons
+      throw fetchError;
+    }
+console.log('course instance id from db ' +existingLesson.course_instance_id)
+console.log('course instance id from ui ' +instanceId)
+
+    // If lesson exists in DB
+    if (existingLesson) {
+      
+      // Check if course_instance_id is null (global/shared lesson)
+      if (existingLesson.course_instance_id === null) {
+        console.log(`Lesson ${lessonId} is a global lesson (course_instance_id is null), skipping DB deletion`);
+        
+        toast({
+          title: "שיעור משותף",
+          description: "לא ניתן למחוק שיעור משותף ממסד הנתונים",
+          variant: "default",
+        });
+      } 
+      // Only delete if lesson belongs to current course instance
+      else if (existingLesson.course_instance_id === instanceId) {
+        const { error: deleteError } = await supabase
+          .from('lessons')
+          .delete()
+          .eq('id', lessonId)
+          .eq('course_instance_id', instanceId);
+
+        if (deleteError) {
+          throw deleteError;
+        }
+
+        console.log(`Lesson ${lessonId} deleted from database for course instance ${instanceId}`);
+        
+        toast({
+          title: "שיעור נמחק",
+          description: "השיעור נמחק בהצלחה ממסד הנתונים",
+        });
+      } 
+      // Lesson belongs to different course instance
+      else {
+        console.warn(`Lesson ${lessonId} belongs to different course instance, skipping DB deletion`);
+      }
+    }
+
+  } catch (error) {
+    console.error("Error removing lesson:", error);
+    console.log({
+      title: "שגיאה במחיקת השיעור",
+      description: "אירעה שגיאה במחיקת השיעור ממסד הנתונים",
+      variant: "destructive",
+    });
+  } finally {
+    // ALWAYS remove from local state, no matter what happened
     onLessonsChange(lessons.filter(lesson => lesson.id !== lessonId));
     if (selectedLessonId === lessonId) {
       setSelectedLessonId(null);
     }
-  };
-
-  const removeTaskFromLesson = (lessonId: string, taskId: string) => {
-    const updatedLessons = lessons.map(lesson => {
-      if (lesson.id === lessonId) {
-        return { ...lesson, tasks: lesson.tasks.filter(task => task.id !== taskId) };
-      }
-      return lesson;
-    });
-    onLessonsChange(updatedLessons);
-  };
-
-  const handleEditLesson = (lesson: Lesson) => {
-    setCurrentEditLesson(lesson);
-    setEditLessonDialog(true);
-  };
-
-  const handleEditTask = (task: Task) => {
-    setCurrentEditTask(task);
-    setEditTaskDialog(true);
-  };
+  }
+};
 
   const handleSaveLesson = (updatedLesson: Lesson) => {
     const updatedLessons = lessons.map(lesson => 
