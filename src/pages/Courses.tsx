@@ -17,7 +17,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   BookOpen,
   Users,
@@ -86,48 +92,58 @@ const Courses = () => {
     name: string;
   } | null>(null);
   const [editCourse, setEditCourse] = useState<any | null>(null);
-  const [schoolTypeFilter, setSchoolTypeFilter] = useState<string>('');
-const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [schoolTypeFilter, setSchoolTypeFilter] = useState<string>("");
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   console.log("ROLE  " + user.user_metadata.role);
- // Step 2: Add new state for the delete dialog
+  // Step 2: Add new state for the delete dialog
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<any | null>(null);
   const [assignmentDetails, setAssignmentDetails] = useState<any[]>([]);
 
   const userRole = user?.user_metadata?.role;
-  const hasAdminAccess = ['admin', 'pedagogical_manager'].includes(userRole);
+  const hasAdminAccess = ["admin", "pedagogical_manager"].includes(userRole);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkIsMobile = () => setIsMobile(window.innerWidth <= 768);
+
+    checkIsMobile(); // בדיקה ראשונית
+    window.addEventListener("resize", checkIsMobile);
+
+    return () => window.removeEventListener("resize", checkIsMobile);
+  }, []);
 
   const toggleCardExpansion = (cardId: string) => {
-  setExpandedCards(prev => {
-    const newSet = new Set(prev);
-    if (newSet.has(cardId)) {
-      newSet.delete(cardId);
-    } else {
-      newSet.add(cardId);
-    }
-    return newSet;
-  });
-};
-const groupTasksByLesson = (tasks: Task[]) => {
-  const grouped: Record<number, Task[]> = {};
-  
-  // קיבוץ המשימות לפי מספר שיעור
-  for (const task of tasks) {
-    if (!grouped[task.lesson_number]) {
-      grouped[task.lesson_number] = [];
-    }
-    grouped[task.lesson_number].push(task);
-  }
-  
-  // מיון המשימות בתוך כל שיעור לפי order_index
-  for (const lessonNumber in grouped) {
-    grouped[lessonNumber].sort((a, b) => a.order_index - b.order_index);
-  }
-  
-  return grouped;
-};
+    setExpandedCards((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(cardId)) {
+        newSet.delete(cardId);
+      } else {
+        newSet.add(cardId);
+      }
+      return newSet;
+    });
+  };
+  const groupTasksByLesson = (tasks: Task[]) => {
+    const grouped: Record<number, Task[]> = {};
 
-// Step 3: Add functions to handle deletion
+    // קיבוץ המשימות לפי מספר שיעור
+    for (const task of tasks) {
+      if (!grouped[task.lesson_number]) {
+        grouped[task.lesson_number] = [];
+      }
+      grouped[task.lesson_number].push(task);
+    }
+
+    // מיון המשימות בתוך כל שיעור לפי order_index
+    for (const lessonNumber in grouped) {
+      grouped[lessonNumber].sort((a, b) => a.order_index - b.order_index);
+    }
+
+    return grouped;
+  };
+
+  // Step 3: Add functions to handle deletion
   const handleDeleteClick = async (course: any) => {
     setCourseToDelete(course);
     setLoading(true);
@@ -136,11 +152,13 @@ const groupTasksByLesson = (tasks: Task[]) => {
       // Check for course assignments by querying course_instances
       const { data, error } = await supabase
         .from("course_instances")
-        .select(`
+        .select(
+          `
           id,
           educational_institutions (name),
           profiles (full_name)
-        `)
+        `
+        )
         .eq("course_id", course.id);
 
       if (error) {
@@ -152,20 +170,21 @@ const groupTasksByLesson = (tasks: Task[]) => {
       setAssignmentDetails(data || []);
       setShowDeleteDialog(true);
     } catch (error) {
-        console.error("An unexpected error occurred:", error);
+      console.error("An unexpected error occurred:", error);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
-
- const confirmDelete = async () => {
+  const confirmDelete = async () => {
     if (!courseToDelete || assignmentDetails.length > 0) return;
-    
+
     setLoading(true);
     // Use the RPC function to safely delete the course and its dependencies
-    const { error } = await supabase.rpc('delete_course_template', { p_course_id: courseToDelete.id });
-    
+    const { error } = await supabase.rpc("delete_course_template", {
+      p_course_id: courseToDelete.id,
+    });
+
     if (error) {
       console.error("Error deleting course:", error);
       // You can add an error toast here for the user
@@ -179,7 +198,6 @@ const groupTasksByLesson = (tasks: Task[]) => {
     }
     setLoading(false);
   };
-  
 
   const fetchCourses = async () => {
     if (!user) return;
@@ -209,14 +227,17 @@ const groupTasksByLesson = (tasks: Task[]) => {
 
       if (allCourseIds.length > 0) {
         // Fetch lessons
-  
-      const { data: lessons, error: lessonsError } = await supabase
-      .rpc("get_lessons_by_courses", { course_ids: allCourseIds });
+
+        const { data: lessons, error: lessonsError } = await supabase.rpc(
+          "get_lessons_by_courses",
+          { course_ids: allCourseIds }
+        );
         if (lessonsError) {
           console.error("Error fetching lessons:", lessonsError);
         } else {
-
-        lessonsData = (lessons || []).filter(lesson => lesson.course_instance_id === null);
+          lessonsData = (lessons || []).filter(
+            (lesson) => lesson.course_instance_id === null
+          );
         }
 
         // Fetch tasks for all lessons
@@ -249,80 +270,84 @@ const groupTasksByLesson = (tasks: Task[]) => {
       }
 
       // Helper function to format template course data
-     // בתוך פונקציית formatCourseData, החלף את החלק הזה:
+      // בתוך פונקציית formatCourseData, החלף את החלק הזה:
 
-const formatCourseData = (course: any) => {
-  // שלב 1: סינון ומיון השיעורים לפי order_index
-  const courseLessons = lessonsData
-    .filter((lesson) => lesson.course_id === course.id)
-    .sort((a, b) => {
-      // מיון לפי order_index, ואם הם שווים אז לפי id
-      if (a.order_index !== b.order_index) {
-        return a.order_index - b.order_index;
-      }
-      return a.id.localeCompare(b.id);
-    });
+      const formatCourseData = (course: any) => {
+        // שלב 1: סינון ומיון השיעורים לפי order_index
+        const courseLessons = lessonsData
+          .filter((lesson) => lesson.course_id === course.id)
+          .sort((a, b) => {
+            // מיון לפי order_index, ואם הם שווים אז לפי id
+            if (a.order_index !== b.order_index) {
+              return a.order_index - b.order_index;
+            }
+            return a.id.localeCompare(b.id);
+          });
 
-  console.log(`Lessons for course ${course.name}:`, courseLessons.map(l => ({
-    title: l.title,
-    order_index: l.order_index,
-    id: l.id
-  })));
+        console.log(
+          `Lessons for course ${course.name}:`,
+          courseLessons.map((l) => ({
+            title: l.title,
+            order_index: l.order_index,
+            id: l.id,
+          }))
+        );
 
-  // שלב 2: יצירת מפה של lesson_id למספר השיעור הנכון
-  const lessonNumberMap = new Map();
-  courseLessons.forEach((lesson, index) => {
-    lessonNumberMap.set(lesson.id, index + 1);
-  });
+        // שלב 2: יצירת מפה של lesson_id למספר השיעור הנכון
+        const lessonNumberMap = new Map();
+        courseLessons.forEach((lesson, index) => {
+          lessonNumberMap.set(lesson.id, index + 1);
+        });
 
-  // שלב 3: בניית רשימת המשימות עם המספור הנכון
-  const allCourseTasks = [];
-  
-  courseLessons.forEach((lesson) => {
-    const lessonNumber = lessonNumberMap.get(lesson.id);
-    const lessonTasks = tasksData
-      .filter((task) => task.lesson_id === lesson.id)
-      .sort((a, b) => a.order_index - b.order_index) // מיון משימות לפי order_index
-      .map((task) => ({
-        ...task,
-        lesson_title: lesson.title,
-        lesson_number: lessonNumber,
-      }));
-    
-    allCourseTasks.push(...lessonTasks);
-  });
+        // שלב 3: בניית רשימת המשימות עם המספור הנכון
+        const allCourseTasks = [];
 
-  return {
-    id: course.id,
-    instance_id: null,
-    name: course.name || "ללא שם קורס",
-    grade_level: "לא צוין",
-    max_participants: 0,
-    price_per_lesson: 0,
-    institution_name: "תבנית קורס",
-    instructor_name: "לא הוקצה",
-    lesson_count: courseLessons.length,
-    start_date: null,
-    approx_end_date: null,
-    is_assigned: false,
-    school_type: course.school_type,
-    presentation_link: course.presentation_link,
-    program_link: course.program_link,
-    tasks: allCourseTasks.map((task: any) => ({
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      estimated_duration: task.estimated_duration,
-      is_mandatory: task.is_mandatory,
-      lesson_number: task.lesson_number,
-      lesson_title: task.lesson_title,
-      order_index: task.order_index,
-    })),
-  };
-};
+        courseLessons.forEach((lesson) => {
+          const lessonNumber = lessonNumberMap.get(lesson.id);
+          const lessonTasks = tasksData
+            .filter((task) => task.lesson_id === lesson.id)
+            .sort((a, b) => a.order_index - b.order_index) // מיון משימות לפי order_index
+            .map((task) => ({
+              ...task,
+              lesson_title: lesson.title,
+              lesson_number: lessonNumber,
+            }));
+
+          allCourseTasks.push(...lessonTasks);
+        });
+
+        return {
+          id: course.id,
+          instance_id: null,
+          name: course.name || "ללא שם קורס",
+          grade_level: "לא צוין",
+          max_participants: 0,
+          price_per_lesson: 0,
+          institution_name: "תבנית קורס",
+          instructor_name: "לא הוקצה",
+          lesson_count: courseLessons.length,
+          start_date: null,
+          approx_end_date: null,
+          is_assigned: false,
+          school_type: course.school_type,
+          presentation_link: course.presentation_link,
+          program_link: course.program_link,
+          tasks: allCourseTasks.map((task: any) => ({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            estimated_duration: task.estimated_duration,
+            is_mandatory: task.is_mandatory,
+            lesson_number: task.lesson_number,
+            lesson_title: task.lesson_title,
+            order_index: task.order_index,
+          })),
+        };
+      };
 
       // Format template courses only
-      const formattedTemplateCourses = allCoursesData?.map(formatCourseData) || [];
+      const formattedTemplateCourses =
+        allCoursesData?.map(formatCourseData) || [];
 
       console.log("Template courses: ", formattedTemplateCourses);
       setCourses(formattedTemplateCourses);
@@ -340,10 +365,12 @@ const formatCourseData = (course: any) => {
 
   // Filter courses based on school type
   useEffect(() => {
-    if (!schoolTypeFilter || schoolTypeFilter === 'all') {
+    if (!schoolTypeFilter || schoolTypeFilter === "all") {
       setFilteredCourses(courses);
     } else {
-      const filtered = courses.filter(course => course.school_type === schoolTypeFilter);
+      const filtered = courses.filter(
+        (course) => course.school_type === schoolTypeFilter
+      );
       setFilteredCourses(filtered);
     }
   }, [courses, schoolTypeFilter]);
@@ -488,11 +515,11 @@ const formatCourseData = (course: any) => {
                     </SelectContent>
                   </Select>
                 </div>
-                {schoolTypeFilter && schoolTypeFilter !== 'all' && (
+                {schoolTypeFilter && schoolTypeFilter !== "all" && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setSchoolTypeFilter('all')}
+                    onClick={() => setSchoolTypeFilter("all")}
                     className="text-gray-600"
                   >
                     נקה סינון
@@ -508,10 +535,14 @@ const formatCourseData = (course: any) => {
             <CardContent>
               <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-6" />
               <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                {schoolTypeFilter && schoolTypeFilter !== 'all' ? 'לא נמצאו תוכניות לימוד מהסוג הנבחר' : 'אין תוכניות לימוד עדיין'}
+                {schoolTypeFilter && schoolTypeFilter !== "all"
+                  ? "לא נמצאו תוכניות לימוד מהסוג הנבחר"
+                  : "אין תוכניות לימוד עדיין"}
               </h3>
               <p className="text-gray-600 mb-6 text-lg">
-                {schoolTypeFilter && schoolTypeFilter !== 'all' ? 'נסה לשנות את הסינון או לצור תוכנית לימוד חדשה' : 'התחל ליצור את תוכנית הלימוד הראשונה שלך'}
+                {schoolTypeFilter && schoolTypeFilter !== "all"
+                  ? "נסה לשנות את הסינון או לצור תוכנית לימוד חדשה"
+                  : "התחל ליצור את תוכנית הלימוד הראשונה שלך"}
               </p>
               <Button
                 onClick={() => setShowCreateDialog(true)}
@@ -524,76 +555,146 @@ const formatCourseData = (course: any) => {
           </Card>
         ) : (
           <div className="space-y-8">
-            {filteredCourses.map((course) => (
-              console.log('course',course),
-              <Card
-                key={course.instance_id || course.id}
-                className={`shadow-xl border-0 backdrop-blur-sm ${
-                  course.is_assigned
-                    ? "bg-white/80"
-                    : "bg-yellow-50/80 border-2 border-yellow-200"
-                }`}
-              >
-                <CardHeader
-                  className={`text-white rounded-t-lg ${
-                    course.is_assigned
-                      ? "bg-gradient-to-r from-blue-600 to-blue-700"
-                      : "bg-gradient-to-r from-amber-500 to-orange-600"
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      {/* <div>
+            {filteredCourses.map(
+              (course) => (
+                console.log("course", course),
+                (
+                  <Card
+                    key={course.instance_id || course.id}
+                    className={`shadow-xl border-0 backdrop-blur-sm ${
+                      course.is_assigned
+                        ? "bg-white/80"
+                        : "bg-yellow-50/80 border-2 border-yellow-200"
+                    }`}
+                  >
+                    <CardHeader
+                      className={`text-white rounded-t-lg ${
+                        course.is_assigned
+                          ? "bg-gradient-to-r from-blue-600 to-blue-700"
+                          : "bg-gradient-to-r from-amber-500 to-orange-600"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          {/* <div>
                         {" "}
                         {formatDate(course.approx_end_date)} -{" "}
                         {formatDate(course.start_date)}
                       </div> */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <CardTitle className="text-2xl text-white">
-                          {course.name}
-                        </CardTitle>
-                        {!course.is_assigned && (
-                          <Badge className="bg-white/20 text-white border-white/30">
-                            ממתין להקצאה
-                          </Badge>
+                       {isMobile && (
+                          <div className="flex justify-end absolute top-2 left-2 gap-2">
+                            {hasAdminAccess && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-white hover:bg-white/20"
+                                  onClick={() =>
+                                    handleAssignCourse(
+                                      course.id,
+                                      course.instance_id || "",
+                                      course.name
+                                    )
+                                  }
+                                >
+                                  <UserPlus className="h-4 w-4" />
+                                  {!isMobile && (
+                                    <span className="mr-1">הקצה</span>
+                                  )}{" "}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-white hover:bg-white/20"
+                                  onClick={() => handleDeleteClick(course)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  {!isMobile && (
+                                    <span className="mr-1">מחק</span>
+                                  )}{" "}
+                                </Button>
+                              </>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-white hover:bg-white/20"
+                              onClick={() =>
+                                toggleCardExpansion(
+                                  course.instance_id || course.id
+                                )
+                              }
+                              title={
+                                expandedCards.has(
+                                  course.instance_id || course.id
+                                )
+                                  ? "הסתר פרטים"
+                                  : "הצג פרטים"
+                              }
+                            >
+                              {expandedCards.has(
+                                course.instance_id || course.id
+                              ) ? (
+                                <ChevronUp className="h-5 w-5" />
+                              ) : (
+                                <ChevronDown className="h-5 w-5" />
+                              )}
+                            </Button>
+                          </div>
                         )}
-                      </div>
-                    <div>
-                      {course.presentation_link ? (
-                        <a
-                          href={course.presentation_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`underline text-sm ${
-                            course.is_assigned ? "text-blue-100" : "text-amber-100"
-                          }`}
-                        >
-                        <b> צפה במצגת הקורס</b>
-                        </a>
-                      )
-                    :(
-                     <span className="text-black font-bold">לא קיימת מצגת המשוייכת לקורס זה  </span> 
-                    )}
-                    </div>
-                      <div className="mt-1">
-                      {course.program_link ? (
-                        <a
-                          href={course.program_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`underline text-sm ${
-                            course.is_assigned ? "text-blue-100" : "text-amber-100"
-                          }`}
-                        >
-                        <b> צפה בתכנית הפדגוגית</b>
-                        </a>
-                      )
-                    :(
-                     <span className="text-black font-bold">לא קיימת תכנית פדגוגית לקורס זה  </span> 
-                    )}
-                    </div>
-                    
-                      {/* <CardDescription
+                          <div className= {isMobile?"flex items-center gap-2 mb-2 mt-4":"flex items-center gap-2 mb-2" }>
+                            <CardTitle className="text-2xl text-white">
+                              {course.name}
+                            </CardTitle>
+                          </div>
+                          {!course.is_assigned && (
+                            <Badge className="bg-white/20 text-white border-white/30">
+                              ממתין להקצאה
+                            </Badge>
+                          )}
+
+                          <div>
+                            {course.presentation_link ? (
+                              <a
+                                href={course.presentation_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`underline text-sm ${
+                                  course.is_assigned
+                                    ? "text-blue-100"
+                                    : "text-amber-100"
+                                }`}
+                              >
+                                <b> צפה במצגת הקורס</b>
+                              </a>
+                            ) : (
+                              <span className="text-black font-bold">
+                                לא קיימת מצגת המשוייכת לקורס זה{" "}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1">
+                            {course.program_link ? (
+                              <a
+                                href={course.program_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`underline text-sm ${
+                                  course.is_assigned
+                                    ? "text-blue-100"
+                                    : "text-amber-100"
+                                }`}
+                              >
+                                <b> צפה בתכנית הפדגוגית</b>
+                              </a>
+                            ) : (
+                              <span className="text-black font-bold">
+                                לא קיימת תכנית פדגוגית לקורס זה{" "}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* <CardDescription
                         className={`text-base ${
                           course.is_assigned
                             ? "text-blue-100"
@@ -604,10 +705,9 @@ const formatCourseData = (course: any) => {
                           ? course.institution_name
                           : "ממתין להקצאה "}
                       </CardDescription> */}
-                    </div>
-                    
-                      
-                      {/* <div className="flex gap-2">
+                        </div>
+
+                        {/* <div className="flex gap-2">
                         {user.user_metadata.role !== "instructor" && (<>
                          <Button
                            variant="ghost"
@@ -640,77 +740,98 @@ const formatCourseData = (course: any) => {
                       </Button>
                       </div>
                      */}
-                      <div className="flex gap-2">
-    {hasAdminAccess && (
-      <>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-white hover:bg-white/20"
-          onClick={() =>
-            handleAssignCourse(
-              course.id,
-              course.instance_id || "",
-              course.name
-            )
-          }
-        >
-          <UserPlus className="h-4 w-4" />
-          <span className="mr-1">הקצה</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-white hover:bg-white/20"
-          onClick={() => handleDeleteClick(course)}
-        >
-          <Trash2 className="h-4 w-4" />
-          <span className="mr-1">מחק</span>
-        </Button>
-      </>
-    )}
-    <Button
-      variant="ghost"
-      size="sm"
-      className="text-white hover:bg-white/20"
-      onClick={() => toggleCardExpansion(course.instance_id || course.id)}
-      title={expandedCards.has(course.instance_id || course.id) ? "הסתר פרטים" : "הצג פרטים"}
-    >
-      {expandedCards.has(course.instance_id || course.id) ? (
-        <ChevronUp className="h-5 w-5" />
-      ) : (
-        <ChevronDown className="h-5 w-5" />
-      )}
-    </Button>
-  </div>
-                  </div>
-                </CardHeader>
+                        {!isMobile && (
+                          <div className="flex gap-2">
+                            {hasAdminAccess && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-white hover:bg-white/20"
+                                  onClick={() =>
+                                    handleAssignCourse(
+                                      course.id,
+                                      course.instance_id || "",
+                                      course.name
+                                    )
+                                  }
+                                >
+                                  <UserPlus className="h-4 w-4" />
+                                  {!isMobile && (
+                                    <span className="mr-1">הקצה</span>
+                                  )}{" "}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-white hover:bg-white/20"
+                                  onClick={() => handleDeleteClick(course)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  {!isMobile && (
+                                    <span className="mr-1">מחק</span>
+                                  )}{" "}
+                                </Button>
+                              </>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-white hover:bg-white/20"
+                              onClick={() =>
+                                toggleCardExpansion(
+                                  course.instance_id || course.id
+                                )
+                              }
+                              title={
+                                expandedCards.has(
+                                  course.instance_id || course.id
+                                )
+                                  ? "הסתר פרטים"
+                                  : "הצג פרטים"
+                              }
+                            >
+                              {expandedCards.has(
+                                course.instance_id || course.id
+                              ) ? (
+                                <ChevronUp className="h-5 w-5" />
+                              ) : (
+                                <ChevronDown className="h-5 w-5" />
+                              )}
+                            </Button>
+                          </div>
+                        )}
 
-           {expandedCards.has(course.instance_id || course.id) && ( 
-                <CardContent className="p-6">
-                  {/* Assignment Status Alert */}
-                  {!course.is_assigned && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-                      <div className="flex items-center">
-                        <div className="h-2 w-2 bg-amber-400 rounded-full mr-2"></div>
-                        <span className="text-amber-800 font-medium">
-                          קורס זה עדיין לא הוקצה למוסד ומדריך
-                        </span>
+                       
                       </div>
-                    </div>
-                  )}
+                      
+                    </CardHeader>
 
-                  {/* Course Details */}
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                    <div className="flex items-center justify-evenly">
-                      <span className="text-sm text-gray-600 font-medium">
-                        סוג בית ספר:
-                      </span>
-                      <span className="text-sm font-bold text-blue-600">
-                        {getSchoolTypeDisplayName(course.school_type)}
-                      </span>
-                    </div>
-                    {/* <div className="flex items-center justify-evenly">
+                    {expandedCards.has(course.instance_id || course.id) && (
+                      <CardContent className="p-6">
+                        {/* Assignment Status Alert */}
+                        {!course.is_assigned && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                            <div className="flex items-center">
+                              <div className="h-2 w-2 bg-amber-400 rounded-full mr-2"></div>
+                              <span className="text-amber-800 font-medium">
+                                קורס זה עדיין לא הוקצה למוסד ומדריך
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Course Details */}
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                          <div className="flex items-center justify-evenly">
+                            <span className="text-sm text-gray-600 font-medium">
+                              סוג בית ספר:
+                            </span>
+                            <span className="text-sm font-bold text-blue-600">
+                              {getSchoolTypeDisplayName(course.school_type)}
+                            </span>
+                          </div>
+                          {/* <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">
                         שם המדריך:
                       </span>
@@ -726,7 +847,7 @@ const formatCourseData = (course: any) => {
                           : "לא צוין"}
                       </span>
                     </div> */}
-                    {/* <div className="flex items-center justify-evenly">
+                          {/* <div className="flex items-center justify-evenly">
                       <span className="text-sm text-gray-600 font-medium">
                         כיתה:
                       </span>
@@ -757,174 +878,181 @@ const formatCourseData = (course: any) => {
                         ₪{course.price_per_lesson}
                       </span>
                     </div> */}
-                  </div>
+                        </div>
 
-                  {/* Tasks Section */}
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <CheckCircle2 className="h-5 w-5 mr-2 text-blue-600" />
-                      משימות הקורס ({course.tasks.length})
-                    </h3>
+                        {/* Tasks Section */}
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                            <CheckCircle2 className="h-5 w-5 mr-2 text-blue-600" />
+                            משימות הקורס ({course.tasks.length})
+                          </h3>
 
-                    {course.tasks.length > 0 ? (
-                      <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-gray-50">
-                              <TableHead className="text-right font-semibold">
-                                שם השיעור
-                              </TableHead>
-                              <TableHead className="text-right font-semibold max-w-xs">
-                                תיאור
-                              </TableHead>
-                              <TableHead className="text-right font-semibold">
-                                זמן מוערך
-                              </TableHead>
-                              <TableHead className="text-right font-semibold">
-                                סוג
-                              </TableHead>
-                              {course.is_assigned && (
-                                <TableHead className="text-right font-semibold">
-                                  מועד שיעור
-                                </TableHead>
-                              )}
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {Object.entries(groupTasksByLesson(course.tasks))
-                              .sort(([a], [b]) => Number(a) - Number(b)) // מיון לפי מספר השיעור
-                              .map(([lessonNumber, lessonTasks]) => (
-                              <React.Fragment key={lessonNumber}>
-                                {/* כותרת שיעור */}
-                                <TableRow className="bg-blue-100">
-                                  <TableCell
-                                    colSpan={course.is_assigned ? 6 : 5}
-                                    className="font-bold text-right text-blue-900"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span>
-                                        שיעור {lessonNumber} –{" "}
-                                        {lessonTasks[0]?.lesson_title || ""}
-                                      </span>
-                                      {course.is_assigned &&
-                                        lessonTasks[0]?.scheduled_start && (
-                                          <div className="flex items-center text-sm text-blue-700 px-7">
-                                            
-
-                                            {`${
-                                                 formatDateTime(
-                                                lessonTasks[0].scheduled_end
-                                              ).split(" ")[1]
-                                            }
+                          {course.tasks.length > 0 ? (
+                            <div className="border rounded-lg overflow-hidden">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow className="bg-gray-50">
+                                    <TableHead className="text-right font-semibold">
+                                      שם השיעור
+                                    </TableHead>
+                                    <TableHead className="text-right font-semibold max-w-xs">
+                                      תיאור
+                                    </TableHead>
+                                    <TableHead className="text-right font-semibold">
+                                      זמן מוערך
+                                    </TableHead>
+                                    <TableHead className="text-right font-semibold">
+                                      סוג
+                                    </TableHead>
+                                    {course.is_assigned && (
+                                      <TableHead className="text-right font-semibold">
+                                        מועד שיעור
+                                      </TableHead>
+                                    )}
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {Object.entries(
+                                    groupTasksByLesson(course.tasks)
+                                  )
+                                    .sort(([a], [b]) => Number(a) - Number(b)) // מיון לפי מספר השיעור
+                                    .map(([lessonNumber, lessonTasks]) => (
+                                      <React.Fragment key={lessonNumber}>
+                                        {/* כותרת שיעור */}
+                                        <TableRow className="bg-blue-100">
+                                          <TableCell
+                                            colSpan={course.is_assigned ? 6 : 5}
+                                            className="font-bold text-right text-blue-900"
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <span>
+                                                שיעור {lessonNumber} –{" "}
+                                                {lessonTasks[0]?.lesson_title ||
+                                                  ""}
+                                              </span>
+                                              {course.is_assigned &&
+                                                lessonTasks[0]
+                                                  ?.scheduled_start && (
+                                                  <div className="flex items-center text-sm text-blue-700 px-7">
+                                                    {`${
+                                                      formatDateTime(
+                                                        lessonTasks[0]
+                                                          .scheduled_end
+                                                      ).split(" ")[1]
+                                                    }
                                             - ${
-                                                formatDateTime(
+                                              formatDateTime(
                                                 lessonTasks[0].scheduled_start
                                               ).split(" ")[1]
                                             }`}
-                                            {" | "}
-                                            
-                                            {
-                                              formatDateTime(
-                                                lessonTasks[0].scheduled_start
-                                              ).split(" ")[0]
-                                            }
-                                            <Calendar className="h-4 w-4 mr-1" />
-                                          </div>
-                                        )}
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
+                                                    {" | "}
 
-                                {/* המשימות של השיעור הזה */}
-                                {lessonTasks.map((task) => (
-                                  <TableRow
-                                    key={task.id}
-                                    className="hover:bg-gray-50"
-                                  >
-                                    <TableCell className="font-medium">
-                                      <div className="flex items-center">
-                                        <Circle className="h-4 w-4 text-gray-400 mr-2" />
-                                        {task.title}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-gray-600 max-w-xs truncate">
-                                      {task.description || "ללא תיאור"}
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex items-center text-sm text-gray-600">
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        {task.estimated_duration} דק׳
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Badge
-                                        variant={
-                                          task.is_mandatory
-                                            ? "destructive"
-                                            : "secondary"
-                                        }
-                                        className={
-                                          task.is_mandatory
-                                            ? "bg-red-100 text-red-800"
-                                            : "bg-gray-100 text-gray-800"
-                                        }
-                                      >
-                                        {task.is_mandatory ? "חובה" : "רשות"}
-                                      </Badge>
-                                    </TableCell>
-                                  
-                                  </TableRow>
-                                ))}
-                              </React.Fragment>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
-                        <Circle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                        <p>אין משימות עבור הקורס הזה</p>
-                        <p className="text-sm">
-                          ניתן להוסיף משימות בעת עריכת הקורס
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                                                    {
+                                                      formatDateTime(
+                                                        lessonTasks[0]
+                                                          .scheduled_start
+                                                      ).split(" ")[0]
+                                                    }
+                                                    <Calendar className="h-4 w-4 mr-1" />
+                                                  </div>
+                                                )}
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
 
-                  {/* Action Buttons */}
-                  <div className="pt-6 space-y-3">
-                    {user.user_metadata.role !== "instructor" && (
-                      <Button
-                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                        size="sm"
-                        onClick={() => handleEditCourse(course)}
-                      >
-                        <Edit className="h-4 w-4 mr-2" />
-                        לעריכה
-                      </Button>
+                                        {/* המשימות של השיעור הזה */}
+                                        {lessonTasks.map((task) => (
+                                          <TableRow
+                                            key={task.id}
+                                            className="hover:bg-gray-50"
+                                          >
+                                            <TableCell className="font-medium">
+                                              <div className="flex items-center">
+                                                <Circle className="h-4 w-4 text-gray-400 mr-2" />
+                                                {task.title}
+                                              </div>
+                                            </TableCell>
+                                            <TableCell className="text-gray-600 max-w-xs truncate">
+                                              {task.description || "ללא תיאור"}
+                                            </TableCell>
+                                            <TableCell>
+                                              <div className="flex items-center text-sm text-gray-600">
+                                                <Clock className="h-3 w-3 mr-1" />
+                                                {task.estimated_duration} דק׳
+                                              </div>
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge
+                                                variant={
+                                                  task.is_mandatory
+                                                    ? "destructive"
+                                                    : "secondary"
+                                                }
+                                                className={
+                                                  task.is_mandatory
+                                                    ? "bg-red-100 text-red-800"
+                                                    : "bg-gray-100 text-gray-800"
+                                                }
+                                              >
+                                                {task.is_mandatory
+                                                  ? "חובה"
+                                                  : "רשות"}
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </React.Fragment>
+                                    ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                              <Circle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                              <p>אין משימות עבור הקורס הזה</p>
+                              <p className="text-sm">
+                                ניתן להוסיף משימות בעת עריכת הקורס
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="pt-6 space-y-3">
+                          {user.user_metadata.role !== "instructor" && (
+                            <Button
+                              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                              size="sm"
+                              onClick={() => handleEditCourse(course)}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              לעריכה
+                            </Button>
+                          )}
+                          {!course.is_assigned &&
+                            user.user_metadata.role !== "instructor" && (
+                              <Button
+                                className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                                size="sm"
+                                onClick={() =>
+                                  handleAssignCourse(
+                                    course.id,
+                                    course.instance_id,
+                                    course.name
+                                  )
+                                }
+                              >
+                                <UserPlus className="h-4 w-4 mr-2" />
+                                הקצה קורס למוסד
+                              </Button>
+                            )}
+                        </div>
+                      </CardContent>
                     )}
-                    {!course.is_assigned &&
-                      user.user_metadata.role !== "instructor" && (
-                        <Button
-                          className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
-                          size="sm"
-                          onClick={() =>
-                            handleAssignCourse(
-                              course.id,
-                              course.instance_id,
-                              course.name
-                            )
-                          }
-                        >
-                          <UserPlus className="h-4 w-4 mr-2" />
-                          הקצה קורס למוסד
-                        </Button>
-                      )}
-                  </div>
-                </CardContent>
-                )}
-              </Card>
-            ))}
+                  </Card>
+                )
+              )
+            )}
           </div>
         )}
 
@@ -945,15 +1073,15 @@ const formatCourseData = (course: any) => {
             onAssignmentComplete={handleAssignmentComplete}
           />
         )}
-         {courseToDelete && (
-        <DeleteCourseDialog
-          open={showDeleteDialog}
-          onOpenChange={setShowDeleteDialog}
-          courseName={courseToDelete.name}
-          assignments={assignmentDetails}
-          onConfirmDelete={confirmDelete}
-        />
-      )}
+        {courseToDelete && (
+          <DeleteCourseDialog
+            open={showDeleteDialog}
+            onOpenChange={setShowDeleteDialog}
+            courseName={courseToDelete.name}
+            assignments={assignmentDetails}
+            onConfirmDelete={confirmDelete}
+          />
+        )}
       </main>
     </div>
   );
