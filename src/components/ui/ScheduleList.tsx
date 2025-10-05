@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "../auth/AuthProvider";
 import { Check } from "lucide-react";
 
-export const ScheduleList: React.FC<any> = ({ lessons }) => {
+export const ScheduleList: React.FC<any> = ({ lessons,selectedDate }) => {
   const nav = useNavigate();
   const [instructors, setInstructors] = useState<
     { id: string; full_name: string }[]
@@ -16,6 +16,13 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
     new Map()
   );
   const { user } = useAuth();
+
+
+const sortedLessons = lessons.sort((a, b) => {
+  const timeA = new Date(a.scheduled_start).getTime();
+  const timeB = new Date(b.scheduled_start).getTime();
+  return timeA - timeB;
+});
 
   useEffect(() => {
     const fetchInstructors = async () => {
@@ -150,7 +157,8 @@ export const ScheduleList: React.FC<any> = ({ lessons }) => {
 
   return (
     <div className="schedule-list-container flex flex-col gap-3 px-2 py-4 sm:px-4 sm:py-6 max-w-4xl w-full mx-auto">
-      {lessons.map((item, index) => {
+      {sortedLessons.map((item, index) => {
+        console.log('item',item)
         const instructorName =
           instructorMap.get(item?.course_instances?.instructor?.id) ||
           item?.course_instances?.instructor?.full_name ||
@@ -277,7 +285,9 @@ const renderStatusBadge = () => {
     return user.user_metadata.role === "instructor" ? (
       <button
         onClick={() =>
-          nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
+          nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
+              state: { selectedDate: selectedDate?.toISOString() }
+         })
         }
         className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
       >
@@ -315,7 +325,9 @@ const renderStatusBadge = () => {
                 <p className="text-base mb-1">
                   <span className="font-semibold">🏫 מוסד:</span> {item?.course_instances?.institution?.name}
                 </p>
-                
+                <p className="text-base mb-1">
+                  <span className="font-semibold">📚 כיתה:</span> {item?.course_instances?.grade_level}
+                </p>
                 {!item?.course_instances?.instructor?.full_name && user.user_metadata.role!=="instructor" ? (
                   <p className="text-base mb-1 text-red-600 font-semibold">
                     <span className="font-semibold">👨‍🏫 מדריך:</span> אין מדריך לקורס הזה

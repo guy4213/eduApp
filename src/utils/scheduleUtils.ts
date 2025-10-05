@@ -1769,6 +1769,7 @@ export const fetchAndGenerateSchedules = async (
           course_id,
           start_date,
           end_date,
+          grade_level,
           course:course_id (
             id,
             name

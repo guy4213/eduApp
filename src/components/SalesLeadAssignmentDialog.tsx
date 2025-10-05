@@ -506,7 +506,7 @@ export default function SalesLeadAssignmentDialog({
                     <FormLabel>תגמול פוטנציאלי (₪)</FormLabel>
                     <FormControl>
                       <Input
-                      disabled={user?.user_metadata.role=="instructor"}
+                      disabled={user?.user_metadata.role!=="admin"}
                         type="number"
                         placeholder="0"
                         {...field}
@@ -528,6 +528,7 @@ export default function SalesLeadAssignmentDialog({
                     <FormLabel>אחוז עמלה (%)</FormLabel>
                     <FormControl>
                       <Input
+                      disabled={user?.user_metadata.role!=="admin"}
                         type="number"
                         placeholder="10"
                         min="0"

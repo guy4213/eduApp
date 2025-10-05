@@ -43,7 +43,7 @@ const uncompletedTasks = allTasks.filter(task => !completedTaskIds.includes(task
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-right">
             משוב לשיעור: {report.lesson_title}

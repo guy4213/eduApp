@@ -38,7 +38,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import MobileNavigation from "@/components/layout/MobileNavigation";
-import { useLocation, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/components/auth/AuthProvider";
 import FeedbackDialog from "@/components/FeedbackDialog";
 import { format } from "date-fns";
@@ -82,11 +82,21 @@ const LessonReport = () => {
   const isAdmin = user?.user_metadata.role === "admin";
 
   // Date filtering state (admin only)
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
+const [selectedInstructor, setSelectedInstructor] = useState<string>("");
+const [selectedCourse, setSelectedCourse] = useState<string>("");
+const [selectedStatus, setSelectedStatus] = useState<string>("");
+const [selectedInstitution, setSelectedInstitution] = useState<string>("");
+
+const [instructors, setInstructors] = useState([]);
+const [courses, setCourses] = useState([]);
+const [institutions, setInstitutions] = useState<{id: string, name: string}[]>([]);
+
   const [dateFrom, setDateFrom] = useState(undefined);
   const [dateTo, setDateTo] = useState(undefined);
   const [filteredReports, setFilteredReports] = useState([]);
   const [lessonNumber, setLessonNumber] = useState<any>();
-
+  const navigate = useNavigate();
   
   async function getMaxParticipantsByScheduleId(scheduleId) {
     console.log("Getting max participants for schedule ID:", scheduleId);
@@ -429,41 +439,47 @@ const LessonReport = () => {
       const fetchAllReports = async () => {
         setLoading(true);
         const { data, error } = await supabase
-          .from("lesson_reports")
-          .select(
-            `*,
-                     reported_lesson_instances( lesson_number ),
-
-                        instructor:instructor_id (
-                            id,
-                            full_name
-                        ),
-                        profiles (
-                            full_name
-                        ),
-                        lesson_attendance (
-                            student_id,
-                            attended,
-                            students (
-                                id,
-                                full_name
-                            )
-                        ),
-                        lessons:lesson_id (
-                            id,
-                            course_id,
-                            lesson_tasks (
-                                id,
-                                title,
-                                description,
-                                is_mandatory
-                            ),
-                            courses:course_id (
-                                name
-                            )
-                        )`
-          )
-          .order("created_at", { ascending: false });
+  .from("lesson_reports")
+  .select(`
+    *,
+    reported_lesson_instances(lesson_number),
+    instructor:instructor_id (
+      id,
+      full_name
+    ),
+    profiles (
+      full_name
+    ),
+    lesson_attendance (
+      student_id,
+      attended,
+      students (
+        id,
+        full_name
+      )
+    ),
+    lessons:lesson_id (
+      id,
+      course_id,
+      lesson_tasks (
+        id,
+        title,
+        description,
+        is_mandatory
+      ),
+      courses:course_id (
+        name
+      )
+    ),
+    course_instances:course_instance_id (
+      id,
+      educational_institutions:institution_id (
+        id,
+        name
+      )
+    )
+  `)
+  .order("created_at", { ascending: false });
 
         if (error) {
           console.error("Reports fetch error:", error);
@@ -846,602 +862,903 @@ const LessonReport = () => {
   //         setIsSubmitting(false);
   //     }
   // };
-  // const handleSubmit = async () => {
-  //         // Count present students
-  //         const presentStudents = attendanceList.filter(student => student.isPresent).length;
-  //         const participantsCount = presentStudents;
+  
+//   const handleSubmit = async () => {
 
-  //         // If lesson didn't take place, allow submission without participants
-  //         if (isCompleted && participantsCount === 0) {
-  //             toast({
-  //                 title: 'שגיאה',
-  //                 description: `נדרש לבחור לפחות תלמיד אחד ועד ${maxPar} משתתפים`,
-  //                 variant: 'destructive',
-  //             });
-  //             return;
-  //         }
+//     const { error } = await supabase.rpc('report_work_hour');
 
-  //         if (!lessonTitle.trim()) {
-  //             toast({
-  //                 title: 'שגיאה',
-  //                 description: 'נדרש להזין כותרת שיעור',
-  //                 variant: 'destructive',
-  //             });
-  //             return;
-  //         }
+//   if (error) {
+//     console.error('Error reporting work hour:', error);
+//     // Show an error toast
+//   } else {
+//     console.log('Successfully reported 1 work hour!');
+//     // Show a success toast
+//   }
 
-  //         // בדיקת משוב רק אם השיעור התקיים ולא התנהל כשורה
-  //         if (isCompleted && !isLessonOk && !feedback.trim()) {
-  //             toast({
-  //                 title: 'שגיאה',
-  //                 description: 'בבקשה הזן משוב במידה והשיעור לא התנהל כשורה',
-  //                 variant: 'destructive',
-  //             });
-  //             return;
-  //         }
+//     // Count present students
+//     const presentStudents = attendanceList.filter(
+//       (student) => student.isPresent
+//     ).length;
+//     const participantsCount = presentStudents;
+//     const totalStudents = attendanceList.length;
 
-  //         setIsSubmitting(true);
+//     // If lesson didn't take place, allow submission without participants
+//     if (isCompleted && participantsCount === 0) {
+//       toast({
+//         title: "שגיאה",
+//         description: `נדרש לבחור לפחות תלמיד אחד ועד ${maxPar} משתתפים`,
+//         variant: "destructive",
+//       });
+//       return;
+//     }
 
-  //         try {
-  //             const { data: { user }, error: userError } = await supabase.auth.getUser();
-  //             if (userError || !user) throw new Error('משתמש לא מחובר');
+//     if (!lessonTitle.trim()) {
+//       toast({
+//         title: "שגיאה",
+//         description: "נדרש להזין כותרת שיעור",
+//         variant: "destructive",
+//       });
+//       return;
+//     }
 
-  //             console.log('Starting form submission...');
-  //             console.log('Current attendance list:', attendanceList);
+//     // בדיקת משוב רק אם השיעור התקיים ולא התנהל כשורה
+//     if (isCompleted && !isLessonOk && !feedback.trim()) {
+//       toast({
+//         title: "שגיאה",
+//         description: "בבקשה הזן משוב במידה והשיעור לא התנהל כשורה",
+//         variant: "destructive",
+//       });
+//       return;
+//     }
 
-  //             // שמירת סטודנטים חדשים קודם
-  //             let updatedAttendanceList;
-  //             try {
-  //                 updatedAttendanceList = await saveNewStudents();
-  //                 console.log('Students saved successfully:', updatedAttendanceList);
-  //             } catch (studentError) {
-  //                 console.error('Failed to save students:', studentError);
-  //                 toast({
-  //                     title: 'שגיאה',
-  //                     description: studentError.message || 'שגיאה בשמירת תלמידים חדשים',
-  //                     variant: 'destructive',
-  //                 });
-  //                 setIsSubmitting(false); // Stop submission on critical error
-  //                 return;
-  //             }
+//     setIsSubmitting(true);
 
-  //             // Handle lesson_schedule_id and course_instance_id for new architecture
-  //             let lessonScheduleId = scheduleId;
-  //             let courseInstanceIdForReport = null;
+//     try {
+//       const {
+//         data: { user },
+//         error: userError,
+//       } = await supabase.auth.getUser();
+//       if (userError || !user) throw new Error("משתמש לא מחובר");
 
-  //             if (courseInstanceIdFromUrl && !scheduleId) {
-  //                 console.log('Using new architecture with course_instance_id:', courseInstanceIdFromUrl);
-  //                 courseInstanceIdForReport = courseInstanceIdFromUrl;
-  //                 lessonScheduleId = null;
-  //             } else if (scheduleId) {
-  //                 console.log('Using legacy architecture with lesson_schedule_id:', scheduleId);
-  //                 lessonScheduleId = scheduleId;
-  //             } else {
-  //                 throw new Error('לא ניתן ליצור דיווח ללא מזהה לוח זמנים תקין');
-  //             }
+//       console.log("Starting form submission...");
+//       console.log("Current attendance list:", attendanceList);
 
-  //             // יצירת דיווח השיעור
-  //             const reportDataToInsert = {
-  //                 lesson_title: lessonTitle,
-  //                 participants_count: participantsCount,
-  //                 notes,
-  //                 feedback,
-  //                 marketing_consent: marketingConsent,
-  //                 instructor_id: user.id,
-  //                 is_lesson_ok: isCompleted ? isLessonOk : null, // רק אם השיעור התקיים
-  //                 is_completed: isCompleted,
-  //                 completed_task_ids: checkedTasks,
-  //                 lesson_id: id,
-  //             };
+//       // שמירת סטודנטים חדשים קודם
+//       let updatedAttendanceList;
+//       try {
+//         updatedAttendanceList = await saveNewStudents();
+//         console.log("Students saved successfully:", updatedAttendanceList);
+//       } catch (studentError) {
+//         console.error("Failed to save students:", studentError);
+//         toast({
+//           title: "שגיאה",
+//           description: studentError.message || "שגיאה בשמירת תלמידים חדשים",
+//           variant: "destructive",
+//         });
+//         setIsSubmitting(false); // Stop submission on critical error
+//         return;
+//       }
 
-  //             if (courseInstanceIdForReport) {
-  //                 reportDataToInsert.course_instance_id = courseInstanceIdForReport;
-  //             } else if (lessonScheduleId) {
-  //                 reportDataToInsert.lesson_schedule_id = lessonScheduleId;
-  //             }
+//       // Handle lesson_schedule_id and course_instance_id for new architecture
+//       let lessonScheduleId = scheduleId;
+//       let courseInstanceIdForReport = null;
 
-  //             const { data: reportData, error: reportError } = await supabase
-  //                 .from('lesson_reports')
-  //                 .insert(reportDataToInsert)
-  //                 .select()
-  //                 .single();
+//       if (courseInstanceIdFromUrl && !scheduleId) {
+//         console.log(
+//           "Using new architecture with course_instance_id:",
+//           courseInstanceIdFromUrl
+//         );
+//         courseInstanceIdForReport = courseInstanceIdFromUrl;
+//         lessonScheduleId = null;
+//       } else if (scheduleId) {
+//         console.log(
+//           "Using legacy architecture with lesson_schedule_id:",
+//           scheduleId
+//         );
+//         lessonScheduleId = scheduleId;
+//       } else {
+//         throw new Error("לא ניתן ליצור דיווח ללא מזהה לוח זמנים תקין");
+//       }
 
-  //             if (reportError) throw reportError;
+//       // יצירת דיווח השיעור
+//       const reportDataToInsert = {
+//         lesson_title: lessonTitle,
+//         participants_count: participantsCount,
+//         notes,
+//         feedback,
+//         marketing_consent: marketingConsent,
+//         instructor_id: user.id,
+//         is_lesson_ok: isCompleted ? isLessonOk : null, // רק אם השיעור התקיים
+//         is_completed: isCompleted,
+//         completed_task_ids: checkedTasks,
+//         lesson_id: id,
+//       };
 
-  //             console.log('Lesson report created:', reportData);
+//       if (courseInstanceIdForReport) {
+//         reportDataToInsert.course_instance_id = courseInstanceIdForReport;
+//       } else if (lessonScheduleId) {
+//         reportDataToInsert.lesson_schedule_id = lessonScheduleId;
+//       }
 
-  //             // Create a record in reported_lesson_instances
-  //             const reportedInstanceData = {
-  //                 lesson_report_id: reportData.id,
-  //                 lesson_id: id,
-  //                 scheduled_date: new Date().toISOString().split('T')[0],
-  //                 lesson_number: 1, // Default value
-  //             };
+//       const { data: reportData, error: reportError } = await supabase
+//         .from("lesson_reports")
+//         .insert(reportDataToInsert)
+//         .select()
+//         .single();
 
-  //             if (courseInstanceIdForReport) {
-  //                 reportedInstanceData.course_instance_id = courseInstanceIdForReport;
-  //                 const { data: lessonData, error: lessonError } = await supabase
-  //                     .from('lessons')
-  //                     .select('order_index')
-  //                     .eq('id', id)
-  //                     .single();
-  //                 if (lessonError) {
-  //                     console.error('Error fetching lesson order_index:', lessonError);
-  //                 } else {
-  //                     reportedInstanceData.lesson_number = lessonData.order_index + 1;
-  //                 }
-  //             } else if (lessonScheduleId) {
-  //                 reportedInstanceData.lesson_schedule_id = lessonScheduleId;
-  //             }
+//       if (reportError) throw reportError;
 
-  //             const { error: trackingError } = await supabase
-  //                 .from('reported_lesson_instances')
-  //                 .insert(reportedInstanceData);
+//       console.log("Lesson report created:", reportData);
 
-  //             if (trackingError) {
-  //                 console.error('Error creating reported lesson instance record:', trackingError);
-  //             } else {
-  //                 console.log('Reported lesson instance record created');
-  //             }
+//       // Create a record in reported_lesson_instances
+//       const reportedInstanceData = {
+//         lesson_report_id: reportData.id,
+//         lesson_id: id,
+//         scheduled_date: new Date().toISOString().split("T")[0],
+//         lesson_number: 1, // Default value
+//       };
 
-  //             // שמירת נתוני נוכחות
-  //             try {
-  //                 await saveStudentAttendance(reportData.id, updatedAttendanceList);
-  //                 console.log('Attendance saved successfully');
-  //             } catch (attendanceError) {
-  //                 console.error('Failed to save attendance:', attendanceError);
-  //                 toast({
-  //                     title: 'אזהרה',
-  //                     description: 'הדיווח נשמר אך הייתה שגיאה בשמירת הנוכחות',
-  //                     variant: 'destructive',
-  //                 });
-  //             }
+//       if (courseInstanceIdForReport) {
+//         reportedInstanceData.course_instance_id = courseInstanceIdForReport;
+//         const { data: lessonData, error: lessonError } = await supabase
+//           .from("lessons")
+//           .select("order_index")
+//           .eq("id", id)
+//           .single();
+//         if (lessonError) {
+//           console.error("Error fetching lesson order_index:", lessonError);
+//         } else {
+//           reportedInstanceData.lesson_number = lessonData.order_index + 1;
+         
+//         }
+//       } else if (lessonScheduleId) {
+//         reportedInstanceData.lesson_schedule_id = lessonScheduleId;
+//       }
 
-  //             // --- START: NEW EMAIL SENDING LOGIC ---
+//       const { error: trackingError } = await supabase
+//         .from("reported_lesson_instances")
+//         .insert(reportedInstanceData);
 
-  //             // If the lesson was not OK and it actually took place, call our secure Edge Function
-  //             if (isCompleted && !isLessonOk && feedback.trim()) {
-  //                 console.log('Lesson not OK, invoking Edge Function to notify admins...');
+//       if (trackingError) {
+//         console.error(
+//           "Error creating reported lesson instance record:",
+//           trackingError
+//         );
+//       } else {
+//         console.log("Reported lesson instance record created");
+//       }
 
-  //                 // 1. Get course name (you still need this on the client)
-  //                 let courseName = 'לא ידוע';
-  //                 if (lesson?.course_id) {
-  //                     const { data: courseData } = await supabase
-  //                         .from('courses')
-  //                         .select('name')
-  //                         .eq('id', lesson.course_id)
-  //                         .single();
-  //                     if (courseData) courseName = courseData.name;
-  //                 }
+//       // שמירת נתוני נוכחות
+//       try {
+//         await saveStudentAttendance(reportData.id, updatedAttendanceList);
+//         console.log("Attendance saved successfully");
+//       } catch (attendanceError) {
+//         console.error("Failed to save attendance:", attendanceError);
+//         toast({
+//           title: "אזהרה",
+//           description: "הדיווח נשמר אך הייתה שגיאה בשמירת הנוכחות",
+//           variant: "destructive",
+//         });
+//       }
 
-  //                 // 2. Prepare the payload for the function
-  //                 const feedbackPayload = {
-  //                     courseName: courseName,
-  //                     lessonTitle: lessonTitle,
-  //                     lessonNumber: reportedInstanceData.lesson_number, // from your existing code
-  //                     participantsCount: participantsCount,
-  //                     notes: notes,
-  //                     feedback: feedback,
-  //                     marketingConsent: marketingConsent,
-  //                     instructorName: user?.user_metadata?.full_name || 'מדריך לא ידוע',
-  //                 };
+//       // --- START: EMAIL NOTIFICATIONS ---
 
-  //                 // 3. Invoke the Edge Function
-  //                 const { error: functionError } = await supabase.functions.invoke(
-  //                     'notify-admins-on-feedback',
-  //                     { body: feedbackPayload }
-  //                 );
+//       // Calculate attendance percentage
+//       const attendancePercentage =
+//         totalStudents > 0 ? (participantsCount / totalStudents) * 100 : 0;
 
-  //                 if (functionError) {
-  //                     // This is a non-critical error, so just warn the user
-  //                     console.error('Error invoking notify-admins function:', functionError);
-  //                     toast({
-  //                         title: 'אזהרה',
-  //                         description: 'הדיווח נשמר, אך שליחת ההתראה למנהל נכשלה.',
-  //                         variant: 'destructive',
-  //                     });
-  //                 } else {
-  //                     console.log('Admin notification function invoked successfully.');
-  //                 }
-  //             }
-  //             // --- END: MODIFIED EMAIL LOGIC ---
+//       // Check for low attendance (below 70%)
+//       // Update this part in your handleSubmit function in LessonReport.tsx
 
-  //             if (files.length > 0) {
-  //                 const uploadResults = await Promise.all(
-  //                     files.map((file) => uploadFile(file, reportData.id))
-  //                 );
-  //                 const failed = uploadResults.filter((r) => !r).length;
-  //                 if (failed > 0) {
-  //                     toast({
-  //                         title: 'אזהרה',
-  //                         description: `${failed} קבצים לא הועלו בהצלחה`,
-  //                         variant: 'destructive',
-  //                     });
-  //                 }
-  //             }
+//       // Check for low attendance (below 70%)
+//       if (isCompleted && totalStudents > 0 && attendancePercentage < 70) {
+//         console.log(
+//           "Low attendance detected, invoking Edge Function to notify admins..."
+//         );
 
-  //             toast({ title: 'הצלחה!', description: 'דיווח השיעור נשמר בהצלחה' });
+//         // Get course name and grade level from existing data
+//         let courseName = "לא ידוע";
+//         let gradeLevel = "לא ידוע";
 
-  //             // Trigger dashboard refresh
-  //             localStorage.setItem('lessonReportUpdated', Date.now().toString());
-  //             window.dispatchEvent(new Event('lessonReportUpdated'));
+//         if (lesson?.course_id) {
+//           const { data: courseData } = await supabase
+//             .from("courses")
+//             .select("name")
+//             .eq("id", lesson.course_id)
+//             .single();
+//           if (courseData) courseName = courseData.name;
+//         }
 
-  //             // Reset form
-  //             setLessonTitle('');
-  //             setNotes('');
-  //             setFeedback('');
-  //             setFiles([]);
-  //             setCheckedTasks([]);
-  //             setMarketingConsent(false);
-  //             setIsCompleted(true);
-  //             setIsLessonOk(false);
-  //             setAttendanceList(prev => prev.map(student => ({ ...student, isPresent: false, isNew: false })));
-  //             if (fileInputRef.current) fileInputRef.current.value = '';
+//         // Get grade level from course instance
+//         if (courseInstanceId) {
+//           const { data: instanceData } = await supabase
+//             .from("course_instances")
+//             .select("grade_level")
+//             .eq("id", courseInstanceId)
+//             .single();
+//           if (instanceData) gradeLevel = instanceData.grade_level;
+//         }
 
-  //         } catch (err) {
-  //             toast({
-  //                 title: 'שגיאה',
-  //                 description: err.message || 'אירעה שגיאה בשמירת הדיווח',
-  //                 variant: 'destructive',
-  //             });
-  //         } finally {
-  //             setIsSubmitting(false);
-  //         }
-  //     };
-  const handleSubmit = async () => {
+//         // Prepare the payload with all the data we have
+//         const lowAttendancePayload = {
+//           lessonReportId: reportData.id,
+//           attendanceCount: participantsCount,
+//           totalStudents: totalStudents,
+//           attendancePercentage: attendancePercentage,
+//           teacherName: user?.user_metadata?.full_name || "מדריך לא ידוע",
+//           courseName: courseName,
+//           gradeLevel: gradeLevel,
+//           lessonTitle: lessonTitle,
+//           lessonDate: new Date().toLocaleDateString("he-IL"),
+//         };
 
-    const { error } = await supabase.rpc('report_work_hour');
+//         // Invoke the low attendance notification function
+//         const { error: lowAttendanceFunctionError } =
+//           await supabase.functions.invoke("notify-admins-low-attendance", {
+//             body: lowAttendancePayload,
+//           });
 
-  if (error) {
-    console.error('Error reporting work hour:', error);
-    // Show an error toast
-  } else {
-    console.log('Successfully reported 1 work hour!');
-    // Show a success toast
+//         if (lowAttendanceFunctionError) {
+//           console.error(
+//             "Error invoking low attendance notification function:",
+//             lowAttendanceFunctionError
+//           );
+//           toast({
+//             title: "אזהרה",
+//             description: "הדיווח נשמר, אך שליחת התראת נוכחות נמוכה נכשלה.",
+//             variant: "destructive",
+//           });
+//         } else {
+//           console.log(
+//             "Low attendance notification function invoked successfully."
+//           );
+//         }
+//       }
+
+//       // If the lesson was not OK and it actually took place, call feedback notification function
+//       if (isCompleted && !isLessonOk && feedback.trim()) {
+//         console.log(
+//           "Lesson not OK, invoking Edge Function to notify admins..."
+//         );
+
+//         // Get course name (if not already fetched above)
+//         let courseName = "לא ידוע";
+//         if (lesson?.course_id) {
+//           const { data: courseData } = await supabase
+//             .from("courses")
+//             .select("name")
+//             .eq("id", lesson.course_id)
+//             .single();
+//           if (courseData) courseName = courseData.name;
+//         }
+
+//         // Prepare the payload for feedback notification
+//         const feedbackPayload = {
+//           courseName: courseName,
+//           lessonTitle: lessonTitle,
+//           lessonNumber: reportedInstanceData.lesson_number,
+//           participantsCount: participantsCount,
+//           notes: notes,
+//           feedback: feedback,
+//           marketingConsent: marketingConsent,
+//           instructorName: user?.user_metadata?.full_name || "מדריך לא ידוע",
+//         };
+
+//         // Invoke the feedback notification function
+//         const { error: feedbackFunctionError } =
+//           await supabase.functions.invoke("notify-admins-on-feedback", {
+//             body: feedbackPayload,
+//           });
+
+//         if (feedbackFunctionError) {
+//           console.error(
+//             "Error invoking notify-admins function:",
+//             feedbackFunctionError
+//           );
+//           toast({
+//             title: "אזהרה",
+//             description: "הדיווח נשמר, אך שליחת ההתראה למנהל נכשלה.",
+//             variant: "destructive",
+//           });
+//         } else {
+//           console.log("Admin notification function invoked successfully.");
+//         }
+//       }
+
+//       // --- END: EMAIL NOTIFICATIONS ---
+
+//       if (files.length > 0) {
+//         const uploadResults = await Promise.all(
+//           files.map((file) => uploadFile(file, reportData.id))
+//         );
+//         const failed = uploadResults.filter((r) => !r).length;
+//         if (failed > 0) {
+//           toast({
+//             title: "אזהרה",
+//             description: `${failed} קבצים לא הועלו בהצלחה`,
+//             variant: "destructive",
+//           });
+//         }
+//       }
+
+//       toast({ title: "הצלחה!", description: "דיווח השיעור נשמר בהצלחה" });
+
+//       // Trigger dashboard refresh
+//       localStorage.setItem("lessonReportUpdated", Date.now().toString());
+//       window.dispatchEvent(new Event("lessonReportUpdated"));
+
+//       // Reset form
+//       setLessonTitle("");
+//       setNotes("");
+//       setFeedback("");
+//       setFiles([]);
+//       setCheckedTasks([]);
+//       setMarketingConsent(false);
+//       setIsCompleted(true);
+//       setIsLessonOk(false);
+//       setAttendanceList((prev) =>
+//         prev.map((student) => ({ ...student, isPresent: false, isNew: false }))
+//       );
+//       if (fileInputRef.current) fileInputRef.current.value = "";
+//       navigate('/calendar', { 
+//   state: { selectedDate: location.state?.selectedDate || new Date().toISOString() }
+// });
+//     } catch (err) {
+//       toast({
+//         title: "שגיאה",
+//         description: err.message || "אירעה שגיאה בשמירת הדיווח",
+//         variant: "destructive",
+//       });
+//     } finally {
+//       setIsSubmitting(false);
+//     }
+//   };
+
+const handleSubmit = async () => {
+  // Count present students
+  const presentStudents = attendanceList.filter(
+    (student) => student.isPresent
+  ).length;
+  const participantsCount = presentStudents;
+  const totalStudents = attendanceList.length;
+
+  // If lesson didn't take place, allow submission without participants
+  if (isCompleted && participantsCount === 0) {
+    toast({
+      title: "שגיאה",
+      description: `נדרש לבחור לפחות תלמיד אחד ועד ${maxPar} משתתפים`,
+      variant: "destructive",
+    });
+    return;
   }
 
-    // Count present students
-    const presentStudents = attendanceList.filter(
-      (student) => student.isPresent
-    ).length;
-    const participantsCount = presentStudents;
-    const totalStudents = attendanceList.length;
+  if (!lessonTitle.trim()) {
+    toast({
+      title: "שגיאה",
+      description: "נדרש להזין כותרת שיעור",
+      variant: "destructive",
+    });
+    return;
+  }
 
-    // If lesson didn't take place, allow submission without participants
-    if (isCompleted && participantsCount === 0) {
-      toast({
-        title: "שגיאה",
-        description: `נדרש לבחור לפחות תלמיד אחד ועד ${maxPar} משתתפים`,
-        variant: "destructive",
-      });
-      return;
-    }
+  // Check if all tasks were completed - if not, notes are required
+  if (isCompleted && checkedTasks.length < lessonTasks.length && !notes.trim()) {
+    toast({
+      title: "שגיאה",
+      description: "נדרש להזין הערות כאשר לא כל המשימות בוצעו",
+      variant: "destructive",
+    });
+    return;
+  }
 
-    if (!lessonTitle.trim()) {
-      toast({
-        title: "שגיאה",
-        description: "נדרש להזין כותרת שיעור",
-        variant: "destructive",
-      });
-      return;
-    }
+  // בדיקת משוב רק אם השיעור התקיים ולא התנהל כשורה
+  if (isCompleted && !isLessonOk && !feedback.trim()) {
+    toast({
+      title: "שגיאה",
+      description: "בבקשה הזן משוב במידה והשיעור לא התנהל כשורה",
+      variant: "destructive",
+    });
+    return;
+  }
 
-    // בדיקת משוב רק אם השיעור התקיים ולא התנהל כשורה
-    if (isCompleted && !isLessonOk && !feedback.trim()) {
-      toast({
-        title: "שגיאה",
-        description: "בבקשה הזן משוב במידה והשיעור לא התנהל כשורה",
-        variant: "destructive",
-      });
-      return;
-    }
+  setIsSubmitting(true);
 
-    setIsSubmitting(true);
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) throw new Error("משתמש לא מחובר");
 
+    console.log("Starting form submission...");
+    console.log("Current attendance list:", attendanceList);
+
+    // שמירת סטודנטים חדשים קודם
+    let updatedAttendanceList;
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-      if (userError || !user) throw new Error("משתמש לא מחובר");
+      updatedAttendanceList = await saveNewStudents();
+      console.log("Students saved successfully:", updatedAttendanceList);
+    } catch (studentError) {
+      console.error("Failed to save students:", studentError);
+      toast({
+        title: "שגיאה",
+        description: studentError.message || "שגיאה בשמירת תלמידים חדשים",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      return;
+    }
 
-      console.log("Starting form submission...");
-      console.log("Current attendance list:", attendanceList);
+    // Handle lesson_schedule_id and course_instance_id for new architecture
+    let lessonScheduleId = scheduleId;
+    let courseInstanceIdForReport = null;
 
-      // שמירת סטודנטים חדשים קודם
-      let updatedAttendanceList;
-      try {
-        updatedAttendanceList = await saveNewStudents();
-        console.log("Students saved successfully:", updatedAttendanceList);
-      } catch (studentError) {
-        console.error("Failed to save students:", studentError);
-        toast({
-          title: "שגיאה",
-          description: studentError.message || "שגיאה בשמירת תלמידים חדשים",
-          variant: "destructive",
-        });
-        setIsSubmitting(false); // Stop submission on critical error
-        return;
-      }
+    if (courseInstanceIdFromUrl && !scheduleId) {
+      console.log(
+        "Using new architecture with course_instance_id:",
+        courseInstanceIdFromUrl
+      );
+      courseInstanceIdForReport = courseInstanceIdFromUrl;
+      lessonScheduleId = null;
+    } else if (scheduleId) {
+      console.log(
+        "Using legacy architecture with lesson_schedule_id:",
+        scheduleId
+      );
+      lessonScheduleId = scheduleId;
+    } else {
+      throw new Error("לא ניתן ליצור דיווח ללא מזהה לוח זמנים תקין");
+    }
 
-      // Handle lesson_schedule_id and course_instance_id for new architecture
-      let lessonScheduleId = scheduleId;
-      let courseInstanceIdForReport = null;
+    // יצירת דיווח השיעור
+    const reportDataToInsert = {
+      lesson_title: lessonTitle,
+      participants_count: participantsCount,
+      notes,
+      feedback,
+      marketing_consent: marketingConsent,
+      instructor_id: user.id,
+      is_lesson_ok: isCompleted ? isLessonOk : null,
+      is_completed: isCompleted,
+      completed_task_ids: checkedTasks,
+      lesson_id: id,
+    };
 
-      if (courseInstanceIdFromUrl && !scheduleId) {
-        console.log(
-          "Using new architecture with course_instance_id:",
-          courseInstanceIdFromUrl
-        );
-        courseInstanceIdForReport = courseInstanceIdFromUrl;
-        lessonScheduleId = null;
-      } else if (scheduleId) {
-        console.log(
-          "Using legacy architecture with lesson_schedule_id:",
-          scheduleId
-        );
-        lessonScheduleId = scheduleId;
-      } else {
-        throw new Error("לא ניתן ליצור דיווח ללא מזהה לוח זמנים תקין");
-      }
+    if (courseInstanceIdForReport) {
+      reportDataToInsert.course_instance_id = courseInstanceIdForReport;
+    } else if (lessonScheduleId) {
+      reportDataToInsert.lesson_schedule_id = lessonScheduleId;
+    }
 
-      // יצירת דיווח השיעור
-      const reportDataToInsert = {
-        lesson_title: lessonTitle,
-        participants_count: participantsCount,
-        notes,
-        feedback,
-        marketing_consent: marketingConsent,
-        instructor_id: user.id,
-        is_lesson_ok: isCompleted ? isLessonOk : null, // רק אם השיעור התקיים
-        is_completed: isCompleted,
-        completed_task_ids: checkedTasks,
-        lesson_id: id,
-      };
+    const { data: reportData, error: reportError } = await supabase
+      .from("lesson_reports")
+      .insert(reportDataToInsert)
+      .select()
+      .single();
 
-      if (courseInstanceIdForReport) {
-        reportDataToInsert.course_instance_id = courseInstanceIdForReport;
-      } else if (lessonScheduleId) {
-        reportDataToInsert.lesson_schedule_id = lessonScheduleId;
-      }
+    if (reportError) throw reportError;
 
-      const { data: reportData, error: reportError } = await supabase
-        .from("lesson_reports")
-        .insert(reportDataToInsert)
-        .select()
+    console.log("Lesson report created:", reportData);
+
+    // Create a record in reported_lesson_instances
+    const reportedInstanceData = {
+      lesson_report_id: reportData.id,
+      lesson_id: id,
+      scheduled_date: new Date().toISOString().split("T")[0],
+      lesson_number: 1,
+    };
+
+    if (courseInstanceIdForReport) {
+      reportedInstanceData.course_instance_id = courseInstanceIdForReport;
+      const { data: lessonData, error: lessonError } = await supabase
+        .from("lessons")
+        .select("order_index")
+        .eq("id", id)
         .single();
+      if (lessonError) {
+        console.error("Error fetching lesson order_index:", lessonError);
+      } else {
+        reportedInstanceData.lesson_number = lessonData.order_index + 1;
+      }
+    } else if (lessonScheduleId) {
+      reportedInstanceData.lesson_schedule_id = lessonScheduleId;
+    }
 
-      if (reportError) throw reportError;
+    const { error: trackingError } = await supabase
+      .from("reported_lesson_instances")
+      .insert(reportedInstanceData);
 
-      console.log("Lesson report created:", reportData);
+    if (trackingError) {
+      console.error(
+        "Error creating reported lesson instance record:",
+        trackingError
+      );
+    } else {
+      console.log("Reported lesson instance record created");
+    }
 
-      // Create a record in reported_lesson_instances
-      const reportedInstanceData = {
-        lesson_report_id: reportData.id,
-        lesson_id: id,
-        scheduled_date: new Date().toISOString().split("T")[0],
-        lesson_number: 1, // Default value
+    // שמירת נתוני נוכחות
+    try {
+      await saveStudentAttendance(reportData.id, updatedAttendanceList);
+      console.log("Attendance saved successfully");
+    } catch (attendanceError) {
+      console.error("Failed to save attendance:", attendanceError);
+      toast({
+        title: "אזהרה",
+        description: "הדיווח נשמר אך הייתה שגיאה בשמירת הנוכחות",
+        variant: "destructive",
+      });
+    }
+
+    // --- START: EMAIL NOTIFICATIONS ---
+
+    // Calculate attendance percentage
+    const attendancePercentage =
+      totalStudents > 0 ? (participantsCount / totalStudents) * 100 : 0;
+
+    // Check for low attendance (below 70%)
+    if (isCompleted && totalStudents > 0 && attendancePercentage < 70) {
+      console.log(
+        "Low attendance detected, invoking Edge Function to notify admins..."
+      );
+
+      let courseName = "לא ידוע";
+      let gradeLevel = "לא ידוע";
+
+      if (lesson?.course_id) {
+        const { data: courseData } = await supabase
+          .from("courses")
+          .select("name")
+          .eq("id", lesson.course_id)
+          .single();
+        if (courseData) courseName = courseData.name;
+      }
+
+      if (courseInstanceId) {
+        const { data: instanceData } = await supabase
+          .from("course_instances")
+          .select("grade_level")
+          .eq("id", courseInstanceId)
+          .single();
+        if (instanceData) gradeLevel = instanceData.grade_level;
+      }
+
+      const lowAttendancePayload = {
+        lessonReportId: reportData.id,
+        attendanceCount: participantsCount,
+        totalStudents: totalStudents,
+        attendancePercentage: attendancePercentage,
+        teacherName: user?.user_metadata?.full_name || "מדריך לא ידוע",
+        courseName: courseName,
+        gradeLevel: gradeLevel,
+        lessonTitle: lessonTitle,
+        lessonDate: new Date().toLocaleDateString("he-IL"),
       };
 
-      if (courseInstanceIdForReport) {
-        reportedInstanceData.course_instance_id = courseInstanceIdForReport;
-        const { data: lessonData, error: lessonError } = await supabase
-          .from("lessons")
-          .select("order_index")
-          .eq("id", id)
-          .single();
-        if (lessonError) {
-          console.error("Error fetching lesson order_index:", lessonError);
-        } else {
-          reportedInstanceData.lesson_number = lessonData.order_index + 1;
-         
-        }
-      } else if (lessonScheduleId) {
-        reportedInstanceData.lesson_schedule_id = lessonScheduleId;
-      }
+      const { error: lowAttendanceFunctionError } =
+        await supabase.functions.invoke("notify-admins-low-attendance", {
+          body: lowAttendancePayload,
+        });
 
-      const { error: trackingError } = await supabase
-        .from("reported_lesson_instances")
-        .insert(reportedInstanceData);
-
-      if (trackingError) {
+      if (lowAttendanceFunctionError) {
         console.error(
-          "Error creating reported lesson instance record:",
-          trackingError
+          "Error invoking low attendance notification function:",
+          lowAttendanceFunctionError
         );
-      } else {
-        console.log("Reported lesson instance record created");
-      }
-
-      // שמירת נתוני נוכחות
-      try {
-        await saveStudentAttendance(reportData.id, updatedAttendanceList);
-        console.log("Attendance saved successfully");
-      } catch (attendanceError) {
-        console.error("Failed to save attendance:", attendanceError);
         toast({
           title: "אזהרה",
-          description: "הדיווח נשמר אך הייתה שגיאה בשמירת הנוכחות",
+          description: "הדיווח נשמר, אך שליחת התראת נוכחות נמוכה נכשלה.",
+          variant: "destructive",
+        });
+      } else {
+        console.log(
+          "Low attendance notification function invoked successfully."
+        );
+      }
+    }
+
+    // If the lesson was not OK and it actually took place, call feedback notification function
+    if (isCompleted && !isLessonOk && feedback.trim()) {
+      console.log(
+        "Lesson not OK, invoking Edge Function to notify admins..."
+      );
+
+      let courseName = "לא ידוע";
+      if (lesson?.course_id) {
+        const { data: courseData } = await supabase
+          .from("courses")
+          .select("name")
+          .eq("id", lesson.course_id)
+          .single();
+        if (courseData) courseName = courseData.name;
+      }
+
+      const feedbackPayload = {
+        courseName: courseName,
+        lessonTitle: lessonTitle,
+        lessonNumber: reportedInstanceData.lesson_number,
+        participantsCount: participantsCount,
+        notes: notes,
+        feedback: feedback,
+        marketingConsent: marketingConsent,
+        instructorName: user?.user_metadata?.full_name || "מדריך לא ידוע",
+      };
+
+      const { error: feedbackFunctionError } =
+        await supabase.functions.invoke("notify-admins-on-feedback", {
+          body: feedbackPayload,
+        });
+
+      if (feedbackFunctionError) {
+        console.error(
+          "Error invoking notify-admins function:",
+          feedbackFunctionError
+        );
+        toast({
+          title: "אזהרה",
+          description: "הדיווח נשמר, אך שליחת ההתראה למנהל נכשלה.",
+          variant: "destructive",
+        });
+      } else {
+        console.log("Admin notification function invoked successfully.");
+      }
+    }
+
+if (isCompleted && checkedTasks.length < lessonTasks.length) {
+  console.log(
+    "Incomplete tasks detected, invoking Edge Function to notify admins..."
+  );
+
+  // Get the incomplete tasks details
+  const incompleteTasks = lessonTasks.filter(
+    (task) => !checkedTasks.includes(task.id)
+  );
+
+  let courseName = "לא ידוע";
+  let gradeLevel = "לא ידוע";
+
+  if (lesson?.course_id) {
+    const { data: courseData } = await supabase
+      .from("courses")
+      .select("name")
+      .eq("id", lesson.course_id)
+      .single();
+    if (courseData) courseName = courseData.name;
+  }
+
+  if (courseInstanceId) {
+    const { data: instanceData } = await supabase
+      .from("course_instances")
+      .select("grade_level")
+      .eq("id", courseInstanceId)
+      .single();
+    if (instanceData) gradeLevel = instanceData.grade_level;
+  }
+
+  const incompleteTasksPayload = {
+    lessonReportId: reportData.id,
+    courseName: courseName,
+    gradeLevel: gradeLevel,
+    lessonTitle: lessonTitle,
+    lessonNumber: reportedInstanceData.lesson_number,
+    teacherName: user?.user_metadata?.full_name || "מדריך לא ידוע",
+    lessonDate: new Date().toLocaleDateString("he-IL"),
+    completedTasksCount: checkedTasks.length,
+    totalTasksCount: lessonTasks.length,
+    incompleteTasks: incompleteTasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      is_mandatory: task.is_mandatory,
+    })),
+    notes: notes,
+  };
+
+  const { error: incompleteTasksFunctionError } =
+    await supabase.functions.invoke("notify-admins-incomplete-tasks", {
+      body: incompleteTasksPayload,
+    });
+
+  if (incompleteTasksFunctionError) {
+    console.error(
+      "Error invoking incomplete tasks notification function:",
+      incompleteTasksFunctionError
+    );
+    toast({
+      title: "אזהרה",
+      description: "הדיווח נשמר, אך שליחת התראת משימות לא בוצעה נכשלה.",
+      variant: "destructive",
+    });
+  } else {
+    console.log(
+      "Incomplete tasks notification function invoked successfully."
+    );
+  }
+}
+    
+    // --- END: EMAIL NOTIFICATIONS ---
+
+    if (files.length > 0) {
+      const uploadResults = await Promise.all(
+        files.map((file) => uploadFile(file, reportData.id))
+      );
+      const failed = uploadResults.filter((r) => !r).length;
+      if (failed > 0) {
+        toast({
+          title: "אזהרה",
+          description: `${failed} קבצים לא הועלו בהצלחה`,
           variant: "destructive",
         });
       }
+    }
 
-      // --- START: EMAIL NOTIFICATIONS ---
+    toast({ title: "הצלחה!", description: "דיווח השיעור נשמר בהצלחה" });
 
-      // Calculate attendance percentage
-      const attendancePercentage =
-        totalStudents > 0 ? (participantsCount / totalStudents) * 100 : 0;
-
-      // Check for low attendance (below 70%)
-      // Update this part in your handleSubmit function in LessonReport.tsx
-
-      // Check for low attendance (below 70%)
-      if (isCompleted && totalStudents > 0 && attendancePercentage < 70) {
-        console.log(
-          "Low attendance detected, invoking Edge Function to notify admins..."
-        );
-
-        // Get course name and grade level from existing data
-        let courseName = "לא ידוע";
-        let gradeLevel = "לא ידוע";
-
-        if (lesson?.course_id) {
-          const { data: courseData } = await supabase
-            .from("courses")
-            .select("name")
-            .eq("id", lesson.course_id)
-            .single();
-          if (courseData) courseName = courseData.name;
-        }
-
-        // Get grade level from course instance
-        if (courseInstanceId) {
-          const { data: instanceData } = await supabase
-            .from("course_instances")
-            .select("grade_level")
-            .eq("id", courseInstanceId)
-            .single();
-          if (instanceData) gradeLevel = instanceData.grade_level;
-        }
-
-        // Prepare the payload with all the data we have
-        const lowAttendancePayload = {
-          lessonReportId: reportData.id,
-          attendanceCount: participantsCount,
-          totalStudents: totalStudents,
-          attendancePercentage: attendancePercentage,
-          teacherName: user?.user_metadata?.full_name || "מדריך לא ידוע",
-          courseName: courseName,
-          gradeLevel: gradeLevel,
-          lessonTitle: lessonTitle,
-          lessonDate: new Date().toLocaleDateString("he-IL"),
-        };
-
-        // Invoke the low attendance notification function
-        const { error: lowAttendanceFunctionError } =
-          await supabase.functions.invoke("notify-admins-low-attendance", {
-            body: lowAttendancePayload,
-          });
-
-        if (lowAttendanceFunctionError) {
-          console.error(
-            "Error invoking low attendance notification function:",
-            lowAttendanceFunctionError
-          );
-          toast({
-            title: "אזהרה",
-            description: "הדיווח נשמר, אך שליחת התראת נוכחות נמוכה נכשלה.",
-            variant: "destructive",
-          });
-        } else {
-          console.log(
-            "Low attendance notification function invoked successfully."
-          );
-        }
-      }
-
-      // If the lesson was not OK and it actually took place, call feedback notification function
-      if (isCompleted && !isLessonOk && feedback.trim()) {
-        console.log(
-          "Lesson not OK, invoking Edge Function to notify admins..."
-        );
-
-        // Get course name (if not already fetched above)
-        let courseName = "לא ידוע";
-        if (lesson?.course_id) {
-          const { data: courseData } = await supabase
-            .from("courses")
-            .select("name")
-            .eq("id", lesson.course_id)
-            .single();
-          if (courseData) courseName = courseData.name;
-        }
-
-        // Prepare the payload for feedback notification
-        const feedbackPayload = {
-          courseName: courseName,
-          lessonTitle: lessonTitle,
-          lessonNumber: reportedInstanceData.lesson_number,
-          participantsCount: participantsCount,
-          notes: notes,
-          feedback: feedback,
-          marketingConsent: marketingConsent,
-          instructorName: user?.user_metadata?.full_name || "מדריך לא ידוע",
-        };
-
-        // Invoke the feedback notification function
-        const { error: feedbackFunctionError } =
-          await supabase.functions.invoke("notify-admins-on-feedback", {
-            body: feedbackPayload,
-          });
-
-        if (feedbackFunctionError) {
-          console.error(
-            "Error invoking notify-admins function:",
-            feedbackFunctionError
-          );
-          toast({
-            title: "אזהרה",
-            description: "הדיווח נשמר, אך שליחת ההתראה למנהל נכשלה.",
-            variant: "destructive",
-          });
-        } else {
-          console.log("Admin notification function invoked successfully.");
-        }
-      }
-
-      // --- END: EMAIL NOTIFICATIONS ---
-
-      if (files.length > 0) {
-        const uploadResults = await Promise.all(
-          files.map((file) => uploadFile(file, reportData.id))
-        );
-        const failed = uploadResults.filter((r) => !r).length;
-        if (failed > 0) {
-          toast({
-            title: "אזהרה",
-            description: `${failed} קבצים לא הועלו בהצלחה`,
-            variant: "destructive",
-          });
-        }
-      }
-
-      toast({ title: "הצלחה!", description: "דיווח השיעור נשמר בהצלחה" });
-
-      // Trigger dashboard refresh
-      localStorage.setItem("lessonReportUpdated", Date.now().toString());
-      window.dispatchEvent(new Event("lessonReportUpdated"));
-
-      // Reset form
-      setLessonTitle("");
-      setNotes("");
-      setFeedback("");
-      setFiles([]);
-      setCheckedTasks([]);
-      setMarketingConsent(false);
-      setIsCompleted(true);
-      setIsLessonOk(false);
-      setAttendanceList((prev) =>
-        prev.map((student) => ({ ...student, isPresent: false, isNew: false }))
-      );
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (err) {
+    // Report work hour only after successful submission
+    const { error: workHourError } = await supabase.rpc('report_work_hour');
+    
+    if (workHourError) {
+      console.error('Error reporting work hour:', workHourError);
       toast({
-        title: "שגיאה",
-        description: err.message || "אירעה שגיאה בשמירת הדיווח",
+        title: "אזהרה",
+        description: "הדיווח נשמר אך הייתה שגיאה בדיווח שעת עבודה",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
+    } else {
+      console.log('Successfully reported 1 work hour!');
     }
+
+    // Trigger dashboard refresh
+    localStorage.setItem("lessonReportUpdated", Date.now().toString());
+    window.dispatchEvent(new Event("lessonReportUpdated"));
+
+    // Reset form
+    setLessonTitle("");
+    setNotes("");
+    setFeedback("");
+    setFiles([]);
+    setCheckedTasks([]);
+    setMarketingConsent(false);
+    setIsCompleted(true);
+    setIsLessonOk(false);
+    setAttendanceList((prev) =>
+      prev.map((student) => ({ ...student, isPresent: false, isNew: false }))
+    );
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    navigate('/calendar', { 
+      state: { selectedDate: location.state?.selectedDate || new Date().toISOString() }
+    });
+  } catch (err) {
+    toast({
+      title: "שגיאה",
+      description: err.message || "אירעה שגיאה בשמירת הדיווח",
+      variant: "destructive",
+    });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+// טען את הנתונים למסננים
+useEffect(() => {
+  if (!isAdmin) return;
+
+  const fetchFilterData = async () => {
+    // טען מדריכים
+    const { data: instructorsData } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("role", "instructor")
+      .order("full_name");
+    
+    setInstructors(instructorsData || []);
+
+    // טען קורסים
+    const { data: coursesData } = await supabase
+      .from("courses")
+      .select("id, name")
+      .order("name");
+    
+    setCourses(coursesData || []);
+
+    // טען מוסדות (מתוך course_instances)
+    const { data: institutionsData } = await supabase
+      .from("educational_institutions")
+  .select("id, name")
+      .order("name");
+    
+    // הסר כפילויות
+    setInstitutions(institutionsData || []);
   };
-  console.log("xxx",lesson)
+
+  fetchFilterData();
+}, [isAdmin]);
+
+// עדכן את פונקציית הסינון
+useEffect(() => {
+  if (!isAdmin || !allReports.length) return;
+
+  let filtered = [...allReports];
+
+  // סינון לפי תאריכים (קיים)
+  if (dateFrom) {
+    filtered = filtered.filter(
+      (report) => new Date(report.created_at) >= dateFrom
+    );
+  }
+
+  if (dateTo) {
+    const endOfDay = new Date(dateTo);
+    endOfDay.setHours(23, 59, 59, 999);
+    filtered = filtered.filter(
+      (report) => new Date(report.created_at) <= endOfDay
+    );
+  }
+
+  // סינון לפי חודש
+  if (selectedMonth) {
+    filtered = filtered.filter((report) => {
+      const reportDate = new Date(report.created_at);
+      const reportMonth = `${reportDate.getFullYear()}-${String(reportDate.getMonth() + 1).padStart(2, '0')}`;
+      return reportMonth === selectedMonth;
+    });
+  }
+
+  // סינון לפי מדריך
+  if (selectedInstructor) {
+    filtered = filtered.filter(
+      (report) => report.instructor_id === selectedInstructor
+    );
+  }
+
+  // סינון לפי קורס
+  if (selectedCourse) {
+    filtered = filtered.filter(
+      (report) => report.lessons?.course_id === selectedCourse
+    );
+  }
+
+  // סינון לפי סטטוס
+  if (selectedStatus) {
+    filtered = filtered.filter((report) => {
+      if (selectedStatus === "completed") return report.is_completed !== false && report.is_lesson_ok;
+      if (selectedStatus === "not-ok") return report.is_completed && !report.is_lesson_ok;
+      if (selectedStatus === "cancelled") return report.is_completed === false;
+      return true;
+    });
+  }
+
+  // סינון לפי מוסד (צריך לקשר דרך course_instance)
+  if (selectedInstitution) {
+    filtered = filtered.filter((report) => {
+      // נצטרך להוסיף את id ל-query המקורי
+      return report.course_instances?.educational_institutions?.id === selectedInstitution;
+    });
+  }
+
+  setFilteredReports(filtered);
+}, [dateFrom, dateTo, selectedMonth, selectedInstructor, selectedCourse, selectedStatus, selectedInstitution, allReports, isAdmin]);
+
+// פונקציה לניקוי כל המסננים
+const clearAllFilters = () => {
+  setDateFrom(undefined);
+  setDateTo(undefined);
+  setSelectedMonth("");
+  setSelectedInstructor("");
+  setSelectedCourse("");
+  setSelectedStatus("");
+  setSelectedInstitution("");
+};
+
+
+
+console.log('reports',filteredReports)
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="md:hidden">
         <MobileNavigation />
       </div>
-      <div className="max-w-7xl mx-auto ">
+<div className="w-full px-4 my-8  xl:max-w-[98rem] md:max-w-[125rem] xl:mx-auto">  
         {isInstructor ? (
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             דיווח שיעור  {lesson?.order_index+1} - {lesson?.title}
@@ -1765,98 +2082,180 @@ const LessonReport = () => {
             </Card>
           </div>
         ) : (
-          <div className="space-y-6 ">
+          <div className="space-y-6 w-full ">
             {/* Date Filter for Admins */}
-            {isAdmin && (
-              <Card className="border-primary/20 shadow-md">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center text-primary">
-                    <Filter className="h-5 w-5 ml-2" />
-                    סינון לפי תאריך יצירה
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col sm:flex-row gap-4 items-end">
-                    <div className="flex-1">
-                      <Label htmlFor="date-from">מתאריך</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                          >
-                            <CalendarDays className="ml-2 h-4 w-4" />
-                            {dateFrom
-                              ? format(dateFrom, "dd/MM/yyyy", { locale: he })
-                              : "בחר תאריך התחלה"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={dateFrom}
-                            onSelect={setDateFrom}
-                            initialFocus
-                            locale={he}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+          {isAdmin && (
+  <Card className="border-primary/20 shadow-md">
+    <CardHeader className="pb-4">
+      <CardTitle className="flex items-center justify-between text-primary">
+        <div className="flex items-center">
+          <Filter className="h-5 w-5 ml-2" />
+          סינונים מתקדמים
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearAllFilters}
+          className="text-sm"
+        >
+          נקה הכל
+        </Button>
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-4">
+      {/* שורה ראשונה: תאריכים */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <Label>מתאריך</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-right font-normal"
+              >
+                <CalendarDays className="ml-2 h-4 w-4" />
+                {dateFrom
+                  ? format(dateFrom, "dd/MM/yyyy", { locale: he })
+                  : "בחר תאריך"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={dateFrom}
+                onSelect={setDateFrom}
+                locale={he}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
 
-                    <div className="flex-1">
-                      <Label htmlFor="date-to">עד תאריך</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                          >
-                            <CalendarDays className="ml-2 h-4 w-4" />
-                            {dateTo
-                              ? format(dateTo, "dd/MM/yyyy", { locale: he })
-                              : "בחר תאריך סיום"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={dateTo}
-                            onSelect={setDateTo}
-                            initialFocus
-                            locale={he}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+        <div>
+          <Label>עד תאריך</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-right font-normal"
+              >
+                <CalendarDays className="ml-2 h-4 w-4" />
+                {dateTo
+                  ? format(dateTo, "dd/MM/yyyy", { locale: he })
+                  : "בחר תאריך"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={dateTo}
+                onSelect={setDateTo}
+                locale={he}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
 
-                    <Button
-                      variant="outline"
-                      onClick={clearDateFilters}
-                      className="px-6"
-                    >
-                      נקה סינון
-                    </Button>
-                  </div>
+        <div>
+          <Label>חודש</Label>
+          <select
+            className="w-full h-10 px-3 rounded-md border border-input bg-background"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+          >
+            <option value="">כל החודשים</option>
+            {Array.from({ length: 12 }, (_, i) => {
+              const date = new Date();
+              date.setMonth(i);
+              const monthValue = `${date.getFullYear()}-${String(i + 1).padStart(2, '0')}`;
+              return (
+                <option key={monthValue} value={monthValue}>
+                  {date.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      </div>
 
-                  {(dateFrom || dateTo) && (
-                    <div className="mt-4 p-3 bg-primary/5 rounded-lg">
-                      <p className="text-sm text-primary font-medium">
-                        מציג {filteredReports.length} דיווחים מתוך{" "}
-                        {allReports.length}
-                        {dateFrom &&
-                          ` מתאריך ${format(dateFrom, "dd/MM/yyyy", {
-                            locale: he,
-                          })}`}
-                        {dateTo &&
-                          ` עד תאריך ${format(dateTo, "dd/MM/yyyy", {
-                            locale: he,
-                          })}`}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+      {/* שורה שנייה: מדריכים וקורסים */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label>מדריך</Label>
+          <select
+            className="w-full h-10 px-3 rounded-md border border-input bg-background"
+            value={selectedInstructor}
+            onChange={(e) => setSelectedInstructor(e.target.value)}
+          >
+            <option value="">כל המדריכים</option>
+            {instructors.map((instructor) => (
+              <option key={instructor.id} value={instructor.id}>
+                {instructor.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <Label>קורס</Label>
+          <select
+            className="w-full h-10 px-3 rounded-md border border-input bg-background"
+            value={selectedCourse}
+            onChange={(e) => setSelectedCourse(e.target.value)}
+          >
+            <option value="">כל הקורסים</option>
+            {courses.map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* שורה שלישית: סטטוס ומוסד */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label>סטטוס שיעור</Label>
+          <select
+            className="w-full h-10 px-3 rounded-md border border-input bg-background"
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+          >
+            <option value="">כל הסטטוסים</option>
+            <option value="completed">דווח (התנהל כשורה)</option>
+            <option value="not-ok">לא התנהל כשורה</option>
+            <option value="cancelled">לא התקיים</option>
+          </select>
+        </div>
+
+        <div>
+          <Label>מוסד חינוך</Label>
+          <select
+            className="w-full h-10 px-3 rounded-md border border-input bg-background"
+            value={selectedInstitution}
+            onChange={(e) => setSelectedInstitution(e.target.value)}
+          >
+            <option value="">כל המוסדות</option>
+            {institutions.map((institution) => (
+              <option key={institution.id} value={institution.id}>
+                {institution.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* סיכום סינון */}
+      {(dateFrom || dateTo || selectedMonth || selectedInstructor || selectedCourse || selectedStatus || selectedInstitution) && (
+        <div className="mt-4 p-3 bg-primary/5 rounded-lg">
+          <p className="text-sm text-primary font-medium">
+            מציג {filteredReports.length} דיווחים מתוך {allReports.length}
+          </p>
+        </div>
+      )}
+    </CardContent>
+  </Card>
+)}
 
             {loading ? (
               <div className="text-center py-8">
@@ -1866,66 +2265,42 @@ const LessonReport = () => {
             ) : allReports.length === 0 ? (
               <Card>
                 <CardContent className="text-center py-8">
-                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <FileText className="h-12 w-12 text-muted-foreground  mb-4" />
                   <p className="text-muted-foreground">אין דיווחים זמינים</p>
                 </CardContent>
               </Card>
             ) : (
               <Card className="border-border/50 shadow-lg">
-                <CardHeader className="border-b border-border/50 bg-muted/10">
-                  <CardTitle className="flex items-center text-primary">
-                    <FileText className="h-5 w-5 ml-2" />
-                    כל הדיווחים (
-                    {isAdmin ? filteredReports.length : allReports.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-primary/5 border-b-2 border-primary/20 hover:bg-primary/10">
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            {" "}
-                            שיעור מס'
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            כותרת השיעור
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            קורס
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            מדריך
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            נוכחות
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            רשימת תלמידים
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            משימות שבוצעו
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            תאריך
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            משוב
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            התנהל כשורה
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            סטטוס שיעור
-                          </TableHead>
-                          <TableHead className="font-bold text-primary py-4 px-6 text-right">
-                            צפייה
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+      <CardHeader className="border-b border-border/50 bg-muted/10">
+        <CardTitle className="flex items-center text-primary">
+          <FileText className="h-5 w-5 ml-2" />
+          כל הדיווחים ({isAdmin ? filteredReports.length : allReports.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {/* Desktop: No scroll, full width */}
+        <div className="md:block w-full">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-primary/5 border-b-2 border-primary/20 hover:bg-primary/10">
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">שיעור מס'</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">כותרת השיעור</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">קורס</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">מדריך</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">נוכחות</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">רשימת תלמידים</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">משימות שבוצעו</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">תאריך</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">מוסד</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">התנהל כשורה</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">סטטוס שיעור</TableHead>
+                <TableHead className="font-bold text-primary py-3 px-4 text-right text-sm">משוב</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                         {(isAdmin ? filteredReports : allReports).map(
                           (report, index) => (
+                           
                             <React.Fragment key={report.id}>
                               <TableRow
                                 className={`hover:bg-primary/5 transition-all duration-200 border-b border-border/30
@@ -1950,7 +2325,7 @@ const LessonReport = () => {
                                 <TableCell className="py-4 ml-4">
                                   <Badge
                                     variant="outline"
-                                    className="font-medium border-primary/30 text-primary bg-primary/5 hover:bg-primary/10"
+                                    className="font-medium border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 p-4"
                                   >
                                     {report.lessons?.courses?.name || "לא זמין"}
                                   </Badge>
@@ -2038,19 +2413,19 @@ const LessonReport = () => {
                                   </div>
                                 </TableCell>
                                 <TableCell className="py-4 px-6">
-                                  {report.feedback ? (
+                                  {report?.course_instances?.educational_institutions?.name ? (
                                     <Badge
                                       variant="default"
-                                      className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-medium"
+                                      className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-medium p-4"
                                     >
-                                      יש משוב
-                                    </Badge>
+          {report.course_instances.educational_institutions.name}     
+                               </Badge>
                                   ) : (
                                     <Badge
                                       variant="outline"
                                       className="text-muted-foreground"
                                     >
-                                      אין משוב
+                                        לא זמין
                                     </Badge>
                                   )}
                                 </TableCell>

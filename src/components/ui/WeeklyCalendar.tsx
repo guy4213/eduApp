@@ -1,4 +1,4 @@
-// WeeklyCalendar.tsx - Fixed version
+// WeeklyCalendar.tsx - Updated version
 import React from "react";
 import { DateSelector } from "./DateSelector";
 import { ScheduleList } from "./ScheduleList";
@@ -64,7 +64,8 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
       {hasItems ? (
         <ScheduleList 
           key={`schedule-list-${selectedDate.toISOString().split('T')[0]}-${uniqueClasses.length}`}
-          lessons={uniqueClasses} 
+          lessons={uniqueClasses}
+          selectedDate={selectedDate}
         />
       ) : (
         <div className="px-4 py-10 text-center text-gray-500">

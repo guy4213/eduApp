@@ -1,10 +1,9 @@
-
-// Calendar.tsx - Fixed version
+// Calendar.tsx - Updated version with date context
 import React, { useEffect, useState } from "react";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import MobileNavigation from "@/components/layout/MobileNavigation";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { WeeklyCalendar } from "@/components/ui/WeeklyCalendar";
@@ -12,15 +11,23 @@ import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
 
 const Calendar = () => {
   const { user } = useAuth();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [lessons, setLessons] = useState<any[]>([]);
+  const location = useLocation();
   const nav = useNavigate();
+  
+  // Initialize selectedDate from location state or default to today
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (location.state?.selectedDate) {
+      return new Date(location.state.selectedDate);
+    }
+    return new Date();
+  });
+  
+  const [lessons, setLessons] = useState<any[]>([]);
 
   const fetchLessonsData = async () => {
     if (!user) return;
 
     try {
-      // Use the new combined schedules function that handles both legacy and new formats
       const combinedSchedules = await fetchCombinedSchedules();
       setLessons(combinedSchedules);
     } catch (error) {
@@ -39,7 +46,7 @@ const Calendar = () => {
     const interval = setInterval(() => {
       console.log('Auto-refreshing calendar data...');
       fetchLessonsData();
-    }, 2 * 60 * 1000); // 2 minutes
+    }, 2 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, [user]);
@@ -55,7 +62,6 @@ const Calendar = () => {
 
     window.addEventListener('storage', handleStorageChange);
     
-    // Also listen for custom events
     const handleCustomEvent = () => {
       console.log('Custom lesson report event, refreshing calendar...');
       fetchLessonsData();
@@ -81,7 +87,6 @@ const Calendar = () => {
             <p className="text-sm sm:text-base text-gray-600">צפייה במערכת השעות והשיעורים הקרובים</p>
           </div>
           
-          {/* Refresh Button */}
           <button
             onClick={() => {
               console.log('Manual refresh of calendar...');
@@ -95,7 +100,6 @@ const Calendar = () => {
         </div>
       </div>
 
-      {/* Edge-to-edge mobile layout */}
       <div className="w-full max-w-7xl mx-auto">
         <div className="w-full">
           <Card className="w-full rounded-none border-0 shadow-none sm:rounded-xl sm:border sm:shadow">

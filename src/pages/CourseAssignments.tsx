@@ -2518,8 +2518,10 @@ const CourseAssignments = () => {
                     </div>
                     <CardDescription className="text-blue-100 text-base">
                       {assignment.institution_name} • מדריך:{" "}
-                      {assignment.instructor_name}
+                      {assignment.instructor_name} • כיתה:{" "}
+                      {assignment.grade_level}
                     </CardDescription>
+                    
                   </div>
 
                   <div className="flex gap-2">
@@ -2571,7 +2573,7 @@ const CourseAssignments = () => {
               {expandedCards.has(assignment.instance_id) && (
                 <CardContent className="p-6">
                   {/* Course Info Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                  <div className={user?.user_metadata.role==="admin"?"grid grid-cols-1 md:grid-cols-4 gap-4 mb-6":"grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"}>
                     {/* דוגמא לסוג בית ספר */}
                     <div
                       className={`${
@@ -2604,7 +2606,7 @@ const CourseAssignments = () => {
                     </div>
 
                     {/* מקסימום תלמידים */}
-                    <div className="bg-green-50 p-4 rounded-lg">
+                    {/* <div className="bg-green-50 p-4 rounded-lg">
                       <div className="flex items-center text-green-600 mb-2">
                         <Users className="h-5 w-5 ml-2" />
                         <span className="font-medium">מקסימום תלמידים</span>
@@ -2612,7 +2614,7 @@ const CourseAssignments = () => {
                       <span className="text-lg font-bold text-gray-900">
                         {assignment.max_participants}
                       </span>
-                    </div>
+                    </div> */}
 
                     {/* מספר שיעורים */}
                     <div className="bg-purple-50 p-4 rounded-lg">
@@ -2626,14 +2628,14 @@ const CourseAssignments = () => {
                     </div>
 
                     {/* מחיר */}
-                    <div className="bg-orange-50 p-4 rounded-lg">
+                    { user?.user_metadata.role==="admin" && <div className="bg-orange-50 p-4 rounded-lg">
                       <div className="flex items-center text-orange-600 mb-2">
                         <span className="font-medium">מחיר ללקוח</span>
                       </div>
                       <span className="text-lg font-bold text-gray-900">
                         ₪{assignment.price_for_customer}
                       </span>
-                    </div>
+                    </div>}
                   </div>
 
                   {/* Tasks Section */}

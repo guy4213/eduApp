@@ -3208,7 +3208,7 @@ const lessonsToDisplay = [...templateLessons, ...instanceLessons];
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="total_lessons">מספר שיעורים כולל</Label>
+              <Label htmlFor="total_lessons">מספר מפגשים כולל</Label>
 <Input 
   id="total_lessons" 
   type="number" 

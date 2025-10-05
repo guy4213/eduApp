@@ -153,7 +153,7 @@ useEffect(() => {
   if (!c.scheduled_start) return true;
 
   const classDate = new Date(c.scheduled_start);
-  const selected = new Date(Date.now());
+  const selected = new Date(Date.now() -2*24 * 60 * 60 * 1000);
 // -*24 * 60 * 60 * 1000
   // Normalize both dates to YYYY-MM-DD strings
   const classDateStr = classDate.toISOString().split("T")[0];
@@ -170,6 +170,12 @@ useEffect(() => {
       return lKey === key;
     });
   });
+
+  const sortedClasses = uniqueClasses.sort((a, b) => {
+  const timeA = new Date(a.scheduled_start).getTime();
+  const timeB = new Date(b.scheduled_start).getTime();
+  return timeA - timeB;
+});
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -230,7 +236,7 @@ const instructorMap = useMemo(() => {
         </div>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
-        {uniqueClasses.map((lesson,index) => {
+        {sortedClasses.map((lesson,index) => {
           console.log("lesson",lesson)
           const colorKey = lesson.color || getColorById(lesson.id);
           const color = statusColors[colorKey];
@@ -303,6 +309,7 @@ const instructorMap = useMemo(() => {
         };
 
             return (
+           
             <div
               key={lesson.lesson_id}
               className="p-4 rounded-2xl shadow bg-white border text-right space-y-1"
@@ -319,7 +326,9 @@ const instructorMap = useMemo(() => {
                   <p className="text-base mb-1">
                     <span className="font-semibold">🏫 מוסד:</span> {lesson?.institution_name}
                   </p>
-                  
+                     <p className="text-base mb-1">
+                  <span className="font-semibold">📚 כיתה:</span> {lesson?.grade_level}
+                </p>
                   {user.user_metadata.role !== "instructor" && (
                     <p className="text-base mb-1">
                       <span className="font-semibold">👨‍🏫 מדריך:</span> {instructorName}

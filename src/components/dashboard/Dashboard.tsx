@@ -534,6 +534,7 @@ const adaptedLessons = (combinedForCourses || []).map((s: any) => ({
   instructorName: s.course_instances?.instructor?.full_name || s?.course_instance?.instructor?.full_name || "לא ידוע",
   instructor_id: s.course_instances?.instructor?.id || s?.course_instance?.instructor?.id || "לא ידוע",
   lesson_id: s.lesson?.id,
+  grade_level: s.course_instances?.grade_level || s?.course_instance?.grade_level || "לא ידוע",      
   course_instance_id: s.course_instance_id
 }));
 
