@@ -810,7 +810,7 @@ const Courses = () => {
                     {expandedCards.has(course.instance_id || course.id) && (
                       <CardContent className="p-6">
                         {/* Assignment Status Alert */}
-                        {!course.is_assigned && (
+                        {/* {!course.is_assigned && (
                           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
                             <div className="flex items-center">
                               <div className="h-2 w-2 bg-amber-400 rounded-full mr-2"></div>
@@ -819,7 +819,7 @@ const Courses = () => {
                               </span>
                             </div>
                           </div>
-                        )}
+                        )} */}
 
                         {/* Course Details */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
