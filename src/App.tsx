@@ -24,6 +24,7 @@ import AdminSettings from "./pages/AdminSettings";
 const queryClient = new QueryClient();
 
 const App = () => (
+
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -118,7 +119,7 @@ const App = () => (
                <Route 
                  path="/reports"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['admin']}>
                     <div className="min-h-screen">
                       <Navigation />
                       <Reports />
@@ -129,7 +130,7 @@ const App = () => (
               <Route 
                 path="/profile" 
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute >
                     <div className="min-h-screen">
                       <Navigation />
                       <Profile />
@@ -140,7 +141,7 @@ const App = () => (
                    <Route 
                 path="/AdminSettings" 
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['admin', 'pedagogical_manager']}>   
                     <div className="min-h-screen">
                       <Navigation />
                       <AdminSettings />

@@ -1050,8 +1050,9 @@ const Reports = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold text-purple-600">{(filteredMonthData.totalLessons / filteredMonthData.totalScheduledLessons) * 100}%</p>
-                  <p className="text-gray-600 font-medium">אחוז השלמה</p>
+<p className="text-2xl font-bold text-purple-600">
+  {((filteredMonthData.totalLessons / filteredMonthData.totalScheduledLessons) * 100).toFixed(1)}%
+</p>                  <p className="text-gray-600 font-medium">אחוז השלמה</p>
                 </div>
                 <div className="p-3 rounded-full bg-purple-500">
                   <TrendingUp className="h-6 w-6 text-white" />

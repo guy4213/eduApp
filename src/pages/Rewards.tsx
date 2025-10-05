@@ -785,7 +785,7 @@ const pendingClosures = filteredSalesLeads.filter(
                     }
                   }}
                 >
-{user?.user_metadata.role !== "instructor" && (
+{user?.user_metadata.role === "admin" && (
   isEditing ? <Check className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />
 )}             
  </button>
