@@ -1,16 +1,19 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { BookOpen, Calendar, FileText, Users, BarChart3, LogOut, Menu, X, User,Settings2Icon } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import Profile from '@/pages/Profile';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const Navigation = () => {
   const { user, signOut } = useAuth();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-
+ const [profile, setProfile] = useState<Profile | null>(null);
   //ask matan if i should enable instructors view courses page.
   const isAdminOrManager = ['admin', 'pedagogical_manager'].includes(user?.user_metadata?.role);
    const isAdmin = ['admin'].includes(user?.user_metadata?.role);
@@ -30,7 +33,34 @@ const navigationItems = [
   const handleSignOut = async () => {
     await signOut();
   };
+ const fetchProfile = async () => {
+    if (!user) return;
 
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (error) {
+        toast({
+          title: "שגיאה",
+          description: "לא ניתן לטעון את הפרופיל",
+          variant: "destructive",
+        });
+        return;
+      }
+      console.log("datatataq ", data);
+      setProfile(data);
+     
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    } 
+  };
+    useEffect(() => {
+      fetchProfile();
+    }, []);
   return (
     <>
       {/* Desktop Navigation */}
@@ -82,7 +112,7 @@ const navigationItems = [
             {/* Hamburger Menu */}
        
               <BookOpen className="h-8 w-8 text-blue-200 ml-3" />
-              <h1 className="text-xl font-bold text-white">שלום  {user.user_metadata.full_name}</h1>
+              <h1 className="text-xl font-bold text-white">שלום  {profile?.full_name}</h1>
             </div>
             
             {/* Hamburger Menu & User Info */}
@@ -110,7 +140,7 @@ const navigationItems = [
           <div className="flex justify-between items-center">
             <div className="flex items-center">
               <BookOpen className="h-6 w-6 text-blue-200 ml-2" />
-              <h1 className="text-xl font-bold text-white">שלום  {user.user_metadata.full_name}</h1>
+              <h1 className="text-xl font-bold text-white">שלום  {profile?.full_name}</h1>
             </div>
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild>

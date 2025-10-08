@@ -44,7 +44,9 @@ import {
   X,
   Loader2,
   CalendarX,
-  UserX
+  UserX,
+  Shield,
+  UserCog
 } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -95,6 +97,15 @@ interface Instructor {
   current_work_hours?: number;
   benefits?: string;
   img?: string;
+}
+interface SystemUser {
+  id: string;
+  full_name: string;
+  email?: string;
+  phone?: string;
+  role: 'admin' | 'pedagogical_manager';
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface Assignment {
@@ -150,10 +161,26 @@ const AdminSettings = () => {
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [showBlockedDateModal, setShowBlockedDateModal] = useState(false);
 
+
+  // States for system users
+const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+const [showSystemUserModal, setShowSystemUserModal] = useState(false);
+const [editingSystemUser, setEditingSystemUser] = useState<SystemUser | null>(null);
+const [systemUserForm, setSystemUserForm] = useState<Partial<SystemUser>>({
+  full_name: '',
+  email: '',
+  phone: '',
+  role: 'pedagogical_manager'
+});
+const [systemUserPassword, setSystemUserPassword] = useState('');
+const [showDeleteSystemUserConfirm, setShowDeleteSystemUserConfirm] = useState(false);
+const [selectedSystemUser, setSelectedSystemUser] = useState<SystemUser | null>(null);
+
+
   // Check user permissions
   const userRole = user?.user_metadata?.role;
   const hasAccess = ['admin', 'pedagogical_manager'].includes(userRole);
-
+  const isAdmin = userRole === 'admin';
 
 
  // Function to open the edit modal
@@ -583,6 +610,7 @@ const handleUpdateInstructor = async () => {
                 userId: selectedInstructor.id,
                 instructorName: selectedInstructor.full_name,
                 assignments: instructorAssignments,
+                userType: 'instructor' // ⬅️ הוסף!
             },
         });
 
@@ -764,14 +792,269 @@ const addBlockedDate = async () => {
   return 'N/A';
 };
 
-  useEffect(() => {
-    if (hasAccess) {
-      fetchDefaults();
-      fetchInstitutions();
-      fetchInstructors();
-      fetchBlockedDates();
+useEffect(() => {
+  if (hasAccess) {
+    fetchDefaults();
+    fetchInstitutions();
+    fetchInstructors();
+    fetchBlockedDates();
+    if (isAdmin) {
+      fetchSystemUsers(); // ⬅️ הוסף את זה!
     }
-  }, [hasAccess]);
+  }
+}, [hasAccess, isAdmin]);
+
+
+
+// Fetch system users
+const fetchSystemUsers = async () => {
+  setLoading(true);
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('role', ['admin', 'pedagogical_manager'])
+      .order('full_name');
+    
+    if (data) setSystemUsers(data);
+  } catch (error) {
+    console.error('Error fetching system users:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Open system user modal
+const openSystemUserModal = (systemUser?: SystemUser) => {
+  if (systemUser) {
+    setEditingSystemUser(systemUser);
+    setSystemUserForm({
+      full_name: systemUser.full_name,
+      email: systemUser.email,
+      phone: systemUser.phone,
+      role: systemUser.role
+    });
+  } else {
+    setEditingSystemUser(null);
+    setSystemUserForm({
+      full_name: '',
+      email: '',
+      phone: '',
+      role: 'pedagogical_manager'
+    });
+    setSystemUserPassword('');
+  }
+  setShowSystemUserModal(true);
+};
+
+// Save system user
+const saveSystemUser = async () => {
+  if (!systemUserForm.full_name || !systemUserForm.email) {
+    toast({ 
+      title: "שדות חובה חסרים", 
+      description: "אנא מלא שם מלא ואימייל.", 
+      variant: "destructive" 
+    });
+    return;
+  }
+
+  if (!editingSystemUser && !systemUserPassword) {
+    toast({ 
+      title: "סיסמה חסרה", 
+      description: "נא להזין סיסמה למשתמש חדש.", 
+      variant: "destructive" 
+    });
+    return;
+  }
+
+  if (!editingSystemUser && systemUserPassword.length < 6) {
+    toast({ 
+      title: "סיסמה חלשה", 
+      description: "הסיסמה חייבת להכיל לפחות 6 תווים.", 
+      variant: "destructive" 
+    });
+    return;
+  }
+
+  setLoading(true);
+  try {
+    if (editingSystemUser) {
+      // Update existing system user
+      const emailChanged = systemUserForm.email !== editingSystemUser.email;
+      const nameChanged = systemUserForm.full_name !== editingSystemUser.full_name;
+      const roleChanged = systemUserForm.role !== editingSystemUser.role;
+
+      // Update auth.users if email or metadata changed
+      if (emailChanged || nameChanged || roleChanged) {
+        const newMetadata = {
+          full_name: systemUserForm.full_name,
+          name: systemUserForm.full_name,
+          role: systemUserForm.role,
+          phone: systemUserForm.phone || ''
+        };
+
+        const { data, error: authError } = await supabase.rpc('update_user_auth_data', {
+          target_user_id: editingSystemUser.id,
+          new_email: emailChanged ? systemUserForm.email : null,
+          new_metadata: (nameChanged || roleChanged) ? newMetadata : null
+        });
+
+        if (authError) {
+          throw new Error(`שגיאה בעדכון נתוני האימות: ${authError.message}`);
+        }
+      }
+
+      // Update profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          full_name: systemUserForm.full_name,
+          email: systemUserForm.email,
+          phone: systemUserForm.phone,
+          role: systemUserForm.role,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', editingSystemUser.id);
+
+      if (profileError) throw profileError;
+
+      toast({ title: "✅ משתמש המערכת עודכן בהצלחה" });
+      
+    } else {
+      // Create new system user via Supabase Auth
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email: systemUserForm.email!,
+        password: systemUserPassword,
+        options: {
+          data: {
+            full_name: systemUserForm.full_name,
+            name: systemUserForm.full_name,
+            role: systemUserForm.role,
+            phone: systemUserForm.phone || ''
+          }
+        }
+      });
+
+      if (signUpError) throw signUpError;
+
+      toast({ 
+        title: "✅ משתמש מערכת נוצר בהצלחה",
+        description: "נשלח מייל אימות לכתובת המייל שהוזנה" 
+      });
+    }
+    
+    fetchSystemUsers();
+    setShowSystemUserModal(false);
+    setEditingSystemUser(null);
+    setSystemUserForm({ full_name: '', email: '', phone: '', role: 'pedagogical_manager' });
+    setSystemUserPassword('');
+    
+  } catch (error: any) {
+    toast({
+      title: "❌ שגיאה בשמירת משתמש המערכת",
+      description: error.message,
+      variant: "destructive"
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+// Delete system user
+// const handleDeleteSystemUser = async () => {
+//   if (!selectedSystemUser) return;
+
+//   setLoading(true);
+//   try {
+//     const { error } = await supabase.functions.invoke('delete-user', {
+//       body: {
+//         userId: selectedSystemUser.id,
+//         instructorName: selectedSystemUser.full_name,
+//         assignments: []
+//       },
+//     });
+
+//     if (error) throw new Error(`שגיאה: ${error.message}`);
+
+//     toast({ title: "✅ משתמש המערכת הוסר בהצלחה" });
+//     fetchSystemUsers();
+//     setShowDeleteSystemUserConfirm(false);
+//     setSelectedSystemUser(null);
+
+//   } catch (error: any) {
+//     toast({
+//       title: "❌ שגיאה בהסרת משתמש המערכת",
+//       description: error.message,
+//       variant: "destructive",
+//     });
+//   } finally {
+//     setLoading(false);
+//   }
+// };
+
+const handleDeleteSystemUser = async () => {
+  if (!selectedSystemUser) return;
+
+  setLoading(true);
+  try {
+    const { error } = await supabase.functions.invoke('delete-user', {
+      body: {
+        userId: selectedSystemUser.id,
+        instructorName: selectedSystemUser.full_name,
+        assignments: [],
+        userType: 'system_user', // ⬅️ הוסף את זה!
+        userRole: selectedSystemUser.role // ⬅️ וגם את זה (admin/pedagogical_manager)
+      },
+    });
+
+    if (error) throw new Error(`שגיאה: ${error.message}`);
+
+    toast({ title: "✅ משתמש המערכת הוסר בהצלחה" });
+    fetchSystemUsers();
+    setShowDeleteSystemUserConfirm(false);
+    setSelectedSystemUser(null);
+
+  } catch (error: any) {
+    toast({
+      title: "❌ שגיאה בהסרת משתמש המערכת",
+      description: error.message,
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
+const getRoleBadge = (role: string) => {
+  if (role === 'admin') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
+        <Shield className="h-3 w-3" />
+        מנהל מערכת
+      </span>
+    );
+  } else if (role === 'pedagogical_manager') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+        <UserCog className="h-3 w-3" />
+        מנהל פדגוגי
+      </span>
+    );
+  }
+  return null;
+};
+
+
+
+
+
+
+
+
+
+
+
 
   // Check permissions
   if (!hasAccess) {
@@ -804,7 +1087,7 @@ const addBlockedDate = async () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-6">
+          <TabsList className={isAdmin?"grid w-full grid-cols-2 md:grid-cols-5 mb-6":"grid w-full grid-cols-2 md:grid-cols-4 mb-6"}>
             <TabsTrigger value="defaults" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               <span>ברירות מחדל</span>
@@ -821,6 +1104,12 @@ const addBlockedDate = async () => {
               <CalendarX className="h-4 w-4" />
               <span>תאריכים חסומים</span>
             </TabsTrigger>
+                      {isAdmin && (
+            <TabsTrigger value="system-users" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              <span>משתמשי מערכת</span>
+            </TabsTrigger>
+          )}
           </TabsList>
 
           {/* ברירות מחדל */}
@@ -1037,6 +1326,7 @@ const addBlockedDate = async () => {
               </CardContent>
             </Card>
           </TabsContent> */}
+
 <TabsContent value="instructors">
   <Card>
     <CardHeader>
@@ -1108,6 +1398,90 @@ const addBlockedDate = async () => {
     </CardContent>
   </Card>
 </TabsContent>
+
+{/* משתמשי מערכת - רק לאדמין */}
+{isAdmin && (
+  <TabsContent value="system-users">
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between flex-row-reverse items-center">
+          <div>
+            <CardTitle>ניהול משתמשי מערכת</CardTitle>
+            <CardDescription>אדמינים ומנהלים פדגוגיים - ניתן ליצור רק על ידי מנהל מערכת</CardDescription>
+          </div>
+          <Button onClick={() => openSystemUserModal()} className="bg-purple-600 hover:bg-purple-700">
+            <Plus className="h-4 w-4 ml-2" />
+            הוסף משתמש מערכת
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          </div>
+        ) : systemUsers.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Shield className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <p>אין משתמשי מערכת</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table className='rtl'>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-right">שם מלא</TableHead>
+                  <TableHead className="text-right">אימייל</TableHead>
+                  <TableHead className="text-right">טלפון</TableHead>
+                  <TableHead className="text-right">תפקיד</TableHead>
+                  <TableHead className="text-right">תאריך הצטרפות</TableHead>
+                  <TableHead className="text-center">פעולות</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {systemUsers.map((systemUser) => (
+                  <TableRow key={systemUser.id}>
+                    <TableCell className="font-medium">{systemUser.full_name}</TableCell>
+                    <TableCell>{systemUser.email || '-'}</TableCell>
+                    <TableCell>{systemUser.phone || '-'}</TableCell>
+                    <TableCell>{getRoleBadge(systemUser.role)}</TableCell>
+                    <TableCell>{formatDate(systemUser.created_at || '')}</TableCell>
+                    <TableCell>
+                      <div className="flex justify-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openSystemUserModal(systemUser)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            setSelectedSystemUser(systemUser);
+                            setShowDeleteSystemUserConfirm(true);
+                          }}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  </TabsContent>
+)}
+
+
+
+
+
           {/* תאריכים חסומים */}
           <TabsContent value="blocked-dates">
             <Card>
@@ -1572,6 +1946,132 @@ const addBlockedDate = async () => {
     </DialogFooter>
   </DialogContent>
 </Dialog>
+{/* System User Modal */}
+<Dialog open={showSystemUserModal} onOpenChange={setShowSystemUserModal}>
+  <DialogContent dir="rtl">
+    <DialogHeader>
+      <DialogTitle>
+        {editingSystemUser ? 'עריכת משתמש מערכת' : 'הוספת משתמש מערכת'}
+      </DialogTitle>
+      <DialogDescription>
+        {editingSystemUser 
+          ? 'עדכן את פרטי משתמש המערכת' 
+          : 'צור משתמש מערכת חדש (Admin או מנהל פדגוגי)'}
+      </DialogDescription>
+    </DialogHeader>
+    <div className="grid gap-4 py-4">
+      <div>
+        <Label htmlFor="system-full-name">שם מלא *</Label>
+        <Input
+          id="system-full-name"
+          value={systemUserForm.full_name}
+          onChange={(e) => setSystemUserForm({ ...systemUserForm, full_name: e.target.value })}
+        />
+      </div>
+      <div>
+        <Label htmlFor="system-email">אימייל *</Label>
+        <Input
+          id="system-email"
+          type="email"
+          value={systemUserForm.email}
+          onChange={(e) => setSystemUserForm({ ...systemUserForm, email: e.target.value })}
+        />
+      </div>
+      <div>
+        <Label htmlFor="system-phone">טלפון</Label>
+        <Input
+          id="system-phone"
+          value={systemUserForm.phone}
+          onChange={(e) => setSystemUserForm({ ...systemUserForm, phone: e.target.value })}
+        />
+      </div>
+      <div>
+        <Label htmlFor="system-role">תפקיד *</Label>
+        <Select 
+          value={systemUserForm.role} 
+          onValueChange={(value) => setSystemUserForm({ ...systemUserForm, role: value as 'admin' | 'pedagogical_manager' })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="בחר תפקיד" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pedagogical_manager">מנהל פדגוגי</SelectItem>
+            <SelectItem value="admin">מנהל מערכת</SelectItem>
+          </SelectContent>
+        </Select>
+                  <p className="text-xs  font-bold text-gray-500 mt-1">בעת עדכון תפקיד המשתמש חייב להתחבר מחדש למערכת כדי שהרשאותיו יתעדכנו</p>
+
+      </div>
+      {!editingSystemUser && (
+        <div>
+          <Label htmlFor="system-password">סיסמה </Label>
+          <Input
+            id="system-password"
+            type="password"
+            placeholder="לפחות 6 תווים"
+            value={systemUserPassword}
+            onChange={(e) => setSystemUserPassword(e.target.value)}
+          />
+          
+        </div>
+      )}
+    </div>
+    <DialogFooter>
+      <Button 
+        variant="ghost" 
+        onClick={() => {
+          setShowSystemUserModal(false);
+          setEditingSystemUser(null);
+          setSystemUserForm({ full_name: '', email: '', phone: '', role: 'pedagogical_manager' });
+          setSystemUserPassword('');
+        }}
+      >
+        ביטול
+      </Button>
+      <Button onClick={saveSystemUser} disabled={loading}>
+        {loading ? <Loader2 className="animate-spin" /> : 'שמור'}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+{/* Delete System User Confirmation */}
+<Dialog open={showDeleteSystemUserConfirm} onOpenChange={setShowDeleteSystemUserConfirm}>
+  <DialogContent dir="rtl">
+    <DialogHeader>
+      <DialogTitle>האם אתה בטוח?</DialogTitle>
+      <DialogDescription>
+        אתה עומד למחוק את משתמש המערכת <strong>{selectedSystemUser?.full_name}</strong>. 
+        פעולה זו היא סופית ולא ניתנת לביטול.
+      </DialogDescription>
+    </DialogHeader>
+    <Alert variant="destructive">
+      <AlertCircle className="h-4 w-4" />
+      <AlertDescription>
+        <strong>אזהרה:</strong> מחיקת משתמש מערכת תמחק את כל ההרשאות וההיסטוריה שלו במערכת.
+      </AlertDescription>
+    </Alert>
+    <DialogFooter>
+      <Button 
+        variant="outline" 
+        onClick={() => {
+          setShowDeleteSystemUserConfirm(false);
+          setSelectedSystemUser(null);
+        }}
+      >
+        ביטול
+      </Button>
+      <Button 
+        variant="destructive" 
+        onClick={handleDeleteSystemUser} 
+        disabled={loading}
+      >
+        {loading ? <Loader2 className="animate-spin" /> : 'אני מבין, מחק את המשתמש'}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
       </div>
     </div>
   );

@@ -20,6 +20,7 @@ import NotFound from "./pages/NotFound";
 import MobileNavigation from "./components/layout/MobileNavigation";
 import { VerifyPage } from "./pages/VerifyPage";
 import AdminSettings from "./pages/AdminSettings";
+import ResetPassword from "./components/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -35,7 +36,7 @@ const App = () => (
             <Routes>
               <Route path="/auth" element={<Auth />} />
              <Route path="/verify" element={<VerifyPage />} />
-
+             <Route path="/reset-password" element={<ResetPassword />} />
               <Route 
                 path="/" 
                 element={

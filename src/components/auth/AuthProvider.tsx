@@ -19,9 +19,33 @@ interface AuthContextType {
     phone?: string
   ) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+    resetPassword: (email: string) => Promise<{ error: any }>;  // הוסף את זה
+  updatePassword: (newPassword: string) => Promise<{ error: any }>;  // הוסף את זה
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const resetPassword = async (email: string) => {
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`, // עדכן את ה-URL בהתאם
+    });
+    return { error };
+  } catch (error) {
+    return { error };
+  }
+};
+
+const updatePassword = async (newPassword: string) => {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    return { error };
+  } catch (error) {
+    return { error };
+  }
+};
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -97,13 +121,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
+     resetPassword,  // הוסף את זה
+  updatePassword, // הוסף את זה
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// --- PLACEHOLDER COMPONENTS ---
-// These are simple placeholders for your actual components to make this file runnable.
+
 
 const Navigation = () => {
     const { user, signOut } = useAuth();
