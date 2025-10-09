@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { cancelLesson } from "@/services/cancellationService";
+import { cancelLesson, cancelGeneratedLesson } from "@/services/cancellationService";
 import { rescheduleAfterCancellation } from "@/utils/scheduleUtils";
 import { AlertTriangle, Calendar, Clock, BookOpen } from "lucide-react";
 
@@ -78,12 +78,27 @@ export const LessonCancellationDialog: React.FC<LessonCancellationDialogProps> =
         return;
       }
       
-      const result = await cancelLesson({
-        courseInstanceId: lesson.course_instance_id,
-        lessonId: actualLessonId,
-        originalDate: scheduledDate,
-        cancellationReason: cancellationReason.trim(),
-      });
+      // Check if this is a generated schedule (ID starts with "generated-")
+      const isGeneratedSchedule = lesson.id.startsWith('generated-');
+      
+      let result;
+      if (isGeneratedSchedule) {
+        // Use the direct cancellation method for generated schedules
+        result = await cancelGeneratedLesson(
+          lesson.course_instance_id,
+          actualLessonId,
+          scheduledDate,
+          cancellationReason.trim()
+        );
+      } else {
+        // Use the RPC function for existing scheduled lessons
+        result = await cancelLesson({
+          courseInstanceId: lesson.course_instance_id,
+          lessonId: actualLessonId,
+          originalDate: scheduledDate,
+          cancellationReason: cancellationReason.trim(),
+        });
+      }
 
       if (result.success) {
         toast({

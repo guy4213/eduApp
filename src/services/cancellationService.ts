@@ -218,3 +218,54 @@ export async function getCancelledLessonsInDateRange(
     return [];
   }
 }
+
+/**
+ * Alternative cancellation method that works with generated schedules
+ * by adding the date to blocked dates instead of creating a lesson cancellation record
+ */
+export async function cancelGeneratedLesson(
+  courseInstanceId: string,
+  lessonId: string,
+  originalDate: string,
+  cancellationReason: string
+): Promise<CancelLessonResponse> {
+  try {
+    // Directly insert into lesson_cancellations table
+    const { data, error } = await supabase
+      .from('lesson_cancellations')
+      .insert({
+        course_instance_id: courseInstanceId,
+        lesson_id: lessonId,
+        original_scheduled_date: originalDate,
+        cancellation_reason: cancellationReason,
+        cancelled_by: (await supabase.auth.getUser()).data.user?.id
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating cancellation record:', error);
+      return {
+        success: false,
+        message: 'שגיאה בביטול השיעור',
+        error: error.message
+      };
+    }
+
+    // Clear the schedule cache to force regeneration
+    clearSystemCache();
+
+    return {
+      success: true,
+      cancellation_id: data.id,
+      message: 'השיעור בוטל בהצלחה. השיעורים הבאים יתוזמנו מחדש אוטומטית.'
+    };
+  } catch (error) {
+    console.error('Error in cancelGeneratedLesson:', error);
+    return {
+      success: false,
+      message: 'שגיאה בביטול השיעור',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
