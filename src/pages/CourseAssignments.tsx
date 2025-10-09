@@ -914,6 +914,8 @@ interface CourseAssignment {
   school_type?: string;
   presentation_link?: string;
   program_link?: string;
+  lesson_mode?: 'template' | 'custom_only' | 'combined'; // *** הוסף את זה ***
+
 }
 
 // מטמון זמני לשיפור ביצועים
@@ -1373,273 +1375,678 @@ const CourseAssignments = () => {
   //     setLoading(false);
   //   }
   // };
-  const fetchAssignments = async () => {
-    if (!user) return;
+//   const fetchAssignments = async () => {
+//     if (!user) return;
 
-    try {
-      setLoading(true);
-      let query = supabase.from("course_instances").select(`
-        id,
-        grade_level,
-        max_participants,
-        price_for_customer,
-        price_for_instructor,
-        start_date,
-        end_date,
-        created_at,
-        course:course_id (
-          id,
-          name,
-          school_type,
-          presentation_link,
-          program_link
-        ),
-        instructor:instructor_id (
-          id,
-          full_name
-        ),
-        institution:institution_id (
-          id,
-          name
-        )
-      `); // If user is instructor, filter by their assignments only
+//     try {
+//       setLoading(true);
+//       let query = supabase.from("course_instances").select(`
+//         id,
+//         grade_level,
+//         max_participants,
+//         price_for_customer,
+//         price_for_instructor,
+//         start_date,
+//         end_date,
+//         created_at,
+//         course:course_id (
+//           id,
+//           name,
+//           school_type,
+//           presentation_link,
+//           program_link
+//         ),
+//         instructor:instructor_id (
+//           id,
+//           full_name
+//         ),
+//         institution:institution_id (
+//           id,
+//           name
+//         )
+//       `); // If user is instructor, filter by their assignments only
 
-      if (isInstructor && user?.id) {
-        query = query.eq("instructor_id", user.id);
+//       if (isInstructor && user?.id) {
+//         query = query.eq("instructor_id", user.id);
+//       }
+
+//       const { data: coursesData, error: instancesError } = await query;
+
+//       if (instancesError) throw instancesError;
+
+//       console.log(
+//         `[DEBUG] Found ${coursesData?.length || 0} course instances for ${
+//           isInstructor ? "instructor" : "admin"
+//         }:`,
+//         coursesData
+//       );
+
+//       if (!coursesData || coursesData.length === 0) {
+//         setAssignments([]);
+//         setFilteredAssignments([]);
+//         return;
+//       }
+
+//       const courseIds =
+//         coursesData
+//           ?.map((instance: any) => instance.course?.id)
+//           .filter(Boolean) || [];
+//       const courseInstanceIds = coursesData.map((instance) => instance.id);
+//       console.log(
+//         `[DEBUG] Course instances details:`,
+//         coursesData?.map((instance) => ({
+//           instanceId: instance.id,
+//           courseId: instance.course?.id,
+//           courseName: instance.course?.name,
+//           instructorId: instance.instructor?.id,
+//         }))
+//       ); // Parallel fetching of all required data
+
+//       const [lessonsData, schedulesData, statusMap] = await Promise.all([
+//         // Fetch lessons
+//         courseIds.length > 0
+//           ? supabase
+//               .from("lessons")
+//               .select("*")
+//               .in("course_id", courseIds)
+//               // --- CHANGE 1: ADDED .or() FILTER ---
+//               // This fetches lessons that are either generic (no instance ID) OR specific to the retrieved course instances.
+//               .or(
+//                 `course_instance_id.is.null,course_instance_id.in.(${courseInstanceIds.join(
+//                   ","
+//                 )})`
+//               )
+//               .order("order_index")
+//               .then(({ data, error }) => {
+//                 if (error) {
+//                   console.error("Error fetching lessons:", error);
+//                   return [];
+//                 }
+//                 console.log(
+//                   `[DEBUG] Found ${
+//                     data?.length || 0
+//                   } potentially relevant lessons`
+//                 );
+//                 return data || [];
+//               })
+//           : Promise.resolve([]), // Fetch schedules
+//         courseInstanceIds.length > 0
+//           ? fetchCombinedSchedules()
+//               .then((allSchedules) => {
+//                 const filtered = allSchedules.filter((schedule) =>
+//                   courseInstanceIds.includes(schedule.course_instance_id)
+//                 );
+//                 console.log(
+//                   `[DEBUG] Found ${filtered.length} relevant schedules`
+//                 );
+//                 return filtered;
+//               })
+//               .catch((error) => {
+//                 console.error("Error fetching combined schedules:", error);
+//                 return [];
+//               })
+//           : Promise.resolve([]), // Fetch report statuses
+//         getCachedReportStatuses(courseInstanceIds),
+//       ]); // Fetch tasks for lessons
+
+//       let tasksData: any[] = [];
+//       if (lessonsData.length > 0) {
+//         const lessonIds = lessonsData
+//           .map((lesson) => lesson.id)
+//           .filter(Boolean);
+//         if (lessonIds.length > 0) {
+//           const { data: tasks, error: tasksError } = await supabase
+//             .from("lesson_tasks")
+//             .select("*")
+//             .in("lesson_id", lessonIds)
+//             .order("order_index");
+
+//           if (tasksError) {
+//             console.error("Error fetching tasks:", tasksError);
+//           } else {
+//             tasksData = tasks || [];
+//             console.log(
+//               `[DEBUG] Found ${tasksData.length} tasks for ${lessonIds.length} lessons:`,
+//               tasksData
+//             );
+//           }
+//         }
+//       } // Update the report status map state
+
+//       setReportStatusMap(statusMap); // Format assigned courses data
+
+//       // const formatAssignmentData = (instanceData: any) => {
+//       //   const course = instanceData.course;
+
+//       //   // --- CHANGE 2: UPDATED LESSON FILTERING LOGIC ---
+//       //   // This logic correctly selects lessons for the specific instance,
+//       //   // prioritizing instance-specific lessons over generic ones.
+
+//       //   // 1. Get all lessons related to this course template.
+//       //   const allCourseTemplateLessons = lessonsData.filter(
+//       //     (lesson) => lesson.course_id === course.id
+//       //   );
+
+//       //   // 2. Create a map to hold the final lessons, using order_index to handle overrides.
+//       //   const finalLessonsMap = new Map();
+
+//       //   // 3. Add generic lessons first (where course_instance_id is null).
+//       //   allCourseTemplateLessons
+//       //     .filter((lesson) => lesson.course_instance_id === null)
+//       //     .forEach((lesson) => finalLessonsMap.set(lesson.order_index, lesson));
+
+//       //   // 4. Override with instance-specific lessons.
+//       //   allCourseTemplateLessons
+//       //     .filter((lesson) => lesson.course_instance_id === instanceData.id)
+//       //     .forEach((lesson) => finalLessonsMap.set(lesson.order_index, lesson));
+
+//       //   // 5. Convert map back to a sorted array.
+//       //   const courseLessons = Array.from(finalLessonsMap.values()).sort(
+//       //     (a, b) => a.order_index - b.order_index
+//       //   );
+//       //   const allCourseTasks = courseLessons.flatMap((lesson, lessonIndex) => {
+//       //     const lessonTasks = tasksData.filter(
+//       //       (task) => task.lesson_id === lesson.id
+//       //     );
+
+//       //     const lessonSchedule = schedulesData.find(
+//       //       (schedule) =>
+//       //         schedule.lesson_id === lesson.id &&
+//       //         schedule.course_instance_id === instanceData.id
+//       //     ); // Improved report status checking
+
+//       //     let reportStatus = {
+//       //       isReported: false,
+//       //       isCompleted: undefined as boolean | undefined,
+//       //       isLessonOk: undefined as boolean | undefined,
+//       //       reportId: undefined as string | undefined,
+//       //     };
+
+//       //     const possibleKeys = [
+//       //       lessonSchedule?.id, // Legacy key
+//       //       `${instanceData.id}_${lesson.id}`, // New composite key
+//       //     ].filter(Boolean);
+
+//       //     for (const key of possibleKeys) {
+//       //       const status = statusMap.get(key);
+//       //       if (status) {
+//       //         reportStatus = {
+//       //           isReported: true,
+//       //           isCompleted: status.isCompleted,
+//       //           isLessonOk: status.isLessonOk,
+//       //           reportId: status.reportId,
+//       //         };
+//       //         break;
+//       //       }
+//       //     }
+
+//       //     return lessonTasks.map((task) => ({
+//       //       ...task,
+//       //       lesson_title: lesson.title,
+//       //       lesson_id: lesson.id,
+//       //       lesson_number: lessonIndex + 1,
+//       //       scheduled_start: lessonSchedule?.scheduled_start || null,
+//       //       scheduled_end: lessonSchedule?.scheduled_end || null,
+//       //       report_status: reportStatus,
+//       //     }));
+//       //   });
+
+//       //   return {
+//       //     id: course.id,
+//       //     instance_id: instanceData.id,
+//       //     name: course.name || "ללא שם קורס",
+//       //     grade_level: instanceData.grade_level || "לא צוין",
+//       //     max_participants: instanceData.max_participants || 0,
+//       //     price_for_customer: instanceData.price_for_customer || 0,
+//       //     price_for_instructor: instanceData.price_for_instructor || 0,
+//       //     institution_name: instanceData.institution?.name || "לא צוין",
+//       //     instructor_name: instanceData.instructor?.full_name || "לא צוין",
+//       //     lesson_count: courseLessons.length,
+//       //     start_date: instanceData.start_date || null,
+//       //     approx_end_date: instanceData.end_date || null,
+//       //     school_type: course.school_type,
+//       //     presentation_link: course.presentation_link,
+//       //     program_link: course.program_link,
+//       //     tasks: allCourseTasks.map((task: any) => ({
+//       //       id: task.id,
+//       //       title: task.title,
+//       //       description: task.description,
+//       //       estimated_duration: task.estimated_duration,
+//       //       is_mandatory: task.is_mandatory,
+//       //       lesson_number: task.lesson_number,
+//       //       lesson_title: task.lesson_title,
+//       //       lesson_id: task.lesson_id,
+//       //       order_index: task.order_index,
+//       //       scheduled_start: task.scheduled_start,
+//       //       scheduled_end: task.scheduled_end,
+//       //       report_status: task.report_status,
+//       //     })),
+//       //   };
+//       // };
+
+//       const formatAssignmentData = (instanceData: any) => {
+//   const course = instanceData.course;
+
+//   // *** השתמש באותה לוגיקה כמו fetchAndGenerateSchedules ***
+  
+//   // 1. קבל את כל השיעורים של הקורס
+//   const allCourseTemplateLessons = lessonsData.filter(
+//     (lesson) => lesson.course_id === course.id
+//   );
+
+//   // 2. בדוק אם יש lesson_mode
+//   const lessonMode = instanceData.lesson_mode || 'template';
+  
+//   let courseLessons: any[] = [];
+
+//   // 3. בחר שיעורים לפי lesson_mode
+//   switch (lessonMode) {
+//     case 'custom_only':
+//       // רק שיעורים ייחודיים
+//       courseLessons = allCourseTemplateLessons
+//         .filter((lesson) => lesson.course_instance_id === instanceData.id)
+//         .sort((a, b) => a.order_index - b.order_index);
+//       console.log(`Instance ${instanceData.id}: Using ${courseLessons.length} custom-only lessons`);
+//       break;
+      
+//     case 'combined':
+//       // תבנית + ייחודיים
+//       const templateLessons = allCourseTemplateLessons
+//         .filter((lesson) => lesson.course_instance_id === null);
+//       const instanceLessons = allCourseTemplateLessons
+//         .filter((lesson) => lesson.course_instance_id === instanceData.id);
+      
+//       courseLessons = [...templateLessons, ...instanceLessons]
+//         .sort((a, b) => a.order_index - b.order_index);
+//       console.log(`Instance ${instanceData.id}: Using ${templateLessons.length} template + ${instanceLessons.length} custom lessons`);
+//       break;
+      
+//     case 'template':
+//     default:
+//       // רק תבנית (ברירת מחדל)
+//       courseLessons = allCourseTemplateLessons
+//         .filter((lesson) => lesson.course_instance_id === null)
+//         .sort((a, b) => a.order_index - b.order_index);
+//       console.log(`Instance ${instanceData.id}: Using ${courseLessons.length} template lessons`);
+//       break;
+//   }
+
+//   // 4. בניית allCourseTasks
+//   const allCourseTasks = courseLessons.flatMap((lesson, lessonIndex) => {
+//     const lessonTasks = tasksData.filter(
+//       (task) => task.lesson_id === lesson.id
+//     );
+
+//     const lessonSchedule = schedulesData.find(
+//       (schedule) =>
+//         schedule.lesson_id === lesson.id &&
+//         schedule.course_instance_id === instanceData.id
+//     );
+
+//     // Improved report status checking
+//     let reportStatus = {
+//       isReported: false,
+//       isCompleted: undefined as boolean | undefined,
+//       isLessonOk: undefined as boolean | undefined,
+//       reportId: undefined as string | undefined,
+//     };
+
+//     const possibleKeys = [
+//       lessonSchedule?.id, // Legacy key
+//       `${instanceData.id}_${lesson.id}`, // New composite key
+//     ].filter(Boolean);
+
+//     for (const key of possibleKeys) {
+//       const status = statusMap.get(key);
+//       if (status) {
+//         reportStatus = {
+//           isReported: true,
+//           isCompleted: status.isCompleted,
+//           isLessonOk: status.isLessonOk,
+//           reportId: status.reportId,
+//         };
+//         break;
+//       }
+//     }
+
+//     return lessonTasks.map((task) => ({
+//       ...task,
+//       lesson_title: lesson.title,
+//       lesson_id: lesson.id,
+//       lesson_number: lessonIndex + 1,
+//       scheduled_start: lessonSchedule?.scheduled_start || null,
+//       scheduled_end: lessonSchedule?.scheduled_end || null,
+//       report_status: reportStatus,
+//     }));
+//   });
+
+//   // 5. החזרת האובייקט המלא
+//   return {
+//     id: course.id,
+//     instance_id: instanceData.id,
+//     name: course.name || "ללא שם קורס",
+//     grade_level: instanceData.grade_level || "לא צוין",
+//     max_participants: instanceData.max_participants || 0,
+//     price_for_customer: instanceData.price_for_customer || 0,
+//     price_for_instructor: instanceData.price_for_instructor || 0,
+//     institution_name: instanceData.institution?.name || "לא צוין",
+//     instructor_name: instanceData.instructor?.full_name || "לא צוין",
+//     lesson_count: courseLessons.length,
+//     start_date: instanceData.start_date || null,
+//     approx_end_date: instanceData.end_date || null,
+//     school_type: course.school_type,
+//     presentation_link: course.presentation_link,
+//     program_link: course.program_link,
+//     tasks: allCourseTasks.map((task: any) => ({
+//       id: task.id,
+//       title: task.title,
+//       description: task.description,
+//       estimated_duration: task.estimated_duration,
+//       is_mandatory: task.is_mandatory,
+//       lesson_number: task.lesson_number,
+//       lesson_title: task.lesson_title,
+//       lesson_id: task.lesson_id,
+//       order_index: task.order_index,
+//       scheduled_start: task.scheduled_start,
+//       scheduled_end: task.scheduled_end,
+//       report_status: task.report_status,
+//     })),
+//   };
+// };
+//       const formattedAssignments = coursesData?.map(formatAssignmentData) || [];
+//       console.log(
+//         `[DEBUG] Final formatted assignments:`,
+//         formattedAssignments.map((a) => ({
+//           name: a.name,
+//           tasks_count: a.tasks.length,
+//           lesson_count: a.lesson_count,
+//         }))
+//       );
+//       setAssignments(formattedAssignments);
+//       setFilteredAssignments(formattedAssignments);
+//     } catch (error) {
+//       console.error("Error fetching assignments:", error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+const fetchAssignments = async () => {
+  if (!user) return;
+
+  try {
+    setLoading(true);
+    
+    // *** שליפת ההקצאות כולל lesson_mode ***
+    let query = supabase.from("course_instances").select(`
+      id,
+      grade_level,
+      max_participants,
+      price_for_customer,
+      price_for_instructor,
+      start_date,
+      end_date,
+      created_at,
+      lesson_mode,
+      course:course_id (
+        id,
+        name,
+        school_type,
+        presentation_link,
+        program_link
+      ),
+      instructor:instructor_id (
+        id,
+        full_name
+      ),
+      institution:institution_id (
+        id,
+        name
+      )
+    `);
+
+    if (isInstructor && user?.id) {
+      query = query.eq("instructor_id", user.id);
+    }
+
+    const { data: coursesData, error: instancesError } = await query;
+
+    if (instancesError) throw instancesError;
+
+    console.log(
+      `[DEBUG] Found ${coursesData?.length || 0} course instances:`,
+      coursesData
+    );
+
+    if (!coursesData || coursesData.length === 0) {
+      setAssignments([]);
+      setFilteredAssignments([]);
+      return;
+    }
+
+    const courseIds = coursesData
+      ?.map((instance: any) => instance.course?.id)
+      .filter(Boolean) || [];
+    const courseInstanceIds = coursesData.map((instance) => instance.id);
+
+    // *** טעינה מקבילה של כל הנתונים ***
+    const [lessonsData, schedulesData, statusMap] = await Promise.all([
+      // *** שליפת שיעורים - כולל ייחודיים ***
+      courseIds.length > 0
+        ? supabase
+            .from("lessons")
+            .select("*")
+            .in("course_id", courseIds)
+            .or(
+              `course_instance_id.is.null,course_instance_id.in.(${courseInstanceIds.join(
+                ","
+              )})`
+            )
+            .order("order_index")
+            .then(({ data, error }) => {
+              if (error) {
+                console.error("Error fetching lessons:", error);
+                return [];
+              }
+              console.log(`[DEBUG] Found ${data?.length || 0} total lessons (template + custom)`);
+              return data || [];
+            })
+        : Promise.resolve([]),
+
+      // שליפת תזמונים
+      courseInstanceIds.length > 0
+        ? fetchCombinedSchedules()
+            .then((allSchedules) => {
+              const filtered = allSchedules.filter((schedule) =>
+                courseInstanceIds.includes(schedule.course_instance_id)
+              );
+              console.log(`[DEBUG] Found ${filtered.length} schedules`);
+              return filtered;
+            })
+            .catch((error) => {
+              console.error("Error fetching combined schedules:", error);
+              return [];
+            })
+        : Promise.resolve([]),
+
+      // שליפת סטטוסים
+      getCachedReportStatuses(courseInstanceIds),
+    ]);
+
+    // *** שליפת משימות ***
+    let tasksData: any[] = [];
+    if (lessonsData.length > 0) {
+      const lessonIds = lessonsData.map((lesson) => lesson.id).filter(Boolean);
+      if (lessonIds.length > 0) {
+        const { data: tasks, error: tasksError } = await supabase
+          .from("lesson_tasks")
+          .select("*")
+          .in("lesson_id", lessonIds)
+          .order("order_index");
+
+        if (tasksError) {
+          console.error("Error fetching tasks:", tasksError);
+        } else {
+          tasksData = tasks || [];
+          console.log(`[DEBUG] Found ${tasksData.length} tasks`);
+        }
       }
+    }
 
-      const { data: coursesData, error: instancesError } = await query;
+    setReportStatusMap(statusMap);
 
-      if (instancesError) throw instancesError;
+    // *** פורמט הנתונים - עם תמיכה ב-lesson_mode ***
+    const formatAssignmentData = (instanceData: any) => {
+      const course = instanceData.course;
+      const lessonMode = instanceData.lesson_mode || 'template';
 
-      console.log(
-        `[DEBUG] Found ${coursesData?.length || 0} course instances for ${
-          isInstructor ? "instructor" : "admin"
-        }:`,
-        coursesData
+      console.log(`[DEBUG] Processing instance ${instanceData.id} with lesson_mode: ${lessonMode}`);
+
+      // *** קבל את כל השיעורים הרלוונטיים לקורס הזה ***
+      const allCourseTemplateLessons = lessonsData.filter(
+        (lesson) => lesson.course_id === course.id
       );
 
-      if (!coursesData || coursesData.length === 0) {
-        setAssignments([]);
-        setFilteredAssignments([]);
-        return;
+      let courseLessons: any[] = [];
+
+      // *** בחר שיעורים לפי lesson_mode ***
+      switch (lessonMode) {
+        case 'custom_only':
+          // רק שיעורים ייחודיים
+          courseLessons = allCourseTemplateLessons
+            .filter((lesson) => lesson.course_instance_id === instanceData.id)
+            .sort((a, b) => a.order_index - b.order_index);
+          console.log(`  → Using ${courseLessons.length} custom-only lessons`);
+          break;
+
+        case 'combined':
+          // תבנית + ייחודיים
+          const templateLessons = allCourseTemplateLessons
+            .filter((lesson) => lesson.course_instance_id === null);
+          const instanceLessons = allCourseTemplateLessons
+            .filter((lesson) => lesson.course_instance_id === instanceData.id);
+
+          courseLessons = [...templateLessons, ...instanceLessons].sort(
+            (a, b) => a.order_index - b.order_index
+          );
+          console.log(
+            `  → Using ${templateLessons.length} template + ${instanceLessons.length} custom lessons (${courseLessons.length} total)`
+          );
+          break;
+
+        case 'template':
+        default:
+          // רק תבנית (ברירת מחדל)
+          courseLessons = allCourseTemplateLessons
+            .filter((lesson) => lesson.course_instance_id === null)
+            .sort((a, b) => a.order_index - b.order_index);
+          console.log(`  → Using ${courseLessons.length} template lessons`);
+          break;
       }
 
-      const courseIds =
-        coursesData
-          ?.map((instance: any) => instance.course?.id)
-          .filter(Boolean) || [];
-      const courseInstanceIds = coursesData.map((instance) => instance.id);
-      console.log(
-        `[DEBUG] Course instances details:`,
-        coursesData?.map((instance) => ({
-          instanceId: instance.id,
-          courseId: instance.course?.id,
-          courseName: instance.course?.name,
-          instructorId: instance.instructor?.id,
-        }))
-      ); // Parallel fetching of all required data
+      // *** בניית המשימות ***
+      const allCourseTasks = courseLessons.flatMap((lesson, lessonIndex) => {
+        const lessonTasks = tasksData.filter(
+          (task) => task.lesson_id === lesson.id
+        );
 
-      const [lessonsData, schedulesData, statusMap] = await Promise.all([
-        // Fetch lessons
-        courseIds.length > 0
-          ? supabase
-              .from("lessons")
-              .select("*")
-              .in("course_id", courseIds)
-              // --- CHANGE 1: ADDED .or() FILTER ---
-              // This fetches lessons that are either generic (no instance ID) OR specific to the retrieved course instances.
-              .or(
-                `course_instance_id.is.null,course_instance_id.in.(${courseInstanceIds.join(
-                  ","
-                )})`
-              )
-              .order("order_index")
-              .then(({ data, error }) => {
-                if (error) {
-                  console.error("Error fetching lessons:", error);
-                  return [];
-                }
-                console.log(
-                  `[DEBUG] Found ${
-                    data?.length || 0
-                  } potentially relevant lessons`
-                );
-                return data || [];
-              })
-          : Promise.resolve([]), // Fetch schedules
-        courseInstanceIds.length > 0
-          ? fetchCombinedSchedules()
-              .then((allSchedules) => {
-                const filtered = allSchedules.filter((schedule) =>
-                  courseInstanceIds.includes(schedule.course_instance_id)
-                );
-                console.log(
-                  `[DEBUG] Found ${filtered.length} relevant schedules`
-                );
-                return filtered;
-              })
-              .catch((error) => {
-                console.error("Error fetching combined schedules:", error);
-                return [];
-              })
-          : Promise.resolve([]), // Fetch report statuses
-        getCachedReportStatuses(courseInstanceIds),
-      ]); // Fetch tasks for lessons
+        const lessonSchedule = schedulesData.find(
+          (schedule) =>
+            schedule.lesson_id === lesson.id &&
+            schedule.course_instance_id === instanceData.id
+        );
 
-      let tasksData: any[] = [];
-      if (lessonsData.length > 0) {
-        const lessonIds = lessonsData
-          .map((lesson) => lesson.id)
-          .filter(Boolean);
-        if (lessonIds.length > 0) {
-          const { data: tasks, error: tasksError } = await supabase
-            .from("lesson_tasks")
-            .select("*")
-            .in("lesson_id", lessonIds)
-            .order("order_index");
+        // סטטוס דיווח
+        let reportStatus = {
+          isReported: false,
+          isCompleted: undefined as boolean | undefined,
+          isLessonOk: undefined as boolean | undefined,
+          reportId: undefined as string | undefined,
+        };
 
-          if (tasksError) {
-            console.error("Error fetching tasks:", tasksError);
-          } else {
-            tasksData = tasks || [];
-            console.log(
-              `[DEBUG] Found ${tasksData.length} tasks for ${lessonIds.length} lessons:`,
-              tasksData
-            );
+        const possibleKeys = [
+          lessonSchedule?.id,
+          `${instanceData.id}_${lesson.id}`,
+        ].filter(Boolean);
+
+        for (const key of possibleKeys) {
+          const status = statusMap.get(key);
+          if (status) {
+            reportStatus = {
+              isReported: true,
+              isCompleted: status.isCompleted,
+              isLessonOk: status.isLessonOk,
+              reportId: status.reportId,
+            };
+            break;
           }
         }
-      } // Update the report status map state
 
-      setReportStatusMap(statusMap); // Format assigned courses data
+        return lessonTasks.map((task) => ({
+          ...task,
+          lesson_title: lesson.title,
+          lesson_id: lesson.id,
+          lesson_number: lessonIndex + 1,
+          scheduled_start: lessonSchedule?.scheduled_start || null,
+          scheduled_end: lessonSchedule?.scheduled_end || null,
+          report_status: reportStatus,
+        }));
+      });
 
-      const formatAssignmentData = (instanceData: any) => {
-        const course = instanceData.course;
-
-        // --- CHANGE 2: UPDATED LESSON FILTERING LOGIC ---
-        // This logic correctly selects lessons for the specific instance,
-        // prioritizing instance-specific lessons over generic ones.
-
-        // 1. Get all lessons related to this course template.
-        const allCourseTemplateLessons = lessonsData.filter(
-          (lesson) => lesson.course_id === course.id
-        );
-
-        // 2. Create a map to hold the final lessons, using order_index to handle overrides.
-        const finalLessonsMap = new Map();
-
-        // 3. Add generic lessons first (where course_instance_id is null).
-        allCourseTemplateLessons
-          .filter((lesson) => lesson.course_instance_id === null)
-          .forEach((lesson) => finalLessonsMap.set(lesson.order_index, lesson));
-
-        // 4. Override with instance-specific lessons.
-        allCourseTemplateLessons
-          .filter((lesson) => lesson.course_instance_id === instanceData.id)
-          .forEach((lesson) => finalLessonsMap.set(lesson.order_index, lesson));
-
-        // 5. Convert map back to a sorted array.
-        const courseLessons = Array.from(finalLessonsMap.values()).sort(
-          (a, b) => a.order_index - b.order_index
-        );
-        const allCourseTasks = courseLessons.flatMap((lesson, lessonIndex) => {
-          const lessonTasks = tasksData.filter(
-            (task) => task.lesson_id === lesson.id
-          );
-
-          const lessonSchedule = schedulesData.find(
-            (schedule) =>
-              schedule.lesson_id === lesson.id &&
-              schedule.course_instance_id === instanceData.id
-          ); // Improved report status checking
-
-          let reportStatus = {
-            isReported: false,
-            isCompleted: undefined as boolean | undefined,
-            isLessonOk: undefined as boolean | undefined,
-            reportId: undefined as string | undefined,
-          };
-
-          const possibleKeys = [
-            lessonSchedule?.id, // Legacy key
-            `${instanceData.id}_${lesson.id}`, // New composite key
-          ].filter(Boolean);
-
-          for (const key of possibleKeys) {
-            const status = statusMap.get(key);
-            if (status) {
-              reportStatus = {
-                isReported: true,
-                isCompleted: status.isCompleted,
-                isLessonOk: status.isLessonOk,
-                reportId: status.reportId,
-              };
-              break;
-            }
-          }
-
-          return lessonTasks.map((task) => ({
-            ...task,
-            lesson_title: lesson.title,
-            lesson_id: lesson.id,
-            lesson_number: lessonIndex + 1,
-            scheduled_start: lessonSchedule?.scheduled_start || null,
-            scheduled_end: lessonSchedule?.scheduled_end || null,
-            report_status: reportStatus,
-          }));
-        });
-
-        return {
-          id: course.id,
-          instance_id: instanceData.id,
-          name: course.name || "ללא שם קורס",
-          grade_level: instanceData.grade_level || "לא צוין",
-          max_participants: instanceData.max_participants || 0,
-          price_for_customer: instanceData.price_for_customer || 0,
-          price_for_instructor: instanceData.price_for_instructor || 0,
-          institution_name: instanceData.institution?.name || "לא צוין",
-          instructor_name: instanceData.instructor?.full_name || "לא צוין",
-          lesson_count: courseLessons.length,
-          start_date: instanceData.start_date || null,
-          approx_end_date: instanceData.end_date || null,
-          school_type: course.school_type,
-          presentation_link: course.presentation_link,
-          program_link: course.program_link,
-          tasks: allCourseTasks.map((task: any) => ({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            estimated_duration: task.estimated_duration,
-            is_mandatory: task.is_mandatory,
-            lesson_number: task.lesson_number,
-            lesson_title: task.lesson_title,
-            lesson_id: task.lesson_id,
-            order_index: task.order_index,
-            scheduled_start: task.scheduled_start,
-            scheduled_end: task.scheduled_end,
-            report_status: task.report_status,
-          })),
-        };
+      return {
+        id: course.id,
+        instance_id: instanceData.id,
+        name: course.name || "ללא שם קורס",
+        grade_level: instanceData.grade_level || "לא צוין",
+        max_participants: instanceData.max_participants || 0,
+        price_for_customer: instanceData.price_for_customer || 0,
+        price_for_instructor: instanceData.price_for_instructor || 0,
+        institution_name: instanceData.institution?.name || "לא צוין",
+        instructor_name: instanceData.instructor?.full_name || "לא צוין",
+        lesson_count: courseLessons.length,
+        start_date: instanceData.start_date || null,
+        approx_end_date: instanceData.end_date || null,
+        school_type: course.school_type,
+        presentation_link: course.presentation_link,
+        program_link: course.program_link,
+        lesson_mode: lessonMode, // *** שמור גם את ה-mode ***
+        tasks: allCourseTasks.map((task: any) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          estimated_duration: task.estimated_duration,
+          is_mandatory: task.is_mandatory,
+          lesson_number: task.lesson_number,
+          lesson_title: task.lesson_title,
+          lesson_id: task.lesson_id,
+          order_index: task.order_index,
+          scheduled_start: task.scheduled_start,
+          scheduled_end: task.scheduled_end,
+          report_status: task.report_status,
+        })),
       };
+    };
 
-      const formattedAssignments = coursesData?.map(formatAssignmentData) || [];
-      console.log(
-        `[DEBUG] Final formatted assignments:`,
-        formattedAssignments.map((a) => ({
-          name: a.name,
-          tasks_count: a.tasks.length,
-          lesson_count: a.lesson_count,
-        }))
-      );
-      setAssignments(formattedAssignments);
-      setFilteredAssignments(formattedAssignments);
-    } catch (error) {
-      console.error("Error fetching assignments:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    const formattedAssignments = coursesData?.map(formatAssignmentData) || [];
+    
+    console.log(
+      `[DEBUG] Final assignments:`,
+      formattedAssignments.map((a) => ({
+        name: a.name,
+        lesson_mode: a.lesson_mode,
+        lesson_count: a.lesson_count,
+        tasks_count: a.tasks.length,
+      }))
+    );
+    
+    setAssignments(formattedAssignments);
+    setFilteredAssignments(formattedAssignments);
+  } catch (error) {
+    console.error("Error fetching assignments:", error);
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => {
     fetchAssignments();
     fetchFilterOptions();

@@ -35,18 +35,56 @@ const LessonEditDialog = ({ open, onOpenChange, lesson, onSave }: LessonEditDial
     }
   }, [lesson]);
 
-  const handleSave = () => {
-    if (!lesson || !editData.title.trim()) return;
+  // const handleSave = () => {
+  //   if (!lesson || !editData.title.trim()) return;
 
+  //   const updatedLesson: Lesson = {
+  //     ...lesson,
+  //     title: editData.title,
+  //     description: editData.description,
+  //   };
+
+  //   onSave(updatedLesson);
+  //   onOpenChange(false);
+  // };
+
+  const handleSave = () => {
+  // ודא שיש כותרת
+  if (!editData.title.trim()) {
+    toast({
+      title: "שגיאה",
+      description: "יש להזין כותרת לשיעור.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  // בדוק אם אנחנו יוצרים שיעור חדש או עורכים קיים
+  const isNewLesson = !lesson?.id;
+
+  if (isNewLesson) {
+    // ---- לוגיקה ליצירת שיעור חדש ----
+    const newLesson: Lesson = {
+      id: `temp-${Date.now()}`, // ID זמני
+      title: editData.title,
+      description: editData.description,
+      order_index: 999, // מספר גבוה כדי שימוקם בסוף ונסדר אותו אח"כ
+      tasks: [], // שיעור חדש מתחיל ללא משימות
+    };
+    onSave(newLesson);
+
+  } else {
+    // ---- לוגיקה לעריכת שיעור קיים (הקוד שלך) ----
     const updatedLesson: Lesson = {
       ...lesson,
       title: editData.title,
       description: editData.description,
     };
-
     onSave(updatedLesson);
-    onOpenChange(false);
-  };
+  }
+
+  onOpenChange(false); // סגור את הדיאלוג בשני המקרים
+};
 
   const handleInputChange = (field: string, value: string) => {
     setEditData(prev => ({

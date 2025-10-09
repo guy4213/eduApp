@@ -653,13 +653,32 @@ console.log('course instance id from ui ' +instanceId)
   }
 };
 
-  const handleSaveLesson = (updatedLesson: Lesson) => {
-    const updatedLessons = lessons.map(lesson => 
-      lesson.id === updatedLesson.id ? updatedLesson : lesson
-    );
-    onLessonsChange(updatedLessons);
-  };
+  // const handleSaveLesson = (updatedLesson: Lesson) => {
+  //   const updatedLessons = lessons.map(lesson => 
+  //     lesson.id === updatedLesson.id ? updatedLesson : lesson
+  //   );
+  //   onLessonsChange(updatedLessons);
+  // };
+const handleSaveLesson = (lessonData: Lesson) => {
+  // Check if the lesson already exists in the list
+  const lessonExists = lessons.some(l => l.id === lessonData.id);
 
+  let updatedLessons;
+
+  if (lessonExists) {
+    // ---- IT'S AN UPDATE ----
+    // This is your original code, which is perfect for updates
+    updatedLessons = lessons.map(l =>
+      l.id === lessonData.id ? lessonData : l
+    );
+  } else {
+ 
+    updatedLessons = [...lessons, lessonData];
+  }
+
+  // Update the parent component's state with the new list
+  onLessonsChange(updatedLessons);
+};
   const handleSaveTask = (updatedTask: Task) => {
     const updatedLessons = lessons.map(lesson => ({
       ...lesson,

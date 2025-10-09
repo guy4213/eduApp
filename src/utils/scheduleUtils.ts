@@ -1756,6 +1756,107 @@ export const generateLessonSchedulesFromPattern = async (
   return generatedSchedules;
 };
 
+// export const fetchAndGenerateSchedules = async (
+//   courseInstanceId?: string
+// ): Promise<GeneratedLessonSchedule[]> => {
+//   try {
+//     let query = supabase
+//       .from('course_instance_schedules')
+//       .select(`
+//         *,
+//         course_instances:course_instance_id (
+//           id,
+//           course_id,
+//           start_date,
+//           end_date,
+//           grade_level,
+//           course:course_id (
+//             id,
+//             name
+//           ),
+//           institution:institution_id (
+//             id,
+//             name
+//           ),
+//           instructor:instructor_id (
+//             id,
+//             full_name
+//           )
+//         )
+//       `);
+
+//     if (courseInstanceId) {
+//       query = query.eq('course_instance_id', courseInstanceId);
+//     }
+
+//     const { data: schedules, error: schedulesError } = await query;
+
+//     if (schedulesError) {
+//       console.error('Error fetching course instance schedules:', schedulesError);
+//       return [];
+//     }
+
+//     if (!schedules || schedules.length === 0) {
+//       return [];
+//     }
+
+//     const allGeneratedSchedules: GeneratedLessonSchedule[] = [];
+
+//     for (const schedule of schedules) {
+//       if (!schedule.course_instances) continue;
+
+//       // const { data: lessons, error: lessonsError } = await supabase
+//       //   .from('lessons')
+//       //   .select('id, title, course_id, order_index')
+//       //   .eq('course_id', schedule.course_instances.course_id)
+//       //   .order('order_index');
+//       const { data: lessons, error: lessonsError } = await supabase
+//         .from('lessons')
+//         .select('id, title, course_id, order_index, course_instance_id')
+//         .eq('course_id', schedule.course_instances.course_id)
+//         .or(`course_instance_id.is.null,course_instance_id.eq.${schedule.course_instance_id}`)
+//         .order('order_index');
+//       if (lessonsError) {
+//         console.error('Error fetching lessons:', lessonsError);
+//         continue;
+//       }
+
+//       if (!lessons || lessons.length === 0) {
+//         continue;
+//       }
+
+//       const generatedSchedules = await generateLessonSchedulesFromPattern(
+//         {
+//           id: schedule.id,
+//           course_instance_id: schedule.course_instance_id,
+//           days_of_week: schedule.days_of_week,
+//           time_slots: schedule.time_slots as TimeSlot[],
+//           total_lessons: schedule.total_lessons,
+//           lesson_duration_minutes: schedule.lesson_duration_minutes,
+//         },
+//         lessons,
+//         schedule.course_instances.start_date,
+//         schedule.course_instances.end_date
+//       );
+
+//       const schedulesWithCourseData = generatedSchedules.map(genSchedule => ({
+//         ...genSchedule,
+//         course_instances: schedule.course_instances,
+//       }));
+
+//       allGeneratedSchedules.push(...schedulesWithCourseData);
+//     }
+
+//     console.log(`Generated ${allGeneratedSchedules.length} total schedules`);
+//     return allGeneratedSchedules;
+//   } catch (error) {
+//     console.error('Error in fetchAndGenerateSchedules:', error);
+//     return [];
+//   }
+// };
+
+
+
 export const fetchAndGenerateSchedules = async (
   courseInstanceId?: string
 ): Promise<GeneratedLessonSchedule[]> => {
@@ -1770,6 +1871,7 @@ export const fetchAndGenerateSchedules = async (
           start_date,
           end_date,
           grade_level,
+          lesson_mode,
           course:course_id (
             id,
             name
@@ -1805,23 +1907,64 @@ export const fetchAndGenerateSchedules = async (
     for (const schedule of schedules) {
       if (!schedule.course_instances) continue;
 
-      // const { data: lessons, error: lessonsError } = await supabase
-      //   .from('lessons')
-      //   .select('id, title, course_id, order_index')
-      //   .eq('course_id', schedule.course_instances.course_id)
-      //   .order('order_index');
-      const { data: lessons, error: lessonsError } = await supabase
+      // קבל את lesson_mode של ההקצאה (ברירת מחדל: template)
+      const lessonMode = schedule.course_instances.lesson_mode || 'template';
+      
+      console.log(`Processing instance ${schedule.course_instance_id} with lesson_mode: ${lessonMode}`);
+
+      // שלוף שיעורים ייחודיים
+      const { data: instanceLessons, error: instanceError } = await supabase
+        .from('lessons')
+        .select('id, title, course_id, order_index, course_instance_id')
+        .eq('course_instance_id', schedule.course_instance_id)
+        .order('order_index');
+
+      if (instanceError) {
+        console.error('Error fetching instance lessons:', instanceError);
+      }
+
+      // שלוף שיעורי תבנית
+      const { data: templateLessons, error: templateError } = await supabase
         .from('lessons')
         .select('id, title, course_id, order_index, course_instance_id')
         .eq('course_id', schedule.course_instances.course_id)
-        .or(`course_instance_id.is.null,course_instance_id.eq.${schedule.course_instance_id}`)
+        .is('course_instance_id', null)
         .order('order_index');
-      if (lessonsError) {
-        console.error('Error fetching lessons:', lessonsError);
-        continue;
+
+      if (templateError) {
+        console.error('Error fetching template lessons:', templateError);
+      }
+
+      let lessons: any[] = [];
+
+      // *** החלטה לפי lesson_mode ***
+      switch (lessonMode) {
+        case 'custom_only':
+          // רק שיעורים ייחודיים
+          lessons = instanceLessons || [];
+          console.log(`Using ${lessons.length} custom-only lessons`);
+          break;
+          
+        case 'combined':
+          // שני הסוגים ביחד - ממוינים לפי order_index
+          const combined = [
+            ...(templateLessons || []),
+            ...(instanceLessons || [])
+          ].sort((a, b) => a.order_index - b.order_index);
+          lessons = combined;
+          console.log(`Using ${templateLessons?.length || 0} template + ${instanceLessons?.length || 0} custom lessons (total: ${combined.length})`);
+          break;
+          
+        case 'template':
+        default:
+          // רק שיעורי תבנית (ברירת מחדל)
+          lessons = templateLessons || [];
+          console.log(`Using ${lessons.length} template lessons`);
+          break;
       }
 
       if (!lessons || lessons.length === 0) {
+        console.log(`No lessons found for course instance ${schedule.course_instance_id}`);
         continue;
       }
 
@@ -1854,7 +1997,6 @@ export const fetchAndGenerateSchedules = async (
     return [];
   }
 };
-
 export const fetchCombinedSchedules = async (
   courseInstanceId?: string
 ): Promise<any[]> => {
