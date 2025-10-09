@@ -20,11 +20,16 @@ interface LessonCancellationDialogProps {
   onOpenChange: (open: boolean) => void;
   lesson: {
     id: string;
-    title: string;
+    title?: string;
     course_instance_id: string;
     scheduled_start: string;
     scheduled_end: string;
     lesson_number?: number;
+    lesson_id?: string;
+    lesson?: {
+      id: string;
+      title: string;
+    };
     course_instances?: {
       course?: { name: string };
       institution?: { name: string };
@@ -61,9 +66,21 @@ export const LessonCancellationDialog: React.FC<LessonCancellationDialogProps> =
     try {
       const scheduledDate = new Date(lesson.scheduled_start).toISOString().split('T')[0];
       
+      // For generated schedules, use the actual lesson ID from the lesson object
+      const actualLessonId = lesson.lesson?.id || lesson.lesson_id;
+      
+      if (!actualLessonId) {
+        toast({
+          title: "שגיאה",
+          description: "לא ניתן לבטל שיעור ללא מזהה תקין",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       const result = await cancelLesson({
         courseInstanceId: lesson.course_instance_id,
-        lessonId: lesson.id,
+        lessonId: actualLessonId,
         originalDate: scheduledDate,
         cancellationReason: cancellationReason.trim(),
       });
@@ -161,7 +178,7 @@ export const LessonCancellationDialog: React.FC<LessonCancellationDialogProps> =
             </div>
 
             <div className="text-sm">
-              <div><strong>שם השיעור:</strong> {lesson.title}</div>
+              <div><strong>שם השיעור:</strong> {lesson.lesson?.title || lesson.title}</div>
               {lesson.course_instances?.institution?.name && (
                 <div><strong>מוסד:</strong> {lesson.course_instances.institution.name}</div>
               )}

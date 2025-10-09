@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { clearSystemCache } from "@/utils/scheduleUtils";
 
 export interface LessonCancellation {
   id: string;
@@ -45,6 +46,16 @@ export interface CancelLessonResponse {
  */
 export async function cancelLesson(request: CancelLessonRequest): Promise<CancelLessonResponse> {
   try {
+    // Validate that we have a proper UUID for lesson_id
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(request.lessonId)) {
+      return {
+        success: false,
+        message: 'מזהה השיעור אינו תקין',
+        error: 'Invalid lesson ID format'
+      };
+    }
+
     const { data, error } = await supabase.rpc('cancel_lesson_and_reschedule', {
       p_course_instance_id: request.courseInstanceId,
       p_lesson_id: request.lessonId,
