@@ -874,7 +874,7 @@ import {
 } from "@/utils/schoolTypeUtils";
 import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
-import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
+import { fetchAndGenerateSchedules, fetchCombinedSchedules } from "@/utils/scheduleUtils";
 import { DeleteConfirmationPopup } from "@/components/ui/DeleteConfirmationPopup ";
 
 interface Task {
@@ -1854,19 +1854,20 @@ const fetchAssignments = async () => {
         : Promise.resolve([]),
 
       // שליפת תזמונים
-      courseInstanceIds.length > 0
-        ? fetchCombinedSchedules()
-            .then((allSchedules) => {
-              const filtered = allSchedules.filter((schedule) =>
-                courseInstanceIds.includes(schedule.course_instance_id)
-              );
-              console.log(`[DEBUG] Found ${filtered.length} schedules`);
-              return filtered;
-            })
-            .catch((error) => {
-              console.error("Error fetching combined schedules:", error);
-              return [];
-            })
+   courseInstanceIds.length > 0
+        ? (async () => {
+            let allSchedulesData: any[] = [];
+            for (const instanceId of courseInstanceIds) {
+              try {
+                const instanceSchedules = await fetchAndGenerateSchedules(instanceId);
+                allSchedulesData.push(...instanceSchedules);
+              } catch (error) {
+                console.error(`Error fetching schedules for instance ${instanceId}:`, error);
+              }
+            }
+            console.log(`[DEBUG] Found ${allSchedulesData.length} schedules with cancellation handling`);
+            return allSchedulesData;
+          })()
         : Promise.resolve([]),
 
       // שליפת סטטוסים
@@ -1945,55 +1946,61 @@ const fetchAssignments = async () => {
       }
 
       // *** בניית המשימות ***
-      const allCourseTasks = courseLessons.flatMap((lesson, lessonIndex) => {
-        const lessonTasks = tasksData.filter(
-          (task) => task.lesson_id === lesson.id
-        );
+const allCourseTasks = schedulesData
+  .filter((schedule) => schedule.course_instance_id === instanceData.id)
+  .flatMap((schedule) => {
+    // מצא את השיעור המתאים לתזמון הזה
+    const lesson = courseLessons.find((l) => l.id === schedule.lesson_id);
+    
+    if (!lesson) {
+      console.warn(`Lesson not found for schedule ${schedule.id}`);
+      return [];
+    }
 
-        const lessonSchedule = schedulesData.find(
-          (schedule) =>
-            schedule.lesson_id === lesson.id &&
-            schedule.course_instance_id === instanceData.id
-        );
+    // מצא את המשימות של השיעור הזה
+    const lessonTasks = tasksData.filter((task) => task.lesson_id === lesson.id);
 
-        // סטטוס דיווח
-        let reportStatus = {
-          isReported: false,
-          isCompleted: undefined as boolean | undefined,
-          isLessonOk: undefined as boolean | undefined,
-          reportId: undefined as string | undefined,
+    // סטטוס דיווח
+    let reportStatus = {
+      isReported: false,
+      isCompleted: undefined as boolean | undefined,
+      isLessonOk: undefined as boolean | undefined,
+      reportId: undefined as string | undefined,
+    };
+
+    const possibleKeys = [
+      schedule.id,
+      `${instanceData.id}_${lesson.id}`,
+    ].filter(Boolean);
+
+    for (const key of possibleKeys) {
+      const status = statusMap.get(key);
+      if (status) {
+        reportStatus = {
+          isReported: true,
+          isCompleted: status.isCompleted,
+          isLessonOk: status.isLessonOk,
+          reportId: status.reportId,
         };
+        break;
+      }
+    }
 
-        const possibleKeys = [
-          lessonSchedule?.id,
-          `${instanceData.id}_${lesson.id}`,
-        ].filter(Boolean);
-
-        for (const key of possibleKeys) {
-          const status = statusMap.get(key);
-          if (status) {
-            reportStatus = {
-              isReported: true,
-              isCompleted: status.isCompleted,
-              isLessonOk: status.isLessonOk,
-              reportId: status.reportId,
-            };
-            break;
-          }
-        }
-
-        return lessonTasks.map((task) => ({
-          ...task,
-          lesson_title: lesson.title,
-          lesson_id: lesson.id,
-          lesson_number: lessonIndex + 1,
-          scheduled_start: lessonSchedule?.scheduled_start || null,
-          scheduled_end: lessonSchedule?.scheduled_end || null,
-          report_status: reportStatus,
-          is_rescheduled: lessonSchedule?.is_rescheduled || false,
-          is_cancelled: lessonSchedule?.is_cancelled || false,
-        }));
-      });
+    // החזר משימות עם המידע מה-schedule
+    return lessonTasks.map((task) => ({
+      ...task,
+      lesson_title: lesson.title,
+      lesson_id: lesson.id,
+      lesson_number: schedule.lesson_number || 0,
+      scheduled_start: schedule.scheduled_start,
+      scheduled_end: schedule.scheduled_end,
+      report_status: reportStatus,
+      is_rescheduled: schedule.is_rescheduled || false,
+      is_cancelled: schedule.is_cancelled || false,
+      cancellation_reason: schedule.cancellation_reason || null,
+      schedule_id: schedule.id,
+    }));
+  });
 
       return {
         id: course.id,
@@ -2012,20 +2019,24 @@ const fetchAssignments = async () => {
         presentation_link: course.presentation_link,
         program_link: course.program_link,
         lesson_mode: lessonMode, // *** שמור גם את ה-mode ***
-        tasks: allCourseTasks.map((task: any) => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          estimated_duration: task.estimated_duration,
-          is_mandatory: task.is_mandatory,
-          lesson_number: task.lesson_number,
-          lesson_title: task.lesson_title,
-          lesson_id: task.lesson_id,
-          order_index: task.order_index,
-          scheduled_start: task.scheduled_start,
-          scheduled_end: task.scheduled_end,
-          report_status: task.report_status,
-        })),
+       tasks: allCourseTasks.map((task: any) => ({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        estimated_duration: task.estimated_duration,
+        is_mandatory: task.is_mandatory,
+        lesson_number: task.lesson_number,
+        lesson_title: task.lesson_title,
+        lesson_id: task.lesson_id,
+        order_index: task.order_index,
+        scheduled_start: task.scheduled_start,
+        scheduled_end: task.scheduled_end,
+        report_status: task.report_status,
+        is_rescheduled: task.is_rescheduled || false,  // ***** הוסף! *****
+        is_cancelled: task.is_cancelled || false,       // ***** הוסף! *****
+        cancellation_reason: task.cancellation_reason,  // ***** הוסף! *****
+        schedule_id: task.schedule_id,                  // ***** הוסף! *****
+      })),
       };
     };
 
@@ -3061,45 +3072,64 @@ const fetchAssignments = async () => {
                     <div className="space-y-6">
                       {Object.entries(groupTasksByLesson(assignment.tasks)).map(
                         ([lessonNumber, tasks]) => {
-                          // חישוב סטטוס ברמת השיעור
-                          const lessonStatus = (() => {
-                            const report = tasks[0]?.report_status;
-                            
-                            // Check if this lesson is rescheduled
-                            const isRescheduled = tasks[0]?.is_rescheduled === true;
-                            
-                            if (!report?.isReported)
-                              return {
-                                text: "📋 טרם דווח",
-                                color: "bg-gray-500",
-                              };
-                            
-                            // If lesson is rescheduled, show it as available for reporting
-                            if (isRescheduled) {
-                              return {
-                                text: "📋 נדחה - טרם דווח",
-                                color: "bg-orange-500 text-white",
-                              };
-                            }
-                            
-                            if (report.isCompleted === false)
-                              return {
-                                text: "❌ לא התקיים",
-                                color: "bg-orange-500 text-white",
-                              };
-                            if (
-                              report.isCompleted &&
-                              report.isLessonOk === false
-                            )
-                              return {
-                                text: "⚠️ לא התנהל כשורה",
-                                color: "bg-red-500 text-white",
-                              };
-                            return {
-                              text: "✅ דווח והתקיים",
-                              color: "bg-green-500 text-white",
-                            };
-                          })();
+                        
+
+                         // תיקון ל-src/pages/CourseAssignments.tsx
+// במקום הקוד הנוכחי:
+
+                                  const lessonStatus = (() => {
+                                    const report = tasks[0]?.report_status;
+                                    
+                                    // ***** הוסף את הבדיקות האלה קודם! *****
+                                    const isRescheduled = tasks[0]?.is_rescheduled === true;
+                                    const isCancelled = tasks[0]?.is_cancelled === true;
+                                    console.log("tasks",tasks[0])
+                                    // בדיקה ראשונה: אם השיעור מבוטל
+                                    if (isCancelled) {
+                                      return {
+                                        text: "❌ בוטל",
+                                        color: "bg-red-600 text-white",
+                                      };
+                                    }
+                                    
+                                    // בדיקה שנייה: אם השיעור נדחה - תמיד הצג "טרם דווח"
+                                    // זה חייב להיות לפני כל הבדיקות האחרות!
+                                    // כי שיעור נדחה יכול להיות עם report.isCompleted = false (מהדיווח על הביטול)
+                                    // אבל אנחנו רוצים להציג אותו כ"טרם דווח" בתאריך החדש
+                                    if (isRescheduled) {
+                                      return {
+                                        text: "📋 טרם דווח",
+                                        color: "bg-blue-500 text-white",
+                                      };
+                                    }
+                                    
+                                    // רק עכשיו בודקים את הסטטוס הרגיל:
+                                    if (!report?.isReported) {
+                                      return {
+                                        text: "📋 טרם דווח",
+                                        color: "bg-gray-500",
+                                      };
+                                    }
+                                    
+                                    if (report.isCompleted === false) {
+                                      return {
+                                        text: "❌ לא התקיים",
+                                        color: "bg-orange-500 text-white",
+                                      };
+                                    }
+                                    
+                                    if (report.isCompleted && report.isLessonOk === false) {
+                                      return {
+                                        text: "⚠️ לא התנהל כשורה",
+                                        color: "bg-red-500 text-white",
+                                      };
+                                    }
+                                    
+                                    return {
+                                      text: "✅ דווח והתקיים",
+                                      color: "bg-green-500 text-white",
+                                    };
+                                  })();
 
                           return (
                             <div
