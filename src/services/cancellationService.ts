@@ -199,11 +199,6 @@ export async function getCancelledLessonsInDateRange(
   endDate: string
 ): Promise<LessonCancellation[]> {
   try {
-    console.log('DEBUG - getCancelledLessonsInDateRange called:', {
-      courseInstanceId,
-      startDate,
-      endDate
-    });
 
     const { data, error } = await supabase
       .from('lesson_cancellations')
@@ -218,7 +213,6 @@ export async function getCancelledLessonsInDateRange(
       return [];
     }
 
-    console.log('DEBUG - Found cancelled lessons:', data?.length || 0, data);
     return data || [];
   } catch (error) {
     console.error('Error in getCancelledLessonsInDateRange:', error);
@@ -237,12 +231,6 @@ export async function cancelGeneratedLesson(
   cancellationReason: string
 ): Promise<CancelLessonResponse> {
   try {
-    console.log('DEBUG - Cancelling lesson:', {
-      courseInstanceId,
-      lessonId,
-      originalDate,
-      cancellationReason
-    });
 
     // Directly insert into lesson_cancellations table with rescheduling flag
     const { data, error } = await supabase

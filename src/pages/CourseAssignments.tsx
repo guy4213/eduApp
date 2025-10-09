@@ -1829,7 +1829,6 @@ const fetchAssignments = async () => {
       .filter(Boolean) || [];
     const courseInstanceIds = coursesData.map((instance) => instance.id);
 
-    console.log('DEBUG - Fetching assignments for course instances:', courseInstanceIds);
     
     // *** טעינה מקבילה של כל הנתונים ***
     const [lessonsData, schedulesData, statusMap] = await Promise.all([
@@ -1862,17 +1861,7 @@ const fetchAssignments = async () => {
               const filtered = allSchedules.filter((schedule) =>
                 courseInstanceIds.includes(schedule.course_instance_id)
               );
-              console.log(`DEBUG - Found ${filtered.length} schedules for course instances:`, courseInstanceIds);
-              console.log('DEBUG - All schedules details:', allSchedules.map(s => ({
-                id: s.id,
-                course_instance_id: s.course_instance_id,
-                lesson_id: s.lesson_id,
-                lesson_title: s.lesson?.title,
-                scheduled_start: s.scheduled_start,
-                is_rescheduled: s.is_rescheduled,
-                is_cancelled: s.is_cancelled,
-                lesson_number: s.lesson_number
-              })));
+              console.log(`[DEBUG] Found ${filtered.length} schedules`);
               return filtered;
             })
             .catch((error) => {
@@ -1957,51 +1946,17 @@ const fetchAssignments = async () => {
       }
 
       // *** בניית המשימות ***
-      const allCourseTasks = courseLessons.flatMap((lesson, lessonIndex) => {
+      // Get all schedules for this course instance (like ScheduleList does)
+      const courseSchedules = schedulesData.filter(
+        (schedule) => schedule.course_instance_id === instanceData.id
+      );
+
+
+      // Create tasks for each schedule (like ScheduleList does)
+      const allCourseTasks = courseSchedules.flatMap((schedule) => {
         const lessonTasks = tasksData.filter(
-          (task) => task.lesson_id === lesson.id
+          (task) => task.lesson_id === schedule.lesson_id
         );
-
-        // Find the lesson schedule - prioritize rescheduled lessons, then cancelled, then regular
-        let lessonSchedule = schedulesData.find(
-          (schedule) =>
-            schedule.lesson_id === lesson.id &&
-            schedule.course_instance_id === instanceData.id &&
-            schedule.is_rescheduled === true
-        );
-        
-        // If no rescheduled lesson found, look for cancelled lesson
-        if (!lessonSchedule) {
-          lessonSchedule = schedulesData.find(
-            (schedule) =>
-              schedule.lesson_id === lesson.id &&
-              schedule.course_instance_id === instanceData.id &&
-              schedule.is_cancelled === true
-          );
-        }
-        
-        // If no cancelled lesson found, look for regular schedule
-        if (!lessonSchedule) {
-          lessonSchedule = schedulesData.find(
-            (schedule) =>
-              schedule.lesson_id === lesson.id &&
-              schedule.course_instance_id === instanceData.id
-          );
-        }
-
-        // Debug logging for lesson schedules
-        if (lesson.id === 'your-lesson-id-here' || lesson.title?.includes('שיעור 1')) {
-          console.log('DEBUG - Lesson schedule search:', {
-            lessonId: lesson.id,
-            lessonTitle: lesson.title,
-            courseInstanceId: instanceData.id,
-            foundSchedule: lessonSchedule,
-            isRescheduled: lessonSchedule?.is_rescheduled,
-            isCancelled: lessonSchedule?.isCancelled,
-            scheduledStart: lessonSchedule?.scheduled_start,
-            allSchedulesForLesson: schedulesData.filter(s => s.lesson_id === lesson.id && s.course_instance_id === instanceData.id)
-          });
-        }
 
         // סטטוס דיווח
         let reportStatus = {
@@ -2012,8 +1967,8 @@ const fetchAssignments = async () => {
         };
 
         const possibleKeys = [
-          lessonSchedule?.id,
-          `${instanceData.id}_${lesson.id}`,
+          schedule.id,
+          `${instanceData.id}_${schedule.lesson_id}`,
         ].filter(Boolean);
 
         for (const key of possibleKeys) {
@@ -2031,14 +1986,14 @@ const fetchAssignments = async () => {
 
         return lessonTasks.map((task) => ({
           ...task,
-          lesson_title: lesson.title,
-          lesson_id: lesson.id,
-          lesson_number: lessonIndex + 1,
-          scheduled_start: lessonSchedule?.scheduled_start || null,
-          scheduled_end: lessonSchedule?.scheduled_end || null,
+          lesson_title: schedule.lesson?.title || task.lesson_title,
+          lesson_id: schedule.lesson_id,
+          lesson_number: schedule.lesson_number || 1,
+          scheduled_start: schedule.scheduled_start || null,
+          scheduled_end: schedule.scheduled_end || null,
           report_status: reportStatus,
-          is_rescheduled: lessonSchedule?.is_rescheduled || false,
-          is_cancelled: lessonSchedule?.is_cancelled || false,
+          is_rescheduled: schedule.is_rescheduled || false,
+          is_cancelled: schedule.is_cancelled || false,
         }));
       });
 
@@ -3119,23 +3074,23 @@ const fetchAssignments = async () => {
                     <div className="space-y-6">
                       {Object.entries(groupTasksByLesson(assignment.tasks)).map(
                         ([lessonNumber, tasks]) => {
-                          // חישוב סטטוס ברמת השיעור
+                          // חישוב סטטוס ברמת השיעור (like ScheduleList)
                           const lessonStatus = (() => {
                             const report = tasks[0]?.report_status;
-                            
-                            // Check if this lesson is rescheduled or cancelled
                             const isRescheduled = tasks[0]?.is_rescheduled === true;
                             const isCancelled = tasks[0]?.is_cancelled === true;
                             
-                            // If lesson is cancelled, show it as cancelled
-                            if (isCancelled) {
+                            // Check if this is a cancelled lesson in its original date (like ScheduleList)
+                            if (isCancelled && tasks[0]?.scheduled_start) {
+                              const scheduledDate = new Date(tasks[0].scheduled_start).toISOString().split('T')[0];
+                              // This is a cancelled lesson - show it as cancelled
                               return {
                                 text: "❌ לא התקיים",
                                 color: "bg-red-500 text-white",
                               };
                             }
                             
-                            // If lesson is rescheduled, show it as available for reporting
+                            // Check if this is a rescheduled lesson (like ScheduleList)
                             if (isRescheduled) {
                               return {
                                 text: "📋 נדחה - טרם דווח",
@@ -3143,11 +3098,13 @@ const fetchAssignments = async () => {
                               };
                             }
                             
-                            if (!report?.isReported)
+                            // Regular lesson logic
+                            if (!report?.isReported) {
                               return {
                                 text: "📋 טרם דווח",
                                 color: "bg-gray-500",
                               };
+                            }
                             
                             if (report.isCompleted === false)
                               return {

@@ -2041,16 +2041,6 @@ export const fetchAndGenerateSchedules = async (
         continue;
       }
 
-      console.log('DEBUG - Generating schedules for course instance:', schedule.course_instance_id);
-      console.log('DEBUG - Course instance schedule:', {
-        id: schedule.id,
-        course_instance_id: schedule.course_instance_id,
-        days_of_week: schedule.days_of_week,
-        time_slots: schedule.time_slots,
-        total_lessons: schedule.total_lessons,
-        start_date: schedule.course_instances.start_date,
-        end_date: schedule.course_instances.end_date
-      });
 
       const generatedSchedules = await generateLessonSchedulesWithCancellations(
         {
@@ -2066,16 +2056,6 @@ export const fetchAndGenerateSchedules = async (
         schedule.course_instances.end_date
       );
 
-      console.log('DEBUG - Generated schedules for course instance:', schedule.course_instance_id, generatedSchedules.length);
-      console.log('DEBUG - Generated schedules details:', generatedSchedules.map(s => ({
-        id: s.id,
-        lesson_id: s.lesson_id,
-        lesson_title: s.lesson?.title,
-        scheduled_start: s.scheduled_start,
-        is_rescheduled: s.is_rescheduled,
-        is_cancelled: s.is_cancelled,
-        lesson_number: s.lesson_number
-      })));
 
       const schedulesWithCourseData = generatedSchedules.map(genSchedule => ({
         ...genSchedule,
@@ -2096,23 +2076,12 @@ export const fetchCombinedSchedules = async (
   courseInstanceId?: string
 ): Promise<any[]> => {
   try {
-    console.log('DEBUG - fetchCombinedSchedules called with courseInstanceId:', courseInstanceId);
     
     // Fetch generated schedules מה-pattern
     const generatedSchedules = await fetchAndGenerateSchedules(courseInstanceId);
 
     // הלוחות זמנים כבר ממוינים ומסודרים
-    console.log(`DEBUG - Generated ${generatedSchedules.length} schedules from pattern`);
-    console.log('DEBUG - Generated schedules:', generatedSchedules.map(s => ({
-      id: s.id,
-      course_instance_id: s.course_instance_id,
-      lesson_id: s.lesson_id,
-      lesson_title: s.lesson?.title,
-      scheduled_start: s.scheduled_start,
-      is_rescheduled: s.is_rescheduled,
-      is_cancelled: s.is_cancelled,
-      lesson_number: s.lesson_number
-    })));
+    console.log(`Generated ${generatedSchedules.length} schedules from pattern`);
 
     return generatedSchedules;
   } catch (error) {
@@ -2209,8 +2178,6 @@ export const generateLessonSchedulesWithCancellations = async (
 
   console.log('Cancelled lessons data:', cancelledLessons);
   console.log('Rescheduled lessons map:', rescheduledLessonsMap);
-  console.log('Course instance ID:', course_instance_id);
-  console.log('Lessons to schedule:', lessons.map(l => ({ id: l.id, title: l.title })));
 
   // בדיקת שיעורים מדווחים
   const { data: existingReports } = await supabase
@@ -2457,7 +2424,7 @@ export const rescheduleAfterCancellation = async (
   cancellationDate: string
 ): Promise<boolean> => {
   try {
-    console.log(`DEBUG - Rescheduling lessons after cancellation on ${cancellationDate} for course instance ${courseInstanceId}`);
+    console.log(`Rescheduling lessons after cancellation on ${cancellationDate} for course instance ${courseInstanceId}`);
     
     // The rescheduling is automatically handled by the generateLessonSchedulesWithCancellations function
     // When lessons are generated, cancelled dates are skipped and subsequent lessons are automatically moved forward
@@ -2468,9 +2435,8 @@ export const rescheduleAfterCancellation = async (
     // Force regeneration of schedules by calling fetchAndGenerateSchedules
     // This ensures that the rescheduled lessons are properly generated and stored
     try {
-      console.log('DEBUG - Calling fetchAndGenerateSchedules for course instance:', courseInstanceId);
-      const schedules = await fetchAndGenerateSchedules(courseInstanceId);
-      console.log('DEBUG - Successfully regenerated schedules after cancellation:', schedules.length);
+      await fetchAndGenerateSchedules(courseInstanceId);
+      console.log('Successfully regenerated schedules after cancellation');
     } catch (error) {
       console.error('Error regenerating schedules after cancellation:', error);
     }
