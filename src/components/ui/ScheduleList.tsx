@@ -407,11 +407,21 @@ const renderStatusBadge = () => {
       currentLessonId,
       lessonTitle: item.lesson?.title,
       isAlreadyShownAsCancelled,
+      totalLessonsInArray: sortedLessons.length,
       cancelledLessonsInArray: sortedLessons.filter(l => l.id.startsWith('cancelled-')).map(l => ({
         id: l.id,
         lesson_id: l.lesson_id,
         lessonObjId: l.lesson?.id,
         title: l.lesson?.title
+      })),
+      allLessonsWithSameLessonId: sortedLessons.filter(l => 
+        l.lesson_id === currentLessonId || l.lesson?.id === currentLessonId
+      ).map(l => ({
+        id: l.id,
+        lesson_id: l.lesson_id,
+        lessonObjId: l.lesson?.id,
+        title: l.lesson?.title,
+        isCancelled: l.id.startsWith('cancelled-')
       }))
     });
     
@@ -437,13 +447,25 @@ const renderStatusBadge = () => {
       );
     }
     
-    // אחרת, זה באמת שיעור שלא התקיים ודווח כך
-    return (
-      <span 
-        className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-        style={{backgroundColor: '#FFA500'}}
-      >
-        ❌ לא התקיים
+    // פתרון זמני: אם השיעור דווח כ"לא התקיים" אבל לא מוצא שיעור מבוטל,
+    // נניח שזה שיעור נדחה (כי אולי השיעור המבוטל לא נוצר כמו שצריך)
+    console.log('No cancelled version found, treating as rescheduled lesson');
+    return user.user_metadata.role === "instructor" ? (
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() =>
+            nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
+                state: { selectedDate: selectedDate?.toISOString() }
+           })
+          }
+          className="bg-orange-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-orange-600 shadow-md"
+        >
+          📋 דווח על השיעור (נדחה)
+        </button>
+      </div>
+    ) : (
+      <span className="inline-flex items-center gap-2 text-base font-bold text-orange-700 bg-orange-100 px-4 py-2 rounded-full">
+        📋 נדחה - טרם דווח
       </span>
     );
   }
