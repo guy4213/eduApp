@@ -97,7 +97,8 @@ const [institutions, setInstitutions] = useState<{id: string, name: string}[]>([
   const [filteredReports, setFilteredReports] = useState([]);
   const [lessonNumber, setLessonNumber] = useState<any>();
   const navigate = useNavigate();
-  
+  const selectedDate = location.state?.selectedDate; // התאריך שנשלח מהיומן
+
   async function getMaxParticipantsByScheduleId(scheduleId) {
     console.log("Getting max participants for schedule ID:", scheduleId);
 
@@ -1344,7 +1345,9 @@ const handleSubmit = async () => {
     const reportedInstanceData = {
       lesson_report_id: reportData.id,
       lesson_id: id,
-      scheduled_date: new Date().toISOString().split("T")[0],
+      scheduled_date: selectedDate 
+    ? new Date(selectedDate).toISOString().split("T")[0]
+    : new Date().toISOString().split("T")[0],
       lesson_number: 1,
     };
 
