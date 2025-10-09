@@ -1969,7 +1969,7 @@ export const fetchAndGenerateSchedules = async (
         continue;
       }
 
-      const generatedSchedules = await generateLessonSchedulesFromPattern(
+      const generatedSchedules = await generateLessonSchedulesWithCancellations(
         {
           id: schedule.id,
           course_instance_id: schedule.course_instance_id,
@@ -2053,8 +2053,9 @@ export const filterSchedulesByDateRange = (
 };
 
 /**
- * Enhanced version of generateLessonSchedulesFromPattern that handles cancellations
- * and automatically reschedules lessons after cancelled dates
+ * Enhanced version that handles cancellations properly:
+ * 1. Shows cancelled lessons in their original dates (marked as cancelled)
+ * 2. Continues the schedule from after the cancelled date, effectively adding one more lesson
  */
 export const generateLessonSchedulesWithCancellations = async (
   courseInstanceSchedule: CourseInstanceSchedule,
@@ -2078,10 +2079,14 @@ export const generateLessonSchedulesWithCancellations = async (
     endDateStr
   );
 
-  // Create a set of cancelled dates for quick lookup
-  const cancelledDates = new Set(
-    cancelledLessons.map(cancellation => cancellation.original_scheduled_date)
-  );
+  // Create maps for cancelled lessons
+  const cancelledDatesMap = new Map();
+  cancelledLessons.forEach(cancellation => {
+    cancelledDatesMap.set(cancellation.original_scheduled_date, {
+      lesson_id: cancellation.lesson_id,
+      reason: cancellation.cancellation_reason
+    });
+  });
 
   // בדיקת שיעורים מדווחים
   const { data: existingReports } = await supabase
@@ -2090,7 +2095,6 @@ export const generateLessonSchedulesWithCancellations = async (
     .eq('course_instance_id', course_instance_id)
     .order('lesson_number', { ascending: true });
 
-  // יצירת מפה של שיעורים מדווחים
   const reportedLessonsMap = new Map();
   const reportedLessonIds = new Set();
   
@@ -2111,13 +2115,14 @@ export const generateLessonSchedulesWithCancellations = async (
   }
 
   const endDateTime = courseEndDate ? new Date(courseEndDate) : null;
-  const maxLessons = total_lessons || lessons.length;
+  // Add extra lessons for each cancellation to accommodate rescheduling
+  const maxLessons = (total_lessons || lessons.length) + cancelledLessons.length;
   
   let lessonIndex = 0;
   let lessonNumber = 1;
   const sortedDays = [...days_of_week].sort();
   
-  // יצירת תזמון לכל השיעורים עם התחשבות בביטולים
+  // יצירת תזמון לכל השיעורים
   while (lessonIndex < lessons.length && lessonNumber <= maxLessons) {
     const dayOfWeek = currentDate.getDay();
     
@@ -2127,9 +2132,9 @@ export const generateLessonSchedulesWithCancellations = async (
       if (timeSlot && timeSlot.start_time && timeSlot.end_time) {
         const dateStr = currentDate.toISOString().split('T')[0];
         const isBlocked = await isDateBlocked(currentDate);
-        const isCancelled = cancelledDates.has(dateStr);
+        const cancelledLesson = cancelledDatesMap.get(dateStr);
         
-        if (!isBlocked && !isCancelled) {
+        if (!isBlocked) {
           if (endDateTime && currentDate > endDateTime) {
             break;
           }
@@ -2137,35 +2142,48 @@ export const generateLessonSchedulesWithCancellations = async (
           const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
           const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
           
-          const currentLesson = lessons[lessonIndex];
-          
-          // בדוק אם השיעור כבר דווח
-          const reportedInfo = reportedLessonsMap.get(currentLesson.id);
-          const isReported = reportedLessonIds.has(currentLesson.id);
-          
-          generatedSchedules.push({
-            id: `generated-${course_instance_id}-${lessonNumber}`,
-            course_instance_id: course_instance_id,
-            lesson_id: currentLesson.id,
-            scheduled_start: scheduledStart,
-            scheduled_end: scheduledEnd,
-            lesson_number: lessonNumber,
-            lesson: currentLesson,
-            is_generated: true,
-            is_reported: isReported,
-            is_cancelled: false // This lesson is not cancelled
-          });
+          if (cancelledLesson) {
+            // This date has a cancelled lesson - show it as cancelled
+            const cancelledLessonData = lessons.find(l => l.id === cancelledLesson.lesson_id);
+            if (cancelledLessonData) {
+              generatedSchedules.push({
+                id: `cancelled-${course_instance_id}-${dateStr}`,
+                course_instance_id: course_instance_id,
+                lesson_id: cancelledLessonData.id,
+                scheduled_start: scheduledStart,
+                scheduled_end: scheduledEnd,
+                lesson_number: lessonNumber,
+                lesson: cancelledLessonData,
+                is_generated: true,
+                is_reported: true,
+                is_cancelled: true,
+                cancellation_reason: cancelledLesson.reason
+              });
+            }
+          } else {
+            // Regular lesson
+            const currentLesson = lessons[lessonIndex];
+            const isReported = reportedLessonIds.has(currentLesson.id);
+            
+            generatedSchedules.push({
+              id: `generated-${course_instance_id}-${lessonNumber}`,
+              course_instance_id: course_instance_id,
+              lesson_id: currentLesson.id,
+              scheduled_start: scheduledStart,
+              scheduled_end: scheduledEnd,
+              lesson_number: lessonNumber,
+              lesson: currentLesson,
+              is_generated: true,
+              is_reported: isReported,
+              is_cancelled: false
+            });
 
-          lessonIndex++;
+            lessonIndex++;
+          }
+          
           lessonNumber++;
         } else {
-          if (isCancelled) {
-            console.log(`Skipping cancelled date: ${dateStr}`);
-          } else if (isBlocked) {
-            console.log(`Skipping blocked date: ${dateStr}`);
-          }
-          // Don't increment lesson counters for skipped dates
-          // This automatically reschedules lessons to the next available date
+          console.log(`Skipping blocked date: ${dateStr}`);
         }
       }
     }
@@ -2178,7 +2196,7 @@ export const generateLessonSchedulesWithCancellations = async (
     }
   }
 
-  console.log(`Generated ${generatedSchedules.length} schedules with cancellation handling`);
+  console.log(`Generated ${generatedSchedules.length} schedules with proper cancellation handling`);
   return generatedSchedules;
 };
 

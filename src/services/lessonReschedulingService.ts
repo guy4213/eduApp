@@ -9,7 +9,8 @@ export interface RescheduleResult {
 }
 
 /**
- * Reschedule a specific cancelled lesson to the next available date
+ * Reschedule a cancelled lesson: keep it in original date (as cancelled) + add it to next available date
+ * All subsequent lessons also shift forward by one slot
  * This is called when a lesson is reported as "לא התקיים" in the lesson report
  */
 export async function rescheduleSpecificLesson(
@@ -19,59 +20,7 @@ export async function rescheduleSpecificLesson(
   cancellationReason: string
 ): Promise<RescheduleResult> {
   try {
-    // 1. Get the course instance schedule pattern
-    const { data: scheduleData, error: scheduleError } = await supabase
-      .from('course_instance_schedules')
-      .select(`
-        *,
-        course_instances:course_instance_id (
-          start_date,
-          end_date
-        )
-      `)
-      .eq('course_instance_id', courseInstanceId)
-      .single();
-
-    if (scheduleError || !scheduleData) {
-      console.error('Error fetching schedule:', scheduleError);
-      return {
-        success: false,
-        message: 'לא ניתן למצוא את תזמון הקורס',
-        error: scheduleError?.message
-      };
-    }
-
-    // 2. Get all existing cancellations and reported lessons for this course
-    const { data: existingCancellations } = await supabase
-      .from('lesson_cancellations')
-      .select('original_scheduled_date')
-      .eq('course_instance_id', courseInstanceId);
-
-    const { data: reportedLessons } = await supabase
-      .from('reported_lesson_instances')
-      .select('scheduled_date')
-      .eq('course_instance_id', courseInstanceId);
-
-    // Create a set of occupied dates
-    const occupiedDates = new Set<string>();
-    existingCancellations?.forEach(c => occupiedDates.add(c.original_scheduled_date));
-    reportedLessons?.forEach(r => occupiedDates.add(r.scheduled_date));
-
-    // 3. Find the next available date based on the schedule pattern
-    const nextAvailableDate = await findNextAvailableDate(
-      scheduleData,
-      originalDate,
-      occupiedDates
-    );
-
-    if (!nextAvailableDate) {
-      return {
-        success: false,
-        message: 'לא נמצא תאריך פנוי לתזמון מחדש של השיעור'
-      };
-    }
-
-    // 4. Create cancellation record for the original date
+    // 1. Create cancellation record for the original date
     const { error: cancellationError } = await supabase
       .from('lesson_cancellations')
       .insert({
@@ -79,8 +28,7 @@ export async function rescheduleSpecificLesson(
         lesson_id: lessonId,
         original_scheduled_date: originalDate,
         cancellation_reason: cancellationReason,
-        is_rescheduled: true,
-        rescheduled_to_date: nextAvailableDate
+        is_rescheduled: true
       });
 
     if (cancellationError) {
@@ -92,10 +40,14 @@ export async function rescheduleSpecificLesson(
       };
     }
 
+    // 2. The schedule generation logic will now automatically:
+    //    - Show the cancelled lesson in its original date (marked as cancelled)
+    //    - Generate all lessons (including the cancelled one) starting from the next available date
+    //    - This effectively adds one more lesson to the total schedule
+
     return {
       success: true,
-      newDate: nextAvailableDate,
-      message: `השיעור תוזמן מחדש לתאריך ${formatDate(nextAvailableDate)}`
+      message: `השיעור בוטל בתאריך המקורי ויתוזמן מחדש יחד עם כל השיעורים הבאים`
     };
 
   } catch (error) {

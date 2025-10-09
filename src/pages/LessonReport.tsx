@@ -43,7 +43,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import FeedbackDialog from "@/components/FeedbackDialog";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { rescheduleAfterCancellation } from "@/utils/scheduleUtils";
+import { rescheduleSpecificLesson } from "@/services/lessonReschedulingService";
 
 const LessonReport = () => {
   const fileInputRef = useRef(null);
@@ -1355,26 +1355,39 @@ const handleSubmit = async () => {
 
     console.log("Lesson report created:", reportData);
 
-    // If lesson is cancelled, also create a cancellation record
+    // If lesson is cancelled, reschedule it to the next available date
     if (!isCompleted && courseInstanceIdForReport) {
       try {
-        const { error: cancellationError } = await supabase.rpc('cancel_lesson_and_reschedule', {
-          p_course_instance_id: courseInstanceIdForReport,
-          p_lesson_id: id,
-          p_original_date: selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          p_cancellation_reason: cancellationReason.trim()
-        });
+        const originalDate = selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        
+        const rescheduleResult = await rescheduleSpecificLesson(
+          courseInstanceIdForReport,
+          id,
+          originalDate,
+          cancellationReason.trim()
+        );
 
-        if (cancellationError) {
-          console.error('Error creating cancellation record:', cancellationError);
-          // Don't throw error here as the main report was created successfully
+        if (rescheduleResult.success) {
+          console.log('Lesson rescheduled successfully:', rescheduleResult);
+          toast({
+            title: "השיעור תוזמן מחדש",
+            description: rescheduleResult.message,
+          });
         } else {
-          console.log('Cancellation record created and rescheduling triggered');
-          // Trigger automatic rescheduling
-          await rescheduleAfterCancellation(courseInstanceIdForReport, selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+          console.error('Error rescheduling lesson:', rescheduleResult.error);
+          toast({
+            title: "שגיאה בתזמון מחדש",
+            description: rescheduleResult.message,
+            variant: "destructive",
+          });
         }
       } catch (error) {
-        console.error('Error in cancellation process:', error);
+        console.error('Error in rescheduling process:', error);
+        toast({
+          title: "שגיאה בתזמון מחדש",
+          description: "אירעה שגיאה בתזמון מחדש של השיעור",
+          variant: "destructive",
+        });
       }
     }
 

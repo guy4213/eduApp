@@ -233,10 +233,10 @@ const sortedLessons = lessons.sort((a, b) => {
                          (item.course_instance_id && item.lesson?.id ? `${item.course_instance_id}_${item.lesson.id}` : '');
         const lessonStatus = reportStatusMap.get(statusKey);
 
-        // Check if lesson is cancelled
+        // Check if lesson is cancelled (either from the schedule data or from our cancellation check)
         const scheduledDate = new Date(item.scheduled_start).toISOString().split('T')[0];
         const cancellationKey = `${item.course_instance_id}_${item.lesson?.id}_${scheduledDate}`;
-        const isCancelled = cancelledLessons.has(cancellationKey);
+        const isCancelled = item.is_cancelled || cancelledLessons.has(cancellationKey);
 
         // Function to render status badge
         // const renderStatusBadge = () => {
