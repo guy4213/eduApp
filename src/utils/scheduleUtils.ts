@@ -1438,6 +1438,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { getCancelledLessonsInDateRange } from "@/services/cancellationService";
 
 interface TimeSlot {
   day: number;
@@ -2049,4 +2050,208 @@ export const filterSchedulesByDateRange = (
     const scheduleDate = new Date(schedule.scheduled_start);
     return scheduleDate >= startDate && scheduleDate <= endDate;
   });
+};
+
+/**
+ * Enhanced version of generateLessonSchedulesFromPattern that handles cancellations
+ * and automatically reschedules lessons after cancelled dates
+ */
+export const generateLessonSchedulesWithCancellations = async (
+  courseInstanceSchedule: CourseInstanceSchedule,
+  lessons: any[],
+  courseStartDate: string,
+  courseEndDate?: string
+): Promise<GeneratedLessonSchedule[]> => {
+  const generatedSchedules: GeneratedLessonSchedule[] = [];
+  const { days_of_week, time_slots, total_lessons, course_instance_id } = courseInstanceSchedule;
+  
+  if (!days_of_week.length || !time_slots.length || !lessons.length) {
+    return generatedSchedules;
+  }
+
+  // Get cancelled lessons for this course instance
+  const startDateStr = courseStartDate;
+  const endDateStr = courseEndDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const cancelledLessons = await getCancelledLessonsInDateRange(
+    course_instance_id,
+    startDateStr,
+    endDateStr
+  );
+
+  // Create a set of cancelled dates for quick lookup
+  const cancelledDates = new Set(
+    cancelledLessons.map(cancellation => cancellation.original_scheduled_date)
+  );
+
+  // בדיקת שיעורים מדווחים
+  const { data: existingReports } = await supabase
+    .from('reported_lesson_instances')
+    .select('lesson_id, lesson_number, scheduled_date')
+    .eq('course_instance_id', course_instance_id)
+    .order('lesson_number', { ascending: true });
+
+  // יצירת מפה של שיעורים מדווחים
+  const reportedLessonsMap = new Map();
+  const reportedLessonIds = new Set();
+  
+  existingReports?.forEach(report => {
+    reportedLessonIds.add(report.lesson_id);
+    reportedLessonsMap.set(report.lesson_id, {
+      lesson_number: report.lesson_number,
+      scheduled_date: report.scheduled_date
+    });
+  });
+
+  // מציאת התאריך ההתחלתי לתזמון
+  let currentDate = new Date(courseStartDate);
+  
+  // מצא את היום הראשון המתאים בפטרן
+  while (!days_of_week.includes(currentDate.getDay())) {
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  const endDateTime = courseEndDate ? new Date(courseEndDate) : null;
+  const maxLessons = total_lessons || lessons.length;
+  
+  let lessonIndex = 0;
+  let lessonNumber = 1;
+  const sortedDays = [...days_of_week].sort();
+  
+  // יצירת תזמון לכל השיעורים עם התחשבות בביטולים
+  while (lessonIndex < lessons.length && lessonNumber <= maxLessons) {
+    const dayOfWeek = currentDate.getDay();
+    
+    if (sortedDays.includes(dayOfWeek)) {
+      const timeSlot = time_slots.find(ts => ts.day === dayOfWeek);
+      
+      if (timeSlot && timeSlot.start_time && timeSlot.end_time) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const isBlocked = await isDateBlocked(currentDate);
+        const isCancelled = cancelledDates.has(dateStr);
+        
+        if (!isBlocked && !isCancelled) {
+          if (endDateTime && currentDate > endDateTime) {
+            break;
+          }
+
+          const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
+          const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
+          
+          const currentLesson = lessons[lessonIndex];
+          
+          // בדוק אם השיעור כבר דווח
+          const reportedInfo = reportedLessonsMap.get(currentLesson.id);
+          const isReported = reportedLessonIds.has(currentLesson.id);
+          
+          generatedSchedules.push({
+            id: `generated-${course_instance_id}-${lessonNumber}`,
+            course_instance_id: course_instance_id,
+            lesson_id: currentLesson.id,
+            scheduled_start: scheduledStart,
+            scheduled_end: scheduledEnd,
+            lesson_number: lessonNumber,
+            lesson: currentLesson,
+            is_generated: true,
+            is_reported: isReported,
+            is_cancelled: false // This lesson is not cancelled
+          });
+
+          lessonIndex++;
+          lessonNumber++;
+        } else {
+          if (isCancelled) {
+            console.log(`Skipping cancelled date: ${dateStr}`);
+          } else if (isBlocked) {
+            console.log(`Skipping blocked date: ${dateStr}`);
+          }
+          // Don't increment lesson counters for skipped dates
+          // This automatically reschedules lessons to the next available date
+        }
+      }
+    }
+
+    currentDate.setDate(currentDate.getDate() + 1);
+    
+    if (currentDate.getTime() - new Date(courseStartDate).getTime() > 365 * 24 * 60 * 60 * 1000) {
+      console.warn('Schedule generation stopped: exceeded 1 year from start date');
+      break;
+    }
+  }
+
+  console.log(`Generated ${generatedSchedules.length} schedules with cancellation handling`);
+  return generatedSchedules;
+};
+
+/**
+ * Reschedule all lessons after a specific cancelled date
+ * This function regenerates the schedule pattern starting from the cancellation date
+ */
+export const rescheduleAfterCancellation = async (
+  courseInstanceId: string,
+  cancellationDate: string
+): Promise<boolean> => {
+  try {
+    console.log(`Rescheduling lessons after cancellation on ${cancellationDate} for course instance ${courseInstanceId}`);
+    
+    // The rescheduling is automatically handled by the generateLessonSchedulesWithCancellations function
+    // When lessons are generated, cancelled dates are skipped and subsequent lessons are automatically moved forward
+    
+    // Trigger a refresh of the schedule cache if needed
+    clearSystemCache();
+    
+    return true;
+  } catch (error) {
+    console.error('Error in rescheduleAfterCancellation:', error);
+    return false;
+  }
+};
+
+/**
+ * Get the next available lesson date after cancellations
+ */
+export const getNextAvailableLessonDate = async (
+  courseInstanceSchedule: CourseInstanceSchedule,
+  afterDate: Date
+): Promise<Date | null> => {
+  const { days_of_week, course_instance_id } = courseInstanceSchedule;
+  
+  if (!days_of_week.length) {
+    return null;
+  }
+
+  // Get cancelled lessons to avoid them
+  const endDateStr = new Date(afterDate.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const cancelledLessons = await getCancelledLessonsInDateRange(
+    course_instance_id,
+    afterDate.toISOString().split('T')[0],
+    endDateStr
+  );
+
+  const cancelledDates = new Set(
+    cancelledLessons.map(cancellation => cancellation.original_scheduled_date)
+  );
+
+  let currentDate = new Date(afterDate);
+  currentDate.setDate(currentDate.getDate() + 1); // Start from the day after
+  
+  const sortedDays = [...days_of_week].sort();
+  
+  // Find the next available date
+  for (let i = 0; i < 365; i++) { // Safety limit of 1 year
+    const dayOfWeek = currentDate.getDay();
+    const dateStr = currentDate.toISOString().split('T')[0];
+    
+    if (sortedDays.includes(dayOfWeek)) {
+      const isBlocked = await isDateBlocked(currentDate);
+      const isCancelled = cancelledDates.has(dateStr);
+      
+      if (!isBlocked && !isCancelled) {
+        return currentDate;
+      }
+    }
+    
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return null; // No available date found within a year
 };

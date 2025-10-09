@@ -2,7 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "../auth/AuthProvider";
-import { Check } from "lucide-react";
+import { Check, X, MoreVertical } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { LessonCancellationDialog } from "@/components/LessonCancellationDialog";
+import { isLessonCancelled } from "@/services/cancellationService";
 
 export const ScheduleList: React.FC<any> = ({ lessons,selectedDate }) => {
   const nav = useNavigate();
@@ -15,6 +24,9 @@ export const ScheduleList: React.FC<any> = ({ lessons,selectedDate }) => {
   const [reportStatusMap, setReportStatusMap] = useState<Map<string, {isCompleted: boolean, isLessonOk: boolean}>>(
     new Map()
   );
+  const [cancelledLessons, setCancelledLessons] = useState<Set<string>>(new Set());
+  const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false);
+  const [selectedLessonForCancellation, setSelectedLessonForCancellation] = useState<any>(null);
   const { user } = useAuth();
 
 
@@ -94,8 +106,32 @@ const sortedLessons = lessons.sort((a, b) => {
     setReportStatusMap(statusMap);
   };
 
+  const fetchCancelledLessons = async () => {
+    // Check for cancelled lessons
+    const cancelledSet = new Set<string>();
+    
+    for (const lesson of lessons) {
+      if (lesson.course_instance_id && lesson.lesson?.id) {
+        const scheduledDate = new Date(lesson.scheduled_start).toISOString().split('T')[0];
+        const isCancelled = await isLessonCancelled(
+          lesson.course_instance_id,
+          lesson.lesson.id,
+          scheduledDate
+        );
+        
+        if (isCancelled) {
+          const key = `${lesson.course_instance_id}_${lesson.lesson.id}_${scheduledDate}`;
+          cancelledSet.add(key);
+        }
+      }
+    }
+    
+    setCancelledLessons(cancelledSet);
+  };
+
   useEffect(() => {
     fetchReportedSchedules();
+    fetchCancelledLessons();
     
     // Set up real-time subscription to listen for changes
     const channel = supabase
@@ -112,12 +148,24 @@ const sortedLessons = lessons.sort((a, b) => {
           fetchReportedSchedules();
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lesson_cancellations'
+        },
+        () => {
+          console.log('ScheduleList: Lesson cancellation changed, refreshing...');
+          fetchCancelledLessons();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [lessons]);
 
   // Listen for lesson report updates from localStorage
   useEffect(() => {
@@ -135,12 +183,20 @@ const sortedLessons = lessons.sort((a, b) => {
       console.log('ScheduleList: Custom lesson report event, refreshing...');
       fetchReportedSchedules();
     };
+
+    const handleCancellationEvent = () => {
+      console.log('ScheduleList: Lesson cancelled event, refreshing...');
+      fetchCancelledLessons();
+      fetchReportedSchedules();
+    };
     
     window.addEventListener('lessonReportUpdated', handleCustomEvent);
+    window.addEventListener('lessonCancelled', handleCancellationEvent);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('lessonReportUpdated', handleCustomEvent);
+      window.removeEventListener('lessonCancelled', handleCancellationEvent);
     };
   }, []);
 
@@ -176,6 +232,11 @@ const sortedLessons = lessons.sort((a, b) => {
         const statusKey = reportedScheduleIds.has(item.id) ? item.id : 
                          (item.course_instance_id && item.lesson?.id ? `${item.course_instance_id}_${item.lesson.id}` : '');
         const lessonStatus = reportStatusMap.get(statusKey);
+
+        // Check if lesson is cancelled
+        const scheduledDate = new Date(item.scheduled_start).toISOString().split('T')[0];
+        const cancellationKey = `${item.course_instance_id}_${item.lesson?.id}_${scheduledDate}`;
+        const isCancelled = cancelledLessons.has(cancellationKey);
 
         // Function to render status badge
         // const renderStatusBadge = () => {
@@ -237,18 +298,20 @@ const sortedLessons = lessons.sort((a, b) => {
         // };
 
 const renderStatusBadge = () => {
-  // הוסף את זה כדי לדבג מה קורה
-  console.log('Debug info:', {
-    isReported,
-    lessonStatus,
-    userRole: user.user_metadata.role,
-    itemId: item?.id,
-    lessonId: item?.lesson?.id
-  });
+  // Check if lesson is cancelled first
+  if (isCancelled) {
+    return (
+      <span 
+        className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+        style={{backgroundColor: '#DC2626'}}
+      >
+        <X className="w-5 h-5" /> בוטל
+      </span>
+    );
+  }
 
   // בדיקות הלוגיקה הקיימת
   if (lessonStatus?.isCompleted === false) {
-    console.log('Returning: לא התקיים');
     return (
       <span 
         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
@@ -260,7 +323,6 @@ const renderStatusBadge = () => {
   }
 
   if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
-    console.log('Returning: לא התנהל כשורה');
     return (
       <span 
         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
@@ -272,7 +334,6 @@ const renderStatusBadge = () => {
   }
 
   if (lessonStatus?.isCompleted === true) {
-    console.log('Returning: דווח (completed=true)');
     return (
       <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
         <Check className="w-5 h-5" /> דווח
@@ -281,18 +342,40 @@ const renderStatusBadge = () => {
   }
 
   if (!isReported) {
-    console.log('Returning: not reported, role:', user.user_metadata.role);
     return user.user_metadata.role === "instructor" ? (
-      <button
-        onClick={() =>
-          nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
-              state: { selectedDate: selectedDate?.toISOString() }
-         })
-        }
-        className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
-      >
-        📋 דווח על השיעור
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() =>
+            nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
+                state: { selectedDate: selectedDate?.toISOString() }
+           })
+          }
+          className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
+        >
+          📋 דווח על השיעור
+        </button>
+        
+        {/* Cancellation dropdown for instructors */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => {
+                setSelectedLessonForCancellation(item);
+                setCancellationDialogOpen(true);
+              }}
+              className="text-red-600"
+            >
+              <X className="mr-2 h-4 w-4" />
+              בטל שיעור
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     ) : (
       <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
         📋 טרם דווח
@@ -300,7 +383,6 @@ const renderStatusBadge = () => {
     );
   }
 
-  console.log('Returning: fallback - דווח');
   return (
     <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
       <Check className="w-5 h-5" /> דווח
@@ -353,6 +435,17 @@ const renderStatusBadge = () => {
           </div>
         );
       })}
+      
+      {/* Cancellation Dialog */}
+      <LessonCancellationDialog
+        open={cancellationDialogOpen}
+        onOpenChange={setCancellationDialogOpen}
+        lesson={selectedLessonForCancellation}
+        onCancellationSuccess={() => {
+          fetchCancelledLessons();
+          fetchReportedSchedules();
+        }}
+      />
     </div>
   );
 };
