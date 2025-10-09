@@ -282,8 +282,8 @@ const sortedLessons = lessons.sort((a, b) => {
         // };
 
 const renderStatusBadge = () => {
-  // Check if lesson is cancelled first
-  if (isCancelled) {
+  // Check if this is a cancelled lesson in its original date
+  if (isCancelled && item.id.startsWith('cancelled-')) {
     return (
       <span 
         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
@@ -294,8 +294,36 @@ const renderStatusBadge = () => {
     );
   }
 
+  // Check if this is a rescheduled lesson (same lesson that was cancelled but now in new date)
+  const isRescheduledLesson = item.is_rescheduled || 
+    (!item.id.startsWith('cancelled-') && 
+     lessonStatus?.isCompleted === false && 
+     lessonStatus?.isLessonOk === null);
+
+  if (isRescheduledLesson) {
+    // This is the rescheduled version - should be available for reporting
+    return user.user_metadata.role === "instructor" ? (
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() =>
+            nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
+                state: { selectedDate: selectedDate?.toISOString() }
+           })
+          }
+          className="bg-orange-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-orange-600 shadow-md"
+        >
+          📋 דווח על השיעור (נדחה)
+        </button>
+      </div>
+    ) : (
+      <span className="inline-flex items-center gap-2 text-base font-bold text-orange-700 bg-orange-100 px-4 py-2 rounded-full">
+        📋 נדחה - טרם דווח
+      </span>
+    );
+  }
+
   // בדיקות הלוגיקה הקיימת
-  if (lessonStatus?.isCompleted === false) {
+  if (lessonStatus?.isCompleted === false && !isRescheduledLesson) {
     return (
       <span 
         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"

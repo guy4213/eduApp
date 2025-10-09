@@ -1770,6 +1770,9 @@ export const generateLessonSchedulesFromPattern = async (
               // בדוק אם השיעור כבר דווח
               const isReported = reportedLessonIds.has(currentLesson.id);
               
+              // בדוק אם זה שיעור שנדחה (יש לו ביטול אבל הוא מוצג בתאריך חדש)
+              const isRescheduledInstance = rescheduledLessonsMap.has(currentLesson.id);
+              
               generatedSchedules.push({
                 id: `generated-${course_instance_id}-${lessonNumber}`,
                 course_instance_id: course_instance_id,
@@ -1779,8 +1782,9 @@ export const generateLessonSchedulesFromPattern = async (
                 lesson_number: lessonNumber,
                 lesson: currentLesson,
                 is_generated: true,
-                is_reported: isReported,
-                is_cancelled: false
+                is_reported: isReported && !isRescheduledInstance, // אם השיעור נדחה, הוא לא נחשב כדווח
+                is_cancelled: false,
+                is_rescheduled: isRescheduledInstance
               });
 
               lessonIndex++;
