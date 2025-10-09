@@ -1690,16 +1690,18 @@ export const generateLessonSchedulesFromPattern = async (
 
   // יצירת מפה של שיעורים מתוזמנים מחדש
   const rescheduledLessonsMap = new Map();
+  const cancelledDatesSet = new Set<string>();
+  
   rescheduledLessons?.forEach(reschedule => {
     rescheduledLessonsMap.set(reschedule.lesson_id, {
       original_date: reschedule.original_scheduled_date,
       new_date: reschedule.rescheduled_to_date
     });
+    cancelledDatesSet.add(reschedule.original_scheduled_date);
   });
   
-  // אין צורך לסנן שיעורים - כולם מקבלים תזמון
-  // שיעורים מדווחים יקבלו את אותו תזמון בדיוק
-  const unscheduledLessons = lessons;
+  // כל השיעורים יקבלו תזמון
+  const allLessons = lessons;
 
   // מציאת התאריך ההתחלתי לתזמון
   let currentDate = new Date(courseStartDate);
@@ -1716,8 +1718,8 @@ export const generateLessonSchedulesFromPattern = async (
   let lessonNumber = 1;
   const sortedDays = [...days_of_week].sort();
   
-  // יצירת תזמון לכל השיעורים
-  while (lessonIndex < lessons.length && lessonNumber <= maxLessons) {
+  // יצירת תזמון לכל השיעורים עם התחשבות בביטולים
+  while (lessonIndex < allLessons.length && lessonNumber <= maxLessons) {
     const dayOfWeek = currentDate.getDay();
     
     if (sortedDays.includes(dayOfWeek)) {
@@ -1735,28 +1737,57 @@ export const generateLessonSchedulesFromPattern = async (
           const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
           const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
           
-          const currentLesson = lessons[lessonIndex];
+          // בדוק אם יש שיעור מבוטל בתאריך הזה
+          const cancelledLessonForThisDate = Array.from(rescheduledLessonsMap.entries())
+            .find(([lessonId, info]) => info.original_date === dateStr);
           
-          // בדוק אם השיעור כבר דווח
-          const reportedInfo = reportedLessonsMap.get(currentLesson.id);
-          const isReported = reportedLessonIds.has(currentLesson.id);
-          
-          generatedSchedules.push({
-            id: `generated-${course_instance_id}-${lessonNumber}`,
-            course_instance_id: course_instance_id,
-            lesson_id: currentLesson.id,
-            scheduled_start: scheduledStart,
-            scheduled_end: scheduledEnd,
-            lesson_number: lessonNumber,
-            lesson: currentLesson,
-            is_generated: true,
-            is_reported: isReported // סימון אם השיעור דווח
-          });
+          if (cancelledLessonForThisDate) {
+            // הוסף את השיעור המבוטל בתאריך המקורי (מוצג כמבוטל)
+            const [cancelledLessonId, cancelInfo] = cancelledLessonForThisDate;
+            const cancelledLesson = allLessons.find(l => l.id === cancelledLessonId);
+            
+            if (cancelledLesson) {
+              generatedSchedules.push({
+                id: `cancelled-${course_instance_id}-${cancelledLessonId}-${dateStr}`,
+                course_instance_id: course_instance_id,
+                lesson_id: cancelledLesson.id,
+                scheduled_start: scheduledStart,
+                scheduled_end: scheduledEnd,
+                lesson_number: lessonNumber,
+                lesson: cancelledLesson,
+                is_generated: true,
+                is_reported: reportedLessonIds.has(cancelledLesson.id),
+                is_cancelled: true
+              });
+            }
+          } else {
+            // הוסף שיעור רגיל
+            if (lessonIndex < allLessons.length) {
+              const currentLesson = allLessons[lessonIndex];
+              
+              // בדוק אם השיעור כבר דווח
+              const isReported = reportedLessonIds.has(currentLesson.id);
+              
+              generatedSchedules.push({
+                id: `generated-${course_instance_id}-${lessonNumber}`,
+                course_instance_id: course_instance_id,
+                lesson_id: currentLesson.id,
+                scheduled_start: scheduledStart,
+                scheduled_end: scheduledEnd,
+                lesson_number: lessonNumber,
+                lesson: currentLesson,
+                is_generated: true,
+                is_reported: isReported,
+                is_cancelled: false
+              });
 
-          lessonIndex++;
+              lessonIndex++;
+            }
+          }
+          
           lessonNumber++;
         } else {
-          console.log(`Skipping blocked date: ${currentDate.toISOString().split('T')[0]}`);
+          console.log(`Skipping blocked date: ${dateStr}`);
         }
       }
     }

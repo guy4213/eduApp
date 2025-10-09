@@ -107,26 +107,10 @@ const sortedLessons = lessons.sort((a, b) => {
   };
 
   const fetchCancelledLessons = async () => {
-    // Check for cancelled lessons
-    const cancelledSet = new Set<string>();
-    
-    for (const lesson of lessons) {
-      if (lesson.course_instance_id && lesson.lesson?.id) {
-        const scheduledDate = new Date(lesson.scheduled_start).toISOString().split('T')[0];
-        const isCancelled = await isLessonCancelled(
-          lesson.course_instance_id,
-          lesson.lesson.id,
-          scheduledDate
-        );
-        
-        if (isCancelled) {
-          const key = `${lesson.course_instance_id}_${lesson.lesson.id}_${scheduledDate}`;
-          cancelledSet.add(key);
-        }
-      }
-    }
-    
-    setCancelledLessons(cancelledSet);
+    // The cancellation status is now handled directly in the schedule generation
+    // So we don't need to check each lesson individually
+    // The is_cancelled flag will be set in the generated schedule data
+    setCancelledLessons(new Set());
   };
 
   useEffect(() => {

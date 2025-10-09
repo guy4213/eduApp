@@ -1643,10 +1643,17 @@ if (isCompleted && checkedTasks.length < lessonTasks.length) {
       }
     }
 
-    toast({ 
-      title: "הצלחה!", 
-      description: !isCompleted ? "ביטול השיעור נשמר בהצלחה - השיעורים הבאים יתוזמנו מחדש אוטומטית" : "דיווח השיעור נשמר בהצלחה" 
-    });
+    if (!isCompleted) {
+      toast({ 
+        title: "השיעור בוטל בהצלחה!", 
+        description: "השיעור יוצג כמבוטל בתאריך המקורי ויועבר לתאריך הבא הפנוי. כל השיעורים הבאים נדחו אוטומטית."
+      });
+    } else {
+      toast({ 
+        title: "הצלחה!", 
+        description: "דיווח השיעור נשמר בהצלחה" 
+      });
+    }
 
     // Report work hour only after successful submission
     const { error: workHourError } = await supabase.rpc('report_work_hour');
