@@ -393,6 +393,47 @@ const renderStatusBadge = () => {
     );
   }
 
+  // בדוק אם השיעור דווח כ"לא התקיים" אבל כבר מוצג כמבוטל במקום אחר
+  if (isReported && lessonStatus?.isCompleted === false && !item.id.startsWith('cancelled-')) {
+    // בדוק אם השיעור הזה כבר מוצג כמבוטל במערך הנוכחי
+    const isAlreadyShownAsCancelled = sortedLessons.some(lesson => 
+      lesson.id.startsWith('cancelled-') && 
+      lesson.lesson_id === item.lesson?.id
+    );
+    
+    if (isAlreadyShownAsCancelled) {
+      // השיעור כבר מוצג כמבוטל, אז זה השיעור הנדחה - הצג כזמין לדיווח
+      return user.user_metadata.role === "instructor" ? (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() =>
+              nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
+                  state: { selectedDate: selectedDate?.toISOString() }
+             })
+            }
+            className="bg-orange-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-orange-600 shadow-md"
+          >
+            📋 דווח על השיעור (נדחה)
+          </button>
+        </div>
+      ) : (
+        <span className="inline-flex items-center gap-2 text-base font-bold text-orange-700 bg-orange-100 px-4 py-2 rounded-full">
+          📋 נדחה - טרם דווח
+        </span>
+      );
+    }
+    
+    // אחרת, זה באמת שיעור שלא התקיים ודווח כך
+    return (
+      <span 
+        className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+        style={{backgroundColor: '#FFA500'}}
+      >
+        ❌ לא התקיים
+      </span>
+    );
+  }
+
   if (!isReported) {
     return user.user_metadata.role === "instructor" ? (
       <div className="flex items-center gap-2">
