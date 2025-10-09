@@ -1829,6 +1829,8 @@ const fetchAssignments = async () => {
       .filter(Boolean) || [];
     const courseInstanceIds = coursesData.map((instance) => instance.id);
 
+    console.log('DEBUG - Fetching assignments for course instances:', courseInstanceIds);
+    
     // *** טעינה מקבילה של כל הנתונים ***
     const [lessonsData, schedulesData, statusMap] = await Promise.all([
       // *** שליפת שיעורים - כולל ייחודיים ***
@@ -1860,7 +1862,17 @@ const fetchAssignments = async () => {
               const filtered = allSchedules.filter((schedule) =>
                 courseInstanceIds.includes(schedule.course_instance_id)
               );
-              console.log(`[DEBUG] Found ${filtered.length} schedules`);
+              console.log(`DEBUG - Found ${filtered.length} schedules for course instances:`, courseInstanceIds);
+              console.log('DEBUG - All schedules details:', allSchedules.map(s => ({
+                id: s.id,
+                course_instance_id: s.course_instance_id,
+                lesson_id: s.lesson_id,
+                lesson_title: s.lesson?.title,
+                scheduled_start: s.scheduled_start,
+                is_rescheduled: s.is_rescheduled,
+                is_cancelled: s.is_cancelled,
+                lesson_number: s.lesson_number
+              })));
               return filtered;
             })
             .catch((error) => {
@@ -1975,6 +1987,20 @@ const fetchAssignments = async () => {
               schedule.lesson_id === lesson.id &&
               schedule.course_instance_id === instanceData.id
           );
+        }
+
+        // Debug logging for lesson schedules
+        if (lesson.id === 'your-lesson-id-here' || lesson.title?.includes('שיעור 1')) {
+          console.log('DEBUG - Lesson schedule search:', {
+            lessonId: lesson.id,
+            lessonTitle: lesson.title,
+            courseInstanceId: instanceData.id,
+            foundSchedule: lessonSchedule,
+            isRescheduled: lessonSchedule?.is_rescheduled,
+            isCancelled: lessonSchedule?.isCancelled,
+            scheduledStart: lessonSchedule?.scheduled_start,
+            allSchedulesForLesson: schedulesData.filter(s => s.lesson_id === lesson.id && s.course_instance_id === instanceData.id)
+          });
         }
 
         // סטטוס דיווח
