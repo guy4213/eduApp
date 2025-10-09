@@ -333,38 +333,8 @@ const renderStatusBadge = () => {
     );
   }
 
-  // בדיקות הלוגיקה הקיימת
-  if (lessonStatus?.isCompleted === false && !isRescheduledLesson && !item.id.startsWith('cancelled-')) {
-    // בדוק אם השיעור הזה כבר מוצג כמבוטל במערך הנוכחי
-    const currentLessonId = item.lesson?.id || item.lesson_id;
-    const isAlreadyShownAsCancelled = sortedLessons.some(lesson => 
-      lesson.id.startsWith('cancelled-') && 
-      (lesson.lesson_id === currentLessonId || lesson.lesson?.id === currentLessonId)
-    );
-    
-    if (isAlreadyShownAsCancelled) {
-      // השיעור כבר מוצג כמבוטל, אז זה השיעור הנדחה - הצג כזמין לדיווח
-      return user.user_metadata.role === "instructor" ? (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() =>
-              nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
-                  state: { selectedDate: selectedDate?.toISOString() }
-             })
-            }
-            className="bg-orange-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-orange-600 shadow-md"
-          >
-            📋 דווח על השיעור (נדחה)
-          </button>
-        </div>
-      ) : (
-        <span className="inline-flex items-center gap-2 text-base font-bold text-orange-700 bg-orange-100 px-4 py-2 rounded-full">
-          📋 נדחה - טרם דווח
-        </span>
-      );
-    }
-    
-    // אחרת, זה באמת שיעור שלא התקיים
+  // שיעורים שלא דווחו כלל או שדווחו כ"לא התקיים" אבל לא נדחו - מוצגים כ"לא התקיים"
+  if (lessonStatus?.isCompleted === false && !isRescheduledLesson && !item.id.startsWith('cancelled-') && !isReported) {
     return (
       <span 
         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
@@ -394,62 +364,8 @@ const renderStatusBadge = () => {
     );
   }
 
-  // בדוק אם השיעור דווח כ"לא התקיים" אבל כבר מוצג כמבוטל במקום אחר
+  // פתרון פשוט: כל שיעור שדווח כ"לא התקיים" - הצג אותו כזמין לדיווח מחדש
   if (isReported && lessonStatus?.isCompleted === false && !item.id.startsWith('cancelled-')) {
-    // בדוק אם השיעור הזה כבר מוצג כמבוטל במערך הנוכחי
-    const currentLessonId = item.lesson?.id || item.lesson_id;
-    const isAlreadyShownAsCancelled = sortedLessons.some(lesson => 
-      lesson.id.startsWith('cancelled-') && 
-      (lesson.lesson_id === currentLessonId || lesson.lesson?.id === currentLessonId)
-    );
-    
-    console.log('Checking if reported lesson is shown as cancelled:', {
-      currentLessonId,
-      lessonTitle: item.lesson?.title,
-      isAlreadyShownAsCancelled,
-      totalLessonsInArray: sortedLessons.length,
-      cancelledLessonsInArray: sortedLessons.filter(l => l.id.startsWith('cancelled-')).map(l => ({
-        id: l.id,
-        lesson_id: l.lesson_id,
-        lessonObjId: l.lesson?.id,
-        title: l.lesson?.title
-      })),
-      allLessonsWithSameLessonId: sortedLessons.filter(l => 
-        l.lesson_id === currentLessonId || l.lesson?.id === currentLessonId
-      ).map(l => ({
-        id: l.id,
-        lesson_id: l.lesson_id,
-        lessonObjId: l.lesson?.id,
-        title: l.lesson?.title,
-        isCancelled: l.id.startsWith('cancelled-')
-      }))
-    });
-    
-    if (isAlreadyShownAsCancelled) {
-      // השיעור כבר מוצג כמבוטל, אז זה השיעור הנדחה - הצג כזמין לדיווח
-      return user.user_metadata.role === "instructor" ? (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() =>
-              nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
-                  state: { selectedDate: selectedDate?.toISOString() }
-             })
-            }
-            className="bg-orange-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-orange-600 shadow-md"
-          >
-            📋 דווח על השיעור (נדחה)
-          </button>
-        </div>
-      ) : (
-        <span className="inline-flex items-center gap-2 text-base font-bold text-orange-700 bg-orange-100 px-4 py-2 rounded-full">
-          📋 נדחה - טרם דווח
-        </span>
-      );
-    }
-    
-    // פתרון זמני: אם השיעור דווח כ"לא התקיים" אבל לא מוצא שיעור מבוטל,
-    // נניח שזה שיעור נדחה (כי אולי השיעור המבוטל לא נוצר כמו שצריך)
-    console.log('No cancelled version found, treating as rescheduled lesson');
     return user.user_metadata.role === "instructor" ? (
       <div className="flex items-center gap-2">
         <button
