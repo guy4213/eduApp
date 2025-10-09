@@ -2125,9 +2125,10 @@ export const filterSchedulesByDateRange = (
 };
 
 /**
- * Enhanced version that handles cancellations properly:
+ * Enhanced version that handles cancellations and rescheduling properly:
  * 1. Shows cancelled lessons in their original dates (marked as cancelled)
- * 2. Continues the schedule from after the cancelled date, effectively adding one more lesson
+ * 2. Shows rescheduled lessons in their new dates (marked as rescheduled)
+ * 3. Continues the schedule from after the cancelled date, effectively adding one more lesson
  */
 export const generateLessonSchedulesWithCancellations = async (
   courseInstanceSchedule: CourseInstanceSchedule,
@@ -2153,12 +2154,27 @@ export const generateLessonSchedulesWithCancellations = async (
 
   // Create maps for cancelled lessons
   const cancelledDatesMap = new Map();
+  const rescheduledLessonsMap = new Map();
+  
   cancelledLessons.forEach(cancellation => {
     cancelledDatesMap.set(cancellation.original_scheduled_date, {
       lesson_id: cancellation.lesson_id,
-      reason: cancellation.cancellation_reason
+      reason: cancellation.cancellation_reason,
+      is_rescheduled: cancellation.is_rescheduled
     });
+    
+    // If this lesson is rescheduled, add it to the rescheduled map
+    if (cancellation.is_rescheduled) {
+      rescheduledLessonsMap.set(cancellation.lesson_id, {
+        original_date: cancellation.original_scheduled_date,
+        new_date: cancellation.rescheduled_to_date,
+        reason: cancellation.cancellation_reason
+      });
+    }
   });
+
+  console.log('Cancelled lessons data:', cancelledLessons);
+  console.log('Rescheduled lessons map:', rescheduledLessonsMap);
 
   // בדיקת שיעורים מדווחים
   const { data: existingReports } = await supabase
@@ -2237,6 +2253,20 @@ export const generateLessonSchedulesWithCancellations = async (
             const currentLesson = lessons[lessonIndex];
             const isReported = reportedLessonIds.has(currentLesson.id);
             
+            // Check if this lesson is rescheduled
+            const isRescheduled = rescheduledLessonsMap.has(currentLesson.id);
+            
+            // Debug logging for rescheduled lessons
+            if (isRescheduled) {
+              console.log('Creating rescheduled lesson:', {
+                lessonTitle: currentLesson.title,
+                lessonId: currentLesson.id,
+                newDate: dateStr,
+                originalDate: rescheduledLessonsMap.get(currentLesson.id)?.original_date,
+                isRescheduled: true
+              });
+            }
+            
             generatedSchedules.push({
               id: `generated-${course_instance_id}-${lessonNumber}`,
               course_instance_id: course_instance_id,
@@ -2246,8 +2276,9 @@ export const generateLessonSchedulesWithCancellations = async (
               lesson_number: lessonNumber,
               lesson: currentLesson,
               is_generated: true,
-              is_reported: isReported,
-              is_cancelled: false
+              is_reported: isReported && !isRescheduled, // If rescheduled, it's not considered reported
+              is_cancelled: false,
+              is_rescheduled: isRescheduled
             });
 
             lessonIndex++;
@@ -2268,7 +2299,7 @@ export const generateLessonSchedulesWithCancellations = async (
     }
   }
 
-  console.log(`Generated ${generatedSchedules.length} schedules with proper cancellation handling`);
+  console.log(`Generated ${generatedSchedules.length} schedules with proper cancellation and rescheduling handling`);
   return generatedSchedules;
 };
 

@@ -21,7 +21,7 @@ export async function rescheduleSpecificLesson(
 ): Promise<RescheduleResult> {
   try {
     // 1. Create cancellation record for the original date
-    const { error: cancellationError } = await supabase
+    const { data: cancellationData, error: cancellationError } = await supabase
       .from('lesson_cancellations')
       .insert({
         course_instance_id: courseInstanceId,
@@ -29,7 +29,9 @@ export async function rescheduleSpecificLesson(
         original_scheduled_date: originalDate,
         cancellation_reason: cancellationReason,
         is_rescheduled: true
-      });
+      })
+      .select()
+      .single();
 
     if (cancellationError) {
       console.error('Error creating cancellation record:', cancellationError);
@@ -40,14 +42,37 @@ export async function rescheduleSpecificLesson(
       };
     }
 
-    // 2. The schedule generation logic will now automatically:
+    // 2. Find the next available date for rescheduling
+    const nextAvailableDate = await findNextAvailableDateForRescheduling(
+      courseInstanceId,
+      originalDate
+    );
+
+    if (nextAvailableDate) {
+      // Update the cancellation record with the rescheduled date
+      const { error: updateError } = await supabase
+        .from('lesson_cancellations')
+        .update({
+          rescheduled_to_date: nextAvailableDate,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', cancellationData.id);
+
+      if (updateError) {
+        console.error('Error updating rescheduled date:', updateError);
+        // Don't fail the whole operation, just log the error
+      }
+    }
+
+    // 3. The schedule generation logic will now automatically:
     //    - Show the cancelled lesson in its original date (marked as cancelled)
     //    - Generate all lessons (including the cancelled one) starting from the next available date
     //    - This effectively adds one more lesson to the total schedule
 
     return {
       success: true,
-      message: `השיעור בוטל בתאריך המקורי ויתוזמן מחדש יחד עם כל השיעורים הבאים`
+      message: `השיעור בוטל בתאריך המקורי ויתוזמן מחדש יחד עם כל השיעורים הבאים`,
+      newDate: nextAvailableDate
     };
 
   } catch (error) {
@@ -57,6 +82,74 @@ export async function rescheduleSpecificLesson(
       message: 'שגיאה בתזמון מחדש של השיעור',
       error: error instanceof Error ? error.message : 'Unknown error'
     };
+  }
+}
+
+/**
+ * Find the next available date for rescheduling a lesson
+ */
+async function findNextAvailableDateForRescheduling(
+  courseInstanceId: string,
+  originalDate: string
+): Promise<string | null> {
+  try {
+    // Get the course instance schedule
+    const { data: scheduleData, error: scheduleError } = await supabase
+      .from('course_instance_schedules')
+      .select(`
+        *,
+        course_instances:course_instance_id (
+          id,
+          start_date,
+          end_date
+        )
+      `)
+      .eq('course_instance_id', courseInstanceId)
+      .single();
+
+    if (scheduleError || !scheduleData) {
+      console.error('Error fetching schedule data:', scheduleError);
+      return null;
+    }
+
+    const { days_of_week, time_slots } = scheduleData;
+    const courseEndDate = scheduleData.course_instances?.end_date;
+    
+    if (!days_of_week?.length || !time_slots?.length) {
+      return null;
+    }
+
+    // Start searching from the day after the original date
+    let currentDate = new Date(originalDate);
+    currentDate.setDate(currentDate.getDate() + 1);
+    
+    const endDate = courseEndDate ? new Date(courseEndDate) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const maxIterations = 365; // Safety limit
+    let iterations = 0;
+
+    while (currentDate <= endDate && iterations < maxIterations) {
+      const dayOfWeek = currentDate.getDay();
+      const dateStr = currentDate.toISOString().split('T')[0];
+      
+      // Check if this day is in the schedule pattern
+      if (days_of_week.includes(dayOfWeek)) {
+        // Check if date is not blocked
+        const isBlocked = await isDateBlocked(currentDate);
+        
+        if (!isBlocked) {
+          return dateStr;
+        }
+      }
+      
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+      iterations++;
+    }
+    
+    return null; // No available date found
+  } catch (error) {
+    console.error('Error in findNextAvailableDateForRescheduling:', error);
+    return null;
   }
 }
 
