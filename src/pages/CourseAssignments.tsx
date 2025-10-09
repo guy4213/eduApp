@@ -1953,7 +1953,22 @@ const fetchAssignments = async () => {
 
 
       // Create tasks for each schedule (like ScheduleList does)
-      const allCourseTasks = courseSchedules.flatMap((schedule) => {
+      // But avoid duplicates by grouping by lesson_id and prioritizing rescheduled/cancelled
+      const scheduleMap = new Map();
+      
+      courseSchedules.forEach((schedule) => {
+        const key = schedule.lesson_id;
+        
+        // If this is a rescheduled or cancelled lesson, prioritize it
+        if (schedule.is_rescheduled || schedule.is_cancelled) {
+          scheduleMap.set(key, schedule);
+        } else if (!scheduleMap.has(key)) {
+          // Only add regular schedule if no rescheduled/cancelled version exists
+          scheduleMap.set(key, schedule);
+        }
+      });
+
+      const allCourseTasks = Array.from(scheduleMap.values()).flatMap((schedule) => {
         const lessonTasks = tasksData.filter(
           (task) => task.lesson_id === schedule.lesson_id
         );
