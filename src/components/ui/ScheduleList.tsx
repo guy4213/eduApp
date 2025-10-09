@@ -336,9 +336,10 @@ const renderStatusBadge = () => {
   // בדיקות הלוגיקה הקיימת
   if (lessonStatus?.isCompleted === false && !isRescheduledLesson && !item.id.startsWith('cancelled-')) {
     // בדוק אם השיעור הזה כבר מוצג כמבוטל במערך הנוכחי
+    const currentLessonId = item.lesson?.id || item.lesson_id;
     const isAlreadyShownAsCancelled = sortedLessons.some(lesson => 
       lesson.id.startsWith('cancelled-') && 
-      lesson.lesson_id === item.lesson?.id
+      (lesson.lesson_id === currentLessonId || lesson.lesson?.id === currentLessonId)
     );
     
     if (isAlreadyShownAsCancelled) {
@@ -396,10 +397,23 @@ const renderStatusBadge = () => {
   // בדוק אם השיעור דווח כ"לא התקיים" אבל כבר מוצג כמבוטל במקום אחר
   if (isReported && lessonStatus?.isCompleted === false && !item.id.startsWith('cancelled-')) {
     // בדוק אם השיעור הזה כבר מוצג כמבוטל במערך הנוכחי
+    const currentLessonId = item.lesson?.id || item.lesson_id;
     const isAlreadyShownAsCancelled = sortedLessons.some(lesson => 
       lesson.id.startsWith('cancelled-') && 
-      lesson.lesson_id === item.lesson?.id
+      (lesson.lesson_id === currentLessonId || lesson.lesson?.id === currentLessonId)
     );
+    
+    console.log('Checking if reported lesson is shown as cancelled:', {
+      currentLessonId,
+      lessonTitle: item.lesson?.title,
+      isAlreadyShownAsCancelled,
+      cancelledLessonsInArray: sortedLessons.filter(l => l.id.startsWith('cancelled-')).map(l => ({
+        id: l.id,
+        lesson_id: l.lesson_id,
+        lessonObjId: l.lesson?.id,
+        title: l.lesson?.title
+      }))
+    });
     
     if (isAlreadyShownAsCancelled) {
       // השיעור כבר מוצג כמבוטל, אז זה השיעור הנדחה - הצג כזמין לדיווח
