@@ -1669,6 +1669,13 @@ export const generateLessonSchedulesFromPattern = async (
     .eq('course_instance_id', course_instance_id)
     .order('lesson_number', { ascending: true });
 
+  // בדיקת שיעורים שתוזמנו מחדש
+  const { data: rescheduledLessons } = await supabase
+    .from('lesson_cancellations')
+    .select('lesson_id, original_scheduled_date, rescheduled_to_date')
+    .eq('course_instance_id', course_instance_id)
+    .eq('is_rescheduled', true);
+
   // יצירת מפה של שיעורים מדווחים
   const reportedLessonsMap = new Map();
   const reportedLessonIds = new Set();
@@ -1678,6 +1685,15 @@ export const generateLessonSchedulesFromPattern = async (
     reportedLessonsMap.set(report.lesson_id, {
       lesson_number: report.lesson_number,
       scheduled_date: report.scheduled_date
+    });
+  });
+
+  // יצירת מפה של שיעורים מתוזמנים מחדש
+  const rescheduledLessonsMap = new Map();
+  rescheduledLessons?.forEach(reschedule => {
+    rescheduledLessonsMap.set(reschedule.lesson_id, {
+      original_date: reschedule.original_scheduled_date,
+      new_date: reschedule.rescheduled_to_date
     });
   });
   
