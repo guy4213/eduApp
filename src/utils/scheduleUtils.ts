@@ -2299,7 +2299,82 @@ export const generateLessonSchedulesWithCancellations = async (
     }
   }
 
+  // Add rescheduled lessons to the schedule
+  // This ensures that cancelled lessons appear again in the new schedule
+  for (const [lessonId, rescheduleInfo] of rescheduledLessonsMap.entries()) {
+    const rescheduledLesson = lessons.find(l => l.id === lessonId);
+    if (rescheduledLesson) {
+      // Find the next available date for this rescheduled lesson
+      let rescheduleDate = new Date(rescheduleInfo.original_date);
+      rescheduleDate.setDate(rescheduleDate.getDate() + 1);
+      
+      // Find the next available slot
+      while (rescheduleDate <= (endDateTime || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000))) {
+        const dayOfWeek = rescheduleDate.getDay();
+        const dateStr = rescheduleDate.toISOString().split('T')[0];
+        
+        if (sortedDays.includes(dayOfWeek)) {
+          const timeSlot = time_slots.find(ts => ts.day === dayOfWeek);
+          const isBlocked = await isDateBlocked(rescheduleDate);
+          const isAlreadyScheduled = generatedSchedules.some(s => 
+            s.scheduled_start?.startsWith(dateStr) && s.course_instance_id === course_instance_id
+          );
+          
+          if (timeSlot && timeSlot.start_time && timeSlot.end_time && !isBlocked && !isAlreadyScheduled) {
+            const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
+            const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
+            
+            generatedSchedules.push({
+              id: `rescheduled-${course_instance_id}-${lessonId}`,
+              course_instance_id: course_instance_id,
+              lesson_id: lessonId,
+              scheduled_start: scheduledStart,
+              scheduled_end: scheduledEnd,
+              lesson_number: generatedSchedules.length + 1,
+              lesson: rescheduledLesson,
+              is_generated: true,
+              is_reported: false, // Rescheduled lessons are not considered reported
+              is_cancelled: false,
+              is_rescheduled: true
+            });
+            
+            console.log('Added rescheduled lesson to schedule:', {
+              lessonTitle: rescheduledLesson.title,
+              lessonId: lessonId,
+              newDate: dateStr,
+              originalDate: rescheduleInfo.original_date
+            });
+            
+            break; // Found a slot, move to next rescheduled lesson
+          }
+        }
+        
+        rescheduleDate.setDate(rescheduleDate.getDate() + 1);
+      }
+    }
+  }
+
+  // Sort the generated schedules by scheduled_start to ensure proper order
+  generatedSchedules.sort((a, b) => {
+    const dateA = new Date(a.scheduled_start).getTime();
+    const dateB = new Date(b.scheduled_start).getTime();
+    return dateA - dateB;
+  });
+
+  // Update lesson numbers to be sequential
+  generatedSchedules.forEach((schedule, index) => {
+    schedule.lesson_number = index + 1;
+  });
+
   console.log(`Generated ${generatedSchedules.length} schedules with proper cancellation and rescheduling handling`);
+  console.log('Final schedules:', generatedSchedules.map(s => ({
+    id: s.id,
+    lesson_title: s.lesson?.title,
+    lesson_number: s.lesson_number,
+    scheduled_start: s.scheduled_start,
+    is_rescheduled: s.is_rescheduled,
+    is_cancelled: s.is_cancelled
+  })));
   return generatedSchedules;
 };
 
