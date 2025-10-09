@@ -2136,11 +2136,22 @@ const fetchAssignments = async () => {
       fetchAssignments();
     };
 
+    // Listen for lesson cancellation events
+    const handleLessonCancellation = () => {
+      console.log(
+        "CourseAssignments: Lesson cancelled event received, refreshing assignments..."
+      );
+      statusCache.clear();
+      fetchAssignments();
+    };
+
     window.addEventListener("lessonReportUpdated", handleCustomEvent);
+    window.addEventListener("lessonCancelled", handleLessonCancellation);
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("lessonReportUpdated", handleCustomEvent);
+      window.removeEventListener("lessonCancelled", handleLessonCancellation);
     };
   }, []);
 

@@ -89,19 +89,21 @@ DECLARE
     v_cancellation_id UUID;
     v_affected_lessons INTEGER := 0;
 BEGIN
-    -- Insert cancellation record
+    -- Insert cancellation record with rescheduling flag
     INSERT INTO public.lesson_cancellations (
         course_instance_id,
         lesson_id,
         original_scheduled_date,
         cancellation_reason,
-        cancelled_by
+        cancelled_by,
+        is_rescheduled
     ) VALUES (
         p_course_instance_id,
         p_lesson_id,
         p_original_date,
         p_cancellation_reason,
-        COALESCE(p_cancelled_by, auth.uid())
+        COALESCE(p_cancelled_by, auth.uid()),
+        true
     ) RETURNING id INTO v_cancellation_id;
 
     -- Mark any existing lesson report as cancelled

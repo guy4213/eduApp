@@ -230,7 +230,7 @@ export async function cancelGeneratedLesson(
   cancellationReason: string
 ): Promise<CancelLessonResponse> {
   try {
-    // Directly insert into lesson_cancellations table
+    // Directly insert into lesson_cancellations table with rescheduling flag
     const { data, error } = await supabase
       .from('lesson_cancellations')
       .insert({
@@ -238,7 +238,8 @@ export async function cancelGeneratedLesson(
         lesson_id: lessonId,
         original_scheduled_date: originalDate,
         cancellation_reason: cancellationReason,
-        cancelled_by: (await supabase.auth.getUser()).data.user?.id
+        cancelled_by: (await supabase.auth.getUser()).data.user?.id,
+        is_rescheduled: true // Mark as rescheduled from the start
       })
       .select()
       .single();

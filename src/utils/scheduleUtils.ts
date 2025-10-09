@@ -2304,9 +2304,16 @@ export const generateLessonSchedulesWithCancellations = async (
   for (const [lessonId, rescheduleInfo] of rescheduledLessonsMap.entries()) {
     const rescheduledLesson = lessons.find(l => l.id === lessonId);
     if (rescheduledLesson) {
-      // Find the next available date for this rescheduled lesson
-      let rescheduleDate = new Date(rescheduleInfo.original_date);
-      rescheduleDate.setDate(rescheduleDate.getDate() + 1);
+      // Check if we already have a rescheduled date from the database
+      let rescheduleDate: Date;
+      if (rescheduleInfo.new_date) {
+        // Use the existing rescheduled date
+        rescheduleDate = new Date(rescheduleInfo.new_date);
+      } else {
+        // Find the next available date for this rescheduled lesson
+        rescheduleDate = new Date(rescheduleInfo.original_date);
+        rescheduleDate.setDate(rescheduleDate.getDate() + 1);
+      }
       
       // Find the next available slot
       while (rescheduleDate <= (endDateTime || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000))) {
@@ -2337,6 +2344,33 @@ export const generateLessonSchedulesWithCancellations = async (
               is_cancelled: false,
               is_rescheduled: true
             });
+            
+            // Update the cancellation record with the new rescheduled date if not already set
+            if (!rescheduleInfo.new_date) {
+              try {
+                const { error: updateError } = await supabase
+                  .from('lesson_cancellations')
+                  .update({
+                    rescheduled_to_date: dateStr,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('course_instance_id', course_instance_id)
+                  .eq('lesson_id', lessonId)
+                  .eq('original_scheduled_date', rescheduleInfo.original_date);
+                
+                if (updateError) {
+                  console.error('Error updating cancellation record:', updateError);
+                } else {
+                  console.log('Updated cancellation record with rescheduled date:', {
+                    lessonId,
+                    originalDate: rescheduleInfo.original_date,
+                    newDate: dateStr
+                  });
+                }
+              } catch (error) {
+                console.error('Error updating cancellation record:', error);
+              }
+            }
             
             console.log('Added rescheduled lesson to schedule:', {
               lessonTitle: rescheduledLesson.title,
@@ -2392,8 +2426,17 @@ export const rescheduleAfterCancellation = async (
     // The rescheduling is automatically handled by the generateLessonSchedulesWithCancellations function
     // When lessons are generated, cancelled dates are skipped and subsequent lessons are automatically moved forward
     
-    // Trigger a refresh of the schedule cache if needed
+    // Trigger a refresh of the schedule cache to ensure updated data
     clearSystemCache();
+    
+    // Force regeneration of schedules by calling fetchAndGenerateSchedules
+    // This ensures that the rescheduled lessons are properly generated and stored
+    try {
+      await fetchAndGenerateSchedules(courseInstanceId);
+      console.log('Successfully regenerated schedules after cancellation');
+    } catch (error) {
+      console.error('Error regenerating schedules after cancellation:', error);
+    }
     
     return true;
   } catch (error) {
