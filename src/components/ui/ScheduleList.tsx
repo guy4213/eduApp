@@ -294,11 +294,22 @@ const renderStatusBadge = () => {
     );
   }
 
-  // Check if this is a rescheduled lesson (same lesson that was cancelled but now in new date)
-  const isRescheduledLesson = item.is_rescheduled || 
-    (!item.id.startsWith('cancelled-') && 
-     lessonStatus?.isCompleted === false && 
-     lessonStatus?.isLessonOk === null);
+  // Check if this is a rescheduled lesson
+  // A rescheduled lesson is one that has the is_rescheduled flag OR
+  // it's a regular generated schedule (not cancelled) but the lesson has a cancellation record
+  const isRescheduledLesson = item.is_rescheduled === true;
+  
+  // Debug logging
+  if (item.lesson?.title && lessonStatus?.isCompleted === false) {
+    console.log('Debug lesson status:', {
+      lessonTitle: item.lesson.title,
+      itemId: item.id,
+      isRescheduled: item.is_rescheduled,
+      isReported: isReported,
+      lessonStatus: lessonStatus,
+      scheduledDate: new Date(item.scheduled_start).toISOString().split('T')[0]
+    });
+  }
 
   if (isRescheduledLesson) {
     // This is the rescheduled version - should be available for reporting
@@ -323,7 +334,38 @@ const renderStatusBadge = () => {
   }
 
   // בדיקות הלוגיקה הקיימת
-  if (lessonStatus?.isCompleted === false && !isRescheduledLesson) {
+  // אם השיעור דווח כ"לא התקיים" אבל זה לא שיעור נדחה, בדוק אם יש גם שיעור מבוטל באותו קורס
+  if (lessonStatus?.isCompleted === false && !isRescheduledLesson && !item.id.startsWith('cancelled-')) {
+    // בדוק אם יש שיעור מבוטל עם אותו lesson_id באותו קורס
+    // אם כן, זה כנראה השיעור הנדחה
+    const hasCancelledVersion = lessons.some(lesson => 
+      lesson.id.startsWith('cancelled-') && 
+      lesson.lesson_id === item.lesson?.id &&
+      lesson.course_instance_id === item.course_instance_id
+    );
+    
+    if (hasCancelledVersion) {
+      // זה השיעור הנדחה - הפוך אותו לזמין לדיווח
+      return user.user_metadata.role === "instructor" ? (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() =>
+              nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
+                  state: { selectedDate: selectedDate?.toISOString() }
+             })
+            }
+            className="bg-orange-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-orange-600 shadow-md"
+          >
+            📋 דווח על השיעור (נדחה)
+          </button>
+        </div>
+      ) : (
+        <span className="inline-flex items-center gap-2 text-base font-bold text-orange-700 bg-orange-100 px-4 py-2 rounded-full">
+          📋 נדחה - טרם דווח
+        </span>
+      );
+    }
+    
     return (
       <span 
         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"

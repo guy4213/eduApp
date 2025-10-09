@@ -1692,12 +1692,20 @@ export const generateLessonSchedulesFromPattern = async (
   const rescheduledLessonsMap = new Map();
   const cancelledDatesSet = new Set<string>();
   
+  console.log('Rescheduled lessons data:', rescheduledLessons);
+  
   rescheduledLessons?.forEach(reschedule => {
     rescheduledLessonsMap.set(reschedule.lesson_id, {
       original_date: reschedule.original_scheduled_date,
       new_date: reschedule.rescheduled_to_date
     });
     cancelledDatesSet.add(reschedule.original_scheduled_date);
+    
+    console.log('Added to rescheduled map:', {
+      lessonId: reschedule.lesson_id,
+      originalDate: reschedule.original_scheduled_date,
+      newDate: reschedule.rescheduled_to_date
+    });
   });
   
   // כל השיעורים יקבלו תזמון
@@ -1772,6 +1780,17 @@ export const generateLessonSchedulesFromPattern = async (
               
               // בדוק אם זה שיעור שנדחה (יש לו ביטול אבל הוא מוצג בתאריך חדש)
               const isRescheduledInstance = rescheduledLessonsMap.has(currentLesson.id);
+              
+              // Debug logging for rescheduled lessons
+              if (isRescheduledInstance) {
+                console.log('Creating rescheduled lesson:', {
+                  lessonTitle: currentLesson.title,
+                  lessonId: currentLesson.id,
+                  newDate: dateStr,
+                  originalDate: rescheduledLessonsMap.get(currentLesson.id)?.original_date,
+                  isRescheduled: true
+                });
+              }
               
               generatedSchedules.push({
                 id: `generated-${course_instance_id}-${lessonNumber}`,
