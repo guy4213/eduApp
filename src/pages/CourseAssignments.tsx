@@ -1950,11 +1950,32 @@ const fetchAssignments = async () => {
           (task) => task.lesson_id === lesson.id
         );
 
-        const lessonSchedule = schedulesData.find(
+        // Find the lesson schedule - prioritize rescheduled lessons, then cancelled, then regular
+        let lessonSchedule = schedulesData.find(
           (schedule) =>
             schedule.lesson_id === lesson.id &&
-            schedule.course_instance_id === instanceData.id
+            schedule.course_instance_id === instanceData.id &&
+            schedule.is_rescheduled === true
         );
+        
+        // If no rescheduled lesson found, look for cancelled lesson
+        if (!lessonSchedule) {
+          lessonSchedule = schedulesData.find(
+            (schedule) =>
+              schedule.lesson_id === lesson.id &&
+              schedule.course_instance_id === instanceData.id &&
+              schedule.is_cancelled === true
+          );
+        }
+        
+        // If no cancelled lesson found, look for regular schedule
+        if (!lessonSchedule) {
+          lessonSchedule = schedulesData.find(
+            (schedule) =>
+              schedule.lesson_id === lesson.id &&
+              schedule.course_instance_id === instanceData.id
+          );
+        }
 
         // סטטוס דיווח
         let reportStatus = {
@@ -3076,14 +3097,17 @@ const fetchAssignments = async () => {
                           const lessonStatus = (() => {
                             const report = tasks[0]?.report_status;
                             
-                            // Check if this lesson is rescheduled
+                            // Check if this lesson is rescheduled or cancelled
                             const isRescheduled = tasks[0]?.is_rescheduled === true;
+                            const isCancelled = tasks[0]?.is_cancelled === true;
                             
-                            if (!report?.isReported)
+                            // If lesson is cancelled, show it as cancelled
+                            if (isCancelled) {
                               return {
-                                text: "📋 טרם דווח",
-                                color: "bg-gray-500",
+                                text: "❌ לא התקיים",
+                                color: "bg-red-500 text-white",
                               };
+                            }
                             
                             // If lesson is rescheduled, show it as available for reporting
                             if (isRescheduled) {
@@ -3092,6 +3116,12 @@ const fetchAssignments = async () => {
                                 color: "bg-orange-500 text-white",
                               };
                             }
+                            
+                            if (!report?.isReported)
+                              return {
+                                text: "📋 טרם דווח",
+                                color: "bg-gray-500",
+                              };
                             
                             if (report.isCompleted === false)
                               return {
