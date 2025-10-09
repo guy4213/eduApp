@@ -334,18 +334,15 @@ const renderStatusBadge = () => {
   }
 
   // בדיקות הלוגיקה הקיימת
-  // אם השיעור דווח כ"לא התקיים" אבל זה לא שיעור נדחה, בדוק אם יש גם שיעור מבוטל באותו קורס
   if (lessonStatus?.isCompleted === false && !isRescheduledLesson && !item.id.startsWith('cancelled-')) {
-    // בדוק אם יש שיעור מבוטל עם אותו lesson_id באותו קורס
-    // אם כן, זה כנראה השיעור הנדחה
-    const hasCancelledVersion = lessons.some(lesson => 
+    // בדוק אם השיעור הזה כבר מוצג כמבוטל במערך הנוכחי
+    const isAlreadyShownAsCancelled = sortedLessons.some(lesson => 
       lesson.id.startsWith('cancelled-') && 
-      lesson.lesson_id === item.lesson?.id &&
-      lesson.course_instance_id === item.course_instance_id
+      lesson.lesson_id === item.lesson?.id
     );
     
-    if (hasCancelledVersion) {
-      // זה השיעור הנדחה - הפוך אותו לזמין לדיווח
+    if (isAlreadyShownAsCancelled) {
+      // השיעור כבר מוצג כמבוטל, אז זה השיעור הנדחה - הצג כזמין לדיווח
       return user.user_metadata.role === "instructor" ? (
         <div className="flex items-center gap-2">
           <button
@@ -366,6 +363,7 @@ const renderStatusBadge = () => {
       );
     }
     
+    // אחרת, זה באמת שיעור שלא התקיים
     return (
       <span 
         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
