@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { cancelLesson, rescheduleAfterCancellation } from "@/services/cancellationService";
+import { cancelLesson } from "@/services/cancellationService";
+import { rescheduleAfterCancellation } from "@/utils/scheduleUtils";
 import { AlertTriangle, Calendar, Clock, BookOpen } from "lucide-react";
 
 interface LessonCancellationDialogProps {

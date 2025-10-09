@@ -43,7 +43,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import FeedbackDialog from "@/components/FeedbackDialog";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { rescheduleAfterCancellation } from "@/services/cancellationService";
+import { rescheduleAfterCancellation } from "@/utils/scheduleUtils";
 
 const LessonReport = () => {
   const fileInputRef = useRef(null);
