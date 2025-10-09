@@ -1990,6 +1990,8 @@ const fetchAssignments = async () => {
           scheduled_start: lessonSchedule?.scheduled_start || null,
           scheduled_end: lessonSchedule?.scheduled_end || null,
           report_status: reportStatus,
+          is_rescheduled: lessonSchedule?.is_rescheduled || false,
+          is_cancelled: lessonSchedule?.is_cancelled || false,
         }));
       });
 
@@ -2250,12 +2252,21 @@ const fetchAssignments = async () => {
   };
 
   // שיפור פונקציית רינדור סטטוס עם טיפול בשגיאות
-  const renderReportStatus = (reportStatus: any) => {
+  const renderReportStatus = (reportStatus: any, isRescheduled: boolean = false) => {
     try {
       if (!reportStatus?.isReported) {
         return (
           <Badge variant="outline" className="bg-gray-100 text-gray-700">
             📋 טרם דווח
+          </Badge>
+        );
+      }
+
+      // If lesson is rescheduled, show it as available for reporting
+      if (isRescheduled) {
+        return (
+          <Badge className="bg-orange-500 text-white border-orange-600">
+            📋 נדחה - טרם דווח
           </Badge>
         );
       }
@@ -3053,11 +3064,24 @@ const fetchAssignments = async () => {
                           // חישוב סטטוס ברמת השיעור
                           const lessonStatus = (() => {
                             const report = tasks[0]?.report_status;
+                            
+                            // Check if this lesson is rescheduled
+                            const isRescheduled = tasks[0]?.is_rescheduled === true;
+                            
                             if (!report?.isReported)
                               return {
                                 text: "📋 טרם דווח",
                                 color: "bg-gray-500",
                               };
+                            
+                            // If lesson is rescheduled, show it as available for reporting
+                            if (isRescheduled) {
+                              return {
+                                text: "📋 נדחה - טרם דווח",
+                                color: "bg-orange-500 text-white",
+                              };
+                            }
+                            
                             if (report.isCompleted === false)
                               return {
                                 text: "❌ לא התקיים",

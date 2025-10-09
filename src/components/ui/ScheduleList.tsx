@@ -295,8 +295,7 @@ const renderStatusBadge = () => {
   }
 
   // Check if this is a rescheduled lesson
-  // A rescheduled lesson is one that has the is_rescheduled flag OR
-  // it's a regular generated schedule (not cancelled) but the lesson has a cancellation record
+  // A rescheduled lesson is one that has the is_rescheduled flag
   const isRescheduledLesson = item.is_rescheduled === true;
   
   // Debug logging
