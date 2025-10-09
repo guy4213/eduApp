@@ -1760,6 +1760,8 @@ export const generateLessonSchedulesFromPattern = async (
                 is_cancelled: true
               });
             }
+            
+            // לא מתקדמים ב-lessonIndex כי השיעור המבוטל יוצג שוב בתאריך הבא
           } else {
             // הוסף שיעור רגיל
             if (lessonIndex < allLessons.length) {
