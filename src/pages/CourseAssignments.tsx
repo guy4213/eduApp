@@ -1829,7 +1829,6 @@ const fetchAssignments = async () => {
       .filter(Boolean) || [];
     const courseInstanceIds = coursesData.map((instance) => instance.id);
 
-    
     // *** טעינה מקבילה של כל הנתונים ***
     const [lessonsData, schedulesData, statusMap] = await Promise.all([
       // *** שליפת שיעורים - כולל ייחודיים ***
@@ -1946,31 +1945,15 @@ const fetchAssignments = async () => {
       }
 
       // *** בניית המשימות ***
-      // Get all schedules for this course instance (like ScheduleList does)
-      const courseSchedules = schedulesData.filter(
-        (schedule) => schedule.course_instance_id === instanceData.id
-      );
-
-
-      // Create tasks for each schedule (like ScheduleList does)
-      // But avoid duplicates by grouping by lesson_id and prioritizing rescheduled/cancelled
-      const scheduleMap = new Map();
-      
-      courseSchedules.forEach((schedule) => {
-        const key = schedule.lesson_id;
-        
-        // If this is a rescheduled or cancelled lesson, prioritize it
-        if (schedule.is_rescheduled || schedule.is_cancelled) {
-          scheduleMap.set(key, schedule);
-        } else if (!scheduleMap.has(key)) {
-          // Only add regular schedule if no rescheduled/cancelled version exists
-          scheduleMap.set(key, schedule);
-        }
-      });
-
-      const allCourseTasks = Array.from(scheduleMap.values()).flatMap((schedule) => {
+      const allCourseTasks = courseLessons.flatMap((lesson, lessonIndex) => {
         const lessonTasks = tasksData.filter(
-          (task) => task.lesson_id === schedule.lesson_id
+          (task) => task.lesson_id === lesson.id
+        );
+
+        const lessonSchedule = schedulesData.find(
+          (schedule) =>
+            schedule.lesson_id === lesson.id &&
+            schedule.course_instance_id === instanceData.id
         );
 
         // סטטוס דיווח
@@ -1982,8 +1965,8 @@ const fetchAssignments = async () => {
         };
 
         const possibleKeys = [
-          schedule.id,
-          `${instanceData.id}_${schedule.lesson_id}`,
+          lessonSchedule?.id,
+          `${instanceData.id}_${lesson.id}`,
         ].filter(Boolean);
 
         for (const key of possibleKeys) {
@@ -2001,14 +1984,14 @@ const fetchAssignments = async () => {
 
         return lessonTasks.map((task) => ({
           ...task,
-          lesson_title: schedule.lesson?.title || task.lesson_title,
-          lesson_id: schedule.lesson_id,
-          lesson_number: schedule.lesson_number || 1,
-          scheduled_start: schedule.scheduled_start || null,
-          scheduled_end: schedule.scheduled_end || null,
+          lesson_title: lesson.title,
+          lesson_id: lesson.id,
+          lesson_number: lessonIndex + 1,
+          scheduled_start: lessonSchedule?.scheduled_start || null,
+          scheduled_end: lessonSchedule?.scheduled_end || null,
           report_status: reportStatus,
-          is_rescheduled: schedule.is_rescheduled || false,
-          is_cancelled: schedule.is_cancelled || false,
+          is_rescheduled: lessonSchedule?.is_rescheduled || false,
+          is_cancelled: lessonSchedule?.is_cancelled || false,
         }));
       });
 
@@ -2153,22 +2136,11 @@ const fetchAssignments = async () => {
       fetchAssignments();
     };
 
-    // Listen for lesson cancellation events
-    const handleLessonCancellation = () => {
-      console.log(
-        "CourseAssignments: Lesson cancelled event received, refreshing assignments..."
-      );
-      statusCache.clear();
-      fetchAssignments();
-    };
-
     window.addEventListener("lessonReportUpdated", handleCustomEvent);
-    window.addEventListener("lessonCancelled", handleLessonCancellation);
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("lessonReportUpdated", handleCustomEvent);
-      window.removeEventListener("lessonCancelled", handleLessonCancellation);
     };
   }, []);
 
@@ -3089,35 +3061,24 @@ const fetchAssignments = async () => {
                     <div className="space-y-6">
                       {Object.entries(groupTasksByLesson(assignment.tasks)).map(
                         ([lessonNumber, tasks]) => {
-                          // חישוב סטטוס ברמת השיעור (like ScheduleList)
+                          // חישוב סטטוס ברמת השיעור
                           const lessonStatus = (() => {
                             const report = tasks[0]?.report_status;
+                            
+                            // Check if this lesson is rescheduled
                             const isRescheduled = tasks[0]?.is_rescheduled === true;
-                            const isCancelled = tasks[0]?.is_cancelled === true;
                             
-                            // Check if this is a cancelled lesson in its original date (like ScheduleList)
-                            if (isCancelled && tasks[0]?.scheduled_start) {
-                              const scheduledDate = new Date(tasks[0].scheduled_start).toISOString().split('T')[0];
-                              // This is a cancelled lesson - show it as cancelled
+                            if (!report?.isReported)
                               return {
-                                text: "❌ לא התקיים",
-                                color: "bg-red-500 text-white",
+                                text: "📋 טרם דווח",
+                                color: "bg-gray-500",
                               };
-                            }
                             
-                            // Check if this is a rescheduled lesson (like ScheduleList)
+                            // If lesson is rescheduled, show it as available for reporting
                             if (isRescheduled) {
                               return {
                                 text: "📋 נדחה - טרם דווח",
                                 color: "bg-orange-500 text-white",
-                              };
-                            }
-                            
-                            // Regular lesson logic
-                            if (!report?.isReported) {
-                              return {
-                                text: "📋 טרם דווח",
-                                color: "bg-gray-500",
                               };
                             }
                             
