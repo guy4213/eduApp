@@ -43,6 +43,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import FeedbackDialog from "@/components/FeedbackDialog";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { rescheduleSpecificLesson } from "@/services/lessonReschedulingService";
 
 const LessonReport = () => {
   const fileInputRef = useRef(null);
@@ -66,6 +67,7 @@ const LessonReport = () => {
   const queryParams = new URLSearchParams(location.search);
   const scheduleId = queryParams.get("scheduleId");
   const courseInstanceIdFromUrl = queryParams.get("courseInstanceId");
+  const selectedDate = location.state?.selectedDate ? new Date(location.state.selectedDate) : null;
 
   const [lesson, setLesson] = useState(null);
   const [lessonTasks, setLessonTasks] = useState([]);
@@ -74,6 +76,7 @@ const LessonReport = () => {
   const [loading, setLoading] = useState(false);
   const [isLessonOk, setIsLessonOk] = useState(false);
   const [isCompleted, setIsCompleted] = useState(true); // האם השיעור התקיים
+  const [cancellationReason, setCancellationReason] = useState(""); // סיבת הביטול
   const [maxPar, setMaxPar] = useState(null);
   const { user } = useAuth();
   const [selectedReport, setSelectedReport] = useState(null);
@@ -1252,6 +1255,16 @@ const handleSubmit = async () => {
     return;
   }
 
+  // בדיקת סיבת ביטול אם השיעור לא התקיים
+  if (!isCompleted && !cancellationReason.trim()) {
+    toast({
+      title: "שגיאה",
+      description: "נא להזין סיבה לביטול השיעור",
+      variant: "destructive",
+    });
+    return;
+  }
+
   // בדיקת משוב רק אם השיעור התקיים ולא התנהל כשורה
   if (isCompleted && !isLessonOk && !feedback.trim()) {
     toast({
@@ -1321,6 +1334,8 @@ const handleSubmit = async () => {
       instructor_id: user.id,
       is_lesson_ok: isCompleted ? isLessonOk : null,
       is_completed: isCompleted,
+      is_cancelled: !isCompleted,
+      cancellation_reason: !isCompleted ? cancellationReason.trim() : null,
       completed_task_ids: checkedTasks,
       lesson_id: id,
     };
@@ -1340,6 +1355,42 @@ const handleSubmit = async () => {
     if (reportError) throw reportError;
 
     console.log("Lesson report created:", reportData);
+
+    // If lesson is cancelled, reschedule it to the next available date
+    if (!isCompleted && courseInstanceIdForReport) {
+      try {
+        const originalDate = selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        
+        const rescheduleResult = await rescheduleSpecificLesson(
+          courseInstanceIdForReport,
+          id,
+          originalDate,
+          cancellationReason.trim()
+        );
+
+        if (rescheduleResult.success) {
+          console.log('Lesson rescheduled successfully:', rescheduleResult);
+          toast({
+            title: "השיעור תוזמן מחדש",
+            description: rescheduleResult.message,
+          });
+        } else {
+          console.error('Error rescheduling lesson:', rescheduleResult.error);
+          toast({
+            title: "שגיאה בתזמון מחדש",
+            description: rescheduleResult.message,
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('Error in rescheduling process:', error);
+        toast({
+          title: "שגיאה בתזמון מחדש",
+          description: "אירעה שגיאה בתזמון מחדש של השיעור",
+          variant: "destructive",
+        });
+      }
+    }
 
     // Create a record in reported_lesson_instances
     const reportedInstanceData = {
@@ -1595,7 +1646,17 @@ if (isCompleted && checkedTasks.length < lessonTasks.length) {
       }
     }
 
-    toast({ title: "הצלחה!", description: "דיווח השיעור נשמר בהצלחה" });
+    if (!isCompleted) {
+      toast({ 
+        title: "השיעור בוטל בהצלחה!", 
+        description: "השיעור יוצג כמבוטל בתאריך המקורי ויועבר לתאריך הבא הפנוי. כל השיעורים הבאים נדחו אוטומטית."
+      });
+    } else {
+      toast({ 
+        title: "הצלחה!", 
+        description: "דיווח השיעור נשמר בהצלחה" 
+      });
+    }
 
     // Report work hour only after successful submission
     const { error: workHourError } = await supabase.rpc('report_work_hour');
@@ -1614,6 +1675,11 @@ if (isCompleted && checkedTasks.length < lessonTasks.length) {
     // Trigger dashboard refresh
     localStorage.setItem("lessonReportUpdated", Date.now().toString());
     window.dispatchEvent(new Event("lessonReportUpdated"));
+    
+    // Trigger cancellation event if lesson was cancelled
+    if (!isCompleted) {
+      window.dispatchEvent(new Event('lessonCancelled'));
+    }
 
     // Reset form
     setLessonTitle("");
@@ -1624,6 +1690,7 @@ if (isCompleted && checkedTasks.length < lessonTasks.length) {
     setMarketingConsent(false);
     setIsCompleted(true);
     setIsLessonOk(false);
+    setCancellationReason("");
     setAttendanceList((prev) =>
       prev.map((student) => ({ ...student, isPresent: false, isNew: false }))
     );
@@ -1971,6 +2038,20 @@ console.log('reports',filteredReports)
                     <label className="text-sm pr-1">
                       האם השיעור התנהל כשורה?{" "}
                     </label>
+                  </div>
+                )}
+
+                {!isCompleted && (
+                  <div>
+                    <Label htmlFor="cancellation-reason">סיבת הביטול *</Label>
+                    <Textarea
+                      id="cancellation-reason"
+                      value={cancellationReason}
+                      onChange={(e) => setCancellationReason(e.target.value)}
+                      placeholder="נא לציין את הסיבה לביטול השיעור (טיול, טקס, מחלה וכו')"
+                      rows={2}
+                      required={!isCompleted}
+                    />
                   </div>
                 )}
 
