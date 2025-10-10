@@ -3035,6 +3035,20 @@ const fetchAssignments = async () => {
                     <div className="space-y-6">
                       {Object.entries(groupTasksByLesson(assignment.tasks)).map(
                         ([lessonNumber, tasks]) => {
+                          // סינון משימות - הצג רק משימות רלוונטיות
+                          const relevantTasks = tasks.filter(task => {
+                            // אם יש שיעור בוטל, הצג רק את המשימות שלו
+                            if (task.is_cancelled) {
+                              return true;
+                            }
+                            // אם יש שיעור נדחה, הצג רק את המשימות שלו
+                            if (task.is_postponed) {
+                              return true;
+                            }
+                            // אחרת, הצג רק משימות שלא בוטלו ולא נדחו
+                            return !task.is_cancelled && !task.is_postponed;
+                          });
+
                           // חישוב סטטוס ברמת השיעור
                           const lessonStatus = (() => {
                             const report = tasks[0]?.report_status;
@@ -3114,7 +3128,7 @@ const fetchAssignments = async () => {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {tasks
+                                  {relevantTasks
                                     .sort(
                                       (a, b) => a.order_index - b.order_index
                                     )
