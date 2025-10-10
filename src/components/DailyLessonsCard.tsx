@@ -270,6 +270,35 @@ const instructorMap = useMemo(() => {
             );
           }
 
+          // בדיקה אם זה שיעור בוטל
+          if (lesson?.is_cancelled) {
+            return (
+              <button
+                disabled
+                className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
+                style={{backgroundColor: '#FF6B6B'}}
+                title="השיעור בוטל"
+              >
+                ❌ בוטל
+              </button>
+            );
+          }
+          
+          // בדיקה אם זה שיעור נדחה - צריך להיות לפני בדיקת lessonStatus
+          if (lesson?.is_postponed) {
+            return (
+              <button
+                className="rounded-full px-4 py-3 flex items-center font-bold text-base text-white hover:opacity-80 transition-opacity"
+                style={{backgroundColor: '#4ECDC4'}}
+                title="השיעור נדחה - ניתן לדווח"
+                onClick={() => handleLessonClick(lesson)}
+              >
+                📅 נדחה - טרם דווח
+              </button>
+            );
+          }
+          
+          // בדיקה אם השיעור לא התקיים
           if (lessonStatus?.isCompleted === false) {
             return (
               <button

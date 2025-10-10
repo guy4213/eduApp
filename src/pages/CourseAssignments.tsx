@@ -1950,11 +1950,20 @@ const fetchAssignments = async () => {
           (task) => task.lesson_id === lesson.id
         );
 
-        const lessonSchedule = schedulesData.find(
+        // מצא את כל התזמונים הרלוונטיים לשיעור זה
+        const lessonSchedules = schedulesData.filter(
           (schedule) =>
             schedule.lesson_id === lesson.id &&
             schedule.course_instance_id === instanceData.id
         );
+        
+        // מיון לפי תאריך - התאריך הקדום ביותר ראשון
+        lessonSchedules.sort((a, b) => 
+          new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
+        );
+        
+        // השתמש בתזמון הראשון (הקדום ביותר) כבסיס
+        const lessonSchedule = lessonSchedules[0];
 
         // סטטוס דיווח
         let reportStatus = {
@@ -1982,15 +1991,41 @@ const fetchAssignments = async () => {
           }
         }
 
-        return lessonTasks.map((task) => ({
-          ...task,
-          lesson_title: lesson.title,
-          lesson_id: lesson.id,
-          lesson_number: lessonIndex + 1,
-          scheduled_start: lessonSchedule?.scheduled_start || null,
-          scheduled_end: lessonSchedule?.scheduled_end || null,
-          report_status: reportStatus,
-        }));
+        // צור משימה עבור כל תזמון (בוטל ונדחה)
+        return lessonSchedules.map((schedule, scheduleIndex) => {
+          // סטטוס דיווח עבור התזמון הספציפי
+          let scheduleReportStatus = { ...reportStatus };
+          
+          // בדוק אם יש דיווח עבור התזמון הזה
+          const possibleKeys = [
+            schedule.id,
+            `${instanceData.id}_${lesson.id}`,
+          ];
+          
+          for (const key of possibleKeys) {
+            if (statusMap.has(key)) {
+              scheduleReportStatus = statusMap.get(key);
+              break;
+            }
+          }
+          
+          return lessonTasks.map((task) => ({
+            ...task,
+            lesson_title: lesson.title,
+            lesson_id: lesson.id,
+            lesson_number: lessonIndex + 1,
+            scheduled_start: schedule.scheduled_start,
+            scheduled_end: schedule.scheduled_end,
+            report_status: scheduleReportStatus,
+            is_cancelled: schedule.is_cancelled || false,
+            is_postponed: schedule.is_postponed || false,
+            original_scheduled_date: schedule.original_scheduled_date,
+            new_scheduled_date: schedule.new_scheduled_date,
+            // הוסף מזהה ייחודי לכל תזמון
+            schedule_id: schedule.id,
+            schedule_index: scheduleIndex,
+          }));
+        }).flat();
       });
 
       return {
@@ -2249,56 +2284,6 @@ const fetchAssignments = async () => {
     return `${day}.${month}.${year} ${hours}:${minutes}`;
   };
 
-  // שיפור פונקציית רינדור סטטוס עם טיפול בשגיאות
-  const renderReportStatus = (reportStatus: any) => {
-    try {
-      if (!reportStatus?.isReported) {
-        return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-700">
-            📋 טרם דווח
-          </Badge>
-        );
-      }
-
-      if (reportStatus.isCompleted === false) {
-        return (
-          <Badge className="bg-orange-500 text-white border-orange-600">
-            ❌ לא התקיים
-          </Badge>
-        );
-      }
-
-      if (reportStatus.isCompleted && reportStatus.isLessonOk === false) {
-        return (
-          <Badge className="bg-red-500 text-white border-red-600">
-            ⚠️ לא התנהל כשורה
-          </Badge>
-        );
-      }
-
-      if (reportStatus.isCompleted && reportStatus.isLessonOk !== false) {
-        return (
-          <Badge className="bg-green-500 text-white border-green-600">
-            ✅ דווח והתקיים
-          </Badge>
-        );
-      }
-
-      // Fallback for unknown states
-      return (
-        <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-          ❓ סטטוס לא ברור
-        </Badge>
-      );
-    } catch (error) {
-      console.error("Error rendering report status:", error);
-      return (
-        <Badge variant="outline" className="bg-red-100 text-red-800">
-          ⚠️ שגיאה
-        </Badge>
-      );
-    }
-  };
 
   // Redirect if user doesn't have permission to view page
   // if (!hasAdminAccess && !isInstructor) {
@@ -3058,11 +3043,29 @@ const fetchAssignments = async () => {
                                 text: "📋 טרם דווח",
                                 color: "bg-gray-500",
                               };
-                            if (report.isCompleted === false)
+                            // בדיקה אם זה שיעור בוטל
+                            if (tasks[0]?.is_cancelled) {
+                              return {
+                                text: "❌ בוטל",
+                                color: "bg-red-500 text-white",
+                              };
+                            }
+                            
+                            // בדיקה אם זה שיעור נדחה
+                            if (tasks[0]?.is_postponed) {
+                              return {
+                                text: "📅 נדחה - טרם דווח",
+                                color: "bg-cyan-500 text-white",
+                              };
+                            }
+                            
+                            // בדיקה אם השיעור לא התקיים
+                            if (report.isCompleted === false) {
                               return {
                                 text: "❌ לא התקיים",
                                 color: "bg-orange-500 text-white",
                               };
+                            }
                             if (
                               report.isCompleted &&
                               report.isLessonOk === false
