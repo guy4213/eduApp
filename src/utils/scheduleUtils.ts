@@ -1447,6 +1447,7 @@ interface TimeSlot {
   [key: string]: Json | undefined;
 }
 
+
 interface CourseInstanceSchedule {
   id: string;
   course_instance_id: string;
@@ -1502,6 +1503,19 @@ export const formatDateLocal = (date: Date): string => {
     "-" +
     String(date.getDate()).padStart(2, "0")
   );
+};
+// --- פונקציה חדשה לשליפת התאמות ---
+const getScheduleAdjustments = async (courseInstanceId: string): Promise<Set<string>> => {
+  const { data, error } = await supabase
+    .from('schedule_adjustments')
+    .select('original_scheduled_date')
+    .eq('course_instance_id', courseInstanceId);
+
+  if (error) {
+    console.error('Error fetching schedule adjustments:', error);
+    return new Set();
+  }
+  return new Set(data.map(adj => adj.original_scheduled_date));
 };
 
 export const getSystemDefaults = async (forceRefresh: boolean = false): Promise<SystemDefaults> => {
@@ -1648,113 +1662,113 @@ export const clearSystemCache = (): void => {
  * Enhanced version that doesn't exclude reported lessons from generation
  * Only excludes lessons that have actual saved schedules
  */
-export const generateLessonSchedulesFromPattern = async (
-  courseInstanceSchedule: CourseInstanceSchedule,
-  lessons: any[],
-  courseStartDate: string,
-  courseEndDate?: string
-): Promise<GeneratedLessonSchedule[]> => {
-  const generatedSchedules: GeneratedLessonSchedule[] = [];
-  const { days_of_week, time_slots, total_lessons, course_instance_id } = courseInstanceSchedule;
+// export const generateLessonSchedulesFromPattern = async (
+//   courseInstanceSchedule: CourseInstanceSchedule,
+//   lessons: any[],
+//   courseStartDate: string,
+//   courseEndDate?: string
+// ): Promise<GeneratedLessonSchedule[]> => {
+//   const generatedSchedules: GeneratedLessonSchedule[] = [];
+//   const { days_of_week, time_slots, total_lessons, course_instance_id } = courseInstanceSchedule;
   
-  if (!days_of_week.length || !time_slots.length || !lessons.length) {
-    return generatedSchedules;
-  }
+//   if (!days_of_week.length || !time_slots.length || !lessons.length) {
+//     return generatedSchedules;
+//   }
 
-  // בדיקת שיעורים מדווחים
-  const { data: existingReports } = await supabase
-    .from('reported_lesson_instances')
-    .select('lesson_id, lesson_number, scheduled_date')
-    .eq('course_instance_id', course_instance_id)
-    .order('lesson_number', { ascending: true });
+//   // בדיקת שיעורים מדווחים
+//   const { data: existingReports } = await supabase
+//     .from('reported_lesson_instances')
+//     .select('lesson_id, lesson_number, scheduled_date')
+//     .eq('course_instance_id', course_instance_id)
+//     .order('lesson_number', { ascending: true });
 
-  // יצירת מפה של שיעורים מדווחים
-  const reportedLessonsMap = new Map();
-  const reportedLessonIds = new Set();
+//   // יצירת מפה של שיעורים מדווחים
+//   const reportedLessonsMap = new Map();
+//   const reportedLessonIds = new Set();
   
-  existingReports?.forEach(report => {
-    reportedLessonIds.add(report.lesson_id);
-    reportedLessonsMap.set(report.lesson_id, {
-      lesson_number: report.lesson_number,
-      scheduled_date: report.scheduled_date
-    });
-  });
+//   existingReports?.forEach(report => {
+//     reportedLessonIds.add(report.lesson_id);
+//     reportedLessonsMap.set(report.lesson_id, {
+//       lesson_number: report.lesson_number,
+//       scheduled_date: report.scheduled_date
+//     });
+//   });
   
-  // אין צורך לסנן שיעורים - כולם מקבלים תזמון
-  // שיעורים מדווחים יקבלו את אותו תזמון בדיוק
-  const unscheduledLessons = lessons;
+//   // אין צורך לסנן שיעורים - כולם מקבלים תזמון
+//   // שיעורים מדווחים יקבלו את אותו תזמון בדיוק
+//   const unscheduledLessons = lessons;
 
-  // מציאת התאריך ההתחלתי לתזמון
-  let currentDate = new Date(courseStartDate);
+//   // מציאת התאריך ההתחלתי לתזמון
+//   let currentDate = new Date(courseStartDate);
   
-  // מצא את היום הראשון המתאים בפטרן
-  while (!days_of_week.includes(currentDate.getDay())) {
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
+//   // מצא את היום הראשון המתאים בפטרן
+//   while (!days_of_week.includes(currentDate.getDay())) {
+//     currentDate.setDate(currentDate.getDate() + 1);
+//   }
 
-  const endDateTime = courseEndDate ? new Date(courseEndDate) : null;
-  const maxLessons = total_lessons || lessons.length;
+//   const endDateTime = courseEndDate ? new Date(courseEndDate) : null;
+//   const maxLessons = total_lessons || lessons.length;
   
-  let lessonIndex = 0;
-  let lessonNumber = 1;
-  const sortedDays = [...days_of_week].sort();
+//   let lessonIndex = 0;
+//   let lessonNumber = 1;
+//   const sortedDays = [...days_of_week].sort();
   
-  // יצירת תזמון לכל השיעורים
-  while (lessonIndex < lessons.length && lessonNumber <= maxLessons) {
-    const dayOfWeek = currentDate.getDay();
+//   // יצירת תזמון לכל השיעורים
+//   while (lessonIndex < lessons.length && lessonNumber <= maxLessons) {
+//     const dayOfWeek = currentDate.getDay();
     
-    if (sortedDays.includes(dayOfWeek)) {
-      const timeSlot = time_slots.find(ts => ts.day === dayOfWeek);
+//     if (sortedDays.includes(dayOfWeek)) {
+//       const timeSlot = time_slots.find(ts => ts.day === dayOfWeek);
       
-      if (timeSlot && timeSlot.start_time && timeSlot.end_time) {
-        const isBlocked = await isDateBlocked(currentDate);
+//       if (timeSlot && timeSlot.start_time && timeSlot.end_time) {
+//         const isBlocked = await isDateBlocked(currentDate);
         
-        if (!isBlocked) {
-          if (endDateTime && currentDate > endDateTime) {
-            break;
-          }
+//         if (!isBlocked) {
+//           if (endDateTime && currentDate > endDateTime) {
+//             break;
+//           }
 
-          const dateStr = currentDate.toISOString().split('T')[0];
-          const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
-          const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
+//           const dateStr = currentDate.toISOString().split('T')[0];
+//           const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
+//           const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
           
-          const currentLesson = lessons[lessonIndex];
+//           const currentLesson = lessons[lessonIndex];
           
-          // בדוק אם השיעור כבר דווח
-          const reportedInfo = reportedLessonsMap.get(currentLesson.id);
-          const isReported = reportedLessonIds.has(currentLesson.id);
+//           // בדוק אם השיעור כבר דווח
+//           const reportedInfo = reportedLessonsMap.get(currentLesson.id);
+//           const isReported = reportedLessonIds.has(currentLesson.id);
           
-          generatedSchedules.push({
-            id: `generated-${course_instance_id}-${lessonNumber}`,
-            course_instance_id: course_instance_id,
-            lesson_id: currentLesson.id,
-            scheduled_start: scheduledStart,
-            scheduled_end: scheduledEnd,
-            lesson_number: lessonNumber,
-            lesson: currentLesson,
-            is_generated: true,
-            is_reported: isReported // סימון אם השיעור דווח
-          });
+//           generatedSchedules.push({
+//             id: `generated-${course_instance_id}-${lessonNumber}`,
+//             course_instance_id: course_instance_id,
+//             lesson_id: currentLesson.id,
+//             scheduled_start: scheduledStart,
+//             scheduled_end: scheduledEnd,
+//             lesson_number: lessonNumber,
+//             lesson: currentLesson,
+//             is_generated: true,
+//             is_reported: isReported // סימון אם השיעור דווח
+//           });
 
-          lessonIndex++;
-          lessonNumber++;
-        } else {
-          console.log(`Skipping blocked date: ${currentDate.toISOString().split('T')[0]}`);
-        }
-      }
-    }
+//           lessonIndex++;
+//           lessonNumber++;
+//         } else {
+//           console.log(`Skipping blocked date: ${currentDate.toISOString().split('T')[0]}`);
+//         }
+//       }
+//     }
 
-    currentDate.setDate(currentDate.getDate() + 1);
+//     currentDate.setDate(currentDate.getDate() + 1);
     
-    if (currentDate.getTime() - new Date(courseStartDate).getTime() > 365 * 24 * 60 * 60 * 1000) {
-      console.warn('Schedule generation stopped: exceeded 1 year from start date');
-      break;
-    }
-  }
+//     if (currentDate.getTime() - new Date(courseStartDate).getTime() > 365 * 24 * 60 * 60 * 1000) {
+//       console.warn('Schedule generation stopped: exceeded 1 year from start date');
+//       break;
+//     }
+//   }
 
-  console.log(`Generated ${generatedSchedules.length} schedules (including reported lessons)`);
-  return generatedSchedules;
-};
+//   console.log(`Generated ${generatedSchedules.length} schedules (including reported lessons)`);
+//   return generatedSchedules;
+// };
 
 // export const fetchAndGenerateSchedules = async (
 //   courseInstanceId?: string
@@ -1855,7 +1869,91 @@ export const generateLessonSchedulesFromPattern = async (
 //   }
 // };
 
+export const generateLessonSchedulesFromPattern = async (
+  courseInstanceSchedule: CourseInstanceSchedule,
+  lessons: any[],
+  courseStartDate: string,
+  courseEndDate?: string
+): Promise<GeneratedLessonSchedule[]> => {
+  const generatedSchedules: GeneratedLessonSchedule[] = [];
+  const { days_of_week, time_slots, total_lessons, course_instance_id } = courseInstanceSchedule;
 
+  if (!days_of_week?.length || !time_slots?.length || !lessons?.length) {
+    return generatedSchedules;
+  }
+
+  // שליפת החסימות הגלובליות והפרטיות במקביל
+  const [globalBlockedDates, instanceAdjustments] = await Promise.all([
+    getBlockedDates(),
+    getScheduleAdjustments(course_instance_id)
+  ]);
+
+  let currentDate = new Date(courseStartDate);
+  const endDateTime = courseEndDate ? new Date(courseEndDate) : null;
+  const maxLessons = total_lessons || lessons.length;
+
+  let lessonIndex = 0;
+  let lessonNumber = 1;
+  const sortedDays = [...days_of_week].sort();
+
+  while (lessonIndex < lessons.length && (!maxLessons || lessonNumber <= maxLessons)) {
+    const dayOfWeek = currentDate.getDay();
+
+    if (sortedDays.includes(dayOfWeek)) {
+      const timeSlot = time_slots.find(ts => ts.day === dayOfWeek);
+
+      if (timeSlot && timeSlot.start_time && timeSlot.end_time) {
+        const currentDateStr = currentDate.toISOString().split('T')[0];
+        
+        // בדיקה משולבת של כל החסימות
+        const isGloballyBlocked = globalBlockedDates.some(blocked => {
+             if (blocked.date) return blocked.date === currentDateStr;
+             if (blocked.start_date && blocked.end_date) {
+                 return currentDateStr >= blocked.start_date && currentDateStr <= blocked.end_date;
+             }
+             return false;
+        });
+        const isLocallyBlocked = instanceAdjustments.has(currentDateStr);
+
+        if (!isGloballyBlocked && !isLocallyBlocked) {
+          if (endDateTime && currentDate > endDateTime) {
+            break;
+          }
+
+          const scheduledStart = `${currentDateStr}T${timeSlot.start_time}:00`;
+          const scheduledEnd = `${currentDateStr}T${timeSlot.end_time}:00`;
+          const currentLesson = lessons[lessonIndex];
+
+          generatedSchedules.push({
+            id: `generated-${course_instance_id}-${lessonNumber}`,
+            course_instance_id: course_instance_id,
+            lesson_id: currentLesson.id,
+            scheduled_start: scheduledStart,
+            scheduled_end: scheduledEnd,
+            lesson_number: lessonNumber,
+            lesson: currentLesson,
+            is_generated: true,
+          });
+
+          lessonIndex++;
+          lessonNumber++;
+        } else {
+          console.log(`Skipping date ${currentDateStr} (Global: ${isGloballyBlocked}, Local: ${isLocallyBlocked})`);
+        }
+      }
+    }
+
+    currentDate.setDate(currentDate.getDate() + 1);
+
+    // מנגנון הגנה מפני לולאה אינסופית
+    if (currentDate.getTime() - new Date(courseStartDate).getTime() > (365 * 2 * 24 * 60 * 60 * 1000)) { // שנתיים
+      console.warn('Schedule generation stopped: exceeded 2 years from start date');
+      break;
+    }
+  }
+
+  return generatedSchedules;
+};
 
 export const fetchAndGenerateSchedules = async (
   courseInstanceId?: string
