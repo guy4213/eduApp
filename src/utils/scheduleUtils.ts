@@ -1524,6 +1524,7 @@ const getScheduleAdjustments = async (courseInstanceId: string): Promise<Set<str
 
 // --- פונקציה חדשה לשליפת התאמות מפורטות ---
 const getDetailedScheduleAdjustments = async (courseInstanceId: string) => {
+  console.log(`[DEBUG] Fetching detailed adjustments for course ${courseInstanceId}`);
   const { data, error } = await supabase
     .from('schedule_adjustments')
     .select('*')
@@ -1535,6 +1536,7 @@ const getDetailedScheduleAdjustments = async (courseInstanceId: string) => {
     console.error('Error fetching detailed schedule adjustments:', error);
     return [];
   }
+  console.log(`[DEBUG] Found ${data?.length || 0} detailed adjustments:`, data);
   return data || [];
 };
 
@@ -1980,7 +1982,9 @@ export const generateLessonSchedulesFromPattern = async (
   }
 
   // הוספת שיעורים נדחים
+  console.log(`[DEBUG] Found ${detailedAdjustments.length} detailed adjustments for course ${course_instance_id}`);
   for (const adjustment of detailedAdjustments) {
+    console.log(`[DEBUG] Processing adjustment:`, adjustment);
     const originalDate = new Date(adjustment.original_scheduled_date);
     const dayOfWeek = originalDate.getDay();
     
@@ -1993,6 +1997,7 @@ export const generateLessonSchedulesFromPattern = async (
         const lessonIndex = Math.min(lessonNumber - 1, lessons.length - 1);
         const currentLesson = lessons[lessonIndex];
         
+        console.log(`[DEBUG] Found lesson for adjustment:`, currentLesson);
         if (currentLesson) {
           // יצירת רשומה עבור התאריך המקורי (בוטל)
           const originalScheduledStart = `${adjustment.original_scheduled_date}T${timeSlot.start_time}:00`;
