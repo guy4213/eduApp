@@ -270,42 +270,46 @@ const instructorMap = useMemo(() => {
             );
           }
 
+          // בדיקה אם זה שיעור בוטל
+          if (lesson?.is_cancelled) {
+            return (
+              <button
+                disabled
+                className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
+                style={{backgroundColor: '#FF6B6B'}}
+                title="השיעור בוטל"
+              >
+                ❌ בוטל
+              </button>
+            );
+          }
+          
+          // בדיקה אם זה שיעור נדחה
+          if (lesson?.is_postponed) {
+            return (
+              <button
+                className="rounded-full px-4 py-3 flex items-center font-bold text-base text-white hover:opacity-80 transition-opacity"
+                style={{backgroundColor: '#4ECDC4'}}
+                title="השיעור נדחה - ניתן לדווח"
+                onClick={() => handleLessonClick(lesson)}
+              >
+                📅 נדחה - טרם דווח
+              </button>
+            );
+          }
+          
+          // בדיקה אם השיעור לא התקיים
           if (lessonStatus?.isCompleted === false) {
-            // בדיקה אם זה שיעור בוטל או נדחה
-            if (lesson?.is_cancelled) {
-              return (
-                <button
-                  disabled
-                  className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
-                  style={{backgroundColor: '#FF6B6B'}}
-                  title="השיעור בוטל"
-                >
-                  ❌ בוטל
-                </button>
-              );
-            } else if (lesson?.is_postponed) {
-              return (
-                <button
-                  className="rounded-full px-4 py-3 flex items-center font-bold text-base text-white hover:opacity-80 transition-opacity"
-                  style={{backgroundColor: '#4ECDC4'}}
-                  title="השיעור נדחה - ניתן לדווח"
-                  onClick={() => handleLessonClick(lesson)}
-                >
-                  📅 נדחה - טרם דווח
-                </button>
-              );
-            } else {
-              return (
-                <button
-                  disabled
-                  className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
-                  style={{backgroundColor: '#FFA500'}}
-                  title="השיעור לא התקיים"
-                >
-                  ❌ לא התקיים
-                </button>
-              );
-            }
+            return (
+              <button
+                disabled
+                className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
+                style={{backgroundColor: '#FFA500'}}
+                title="השיעור לא התקיים"
+              >
+                ❌ לא התקיים
+              </button>
+            );
           }
 
           if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {

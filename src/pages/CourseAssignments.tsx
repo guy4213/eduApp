@@ -1950,11 +1950,20 @@ const fetchAssignments = async () => {
           (task) => task.lesson_id === lesson.id
         );
 
-        const lessonSchedule = schedulesData.find(
+        // מצא את כל התזמונים הרלוונטיים לשיעור זה
+        const lessonSchedules = schedulesData.filter(
           (schedule) =>
             schedule.lesson_id === lesson.id &&
             schedule.course_instance_id === instanceData.id
         );
+        
+        // מיון לפי תאריך - התאריך הקדום ביותר ראשון
+        lessonSchedules.sort((a, b) => 
+          new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
+        );
+        
+        // השתמש בתזמון הראשון (הקדום ביותר) כבסיס
+        const lessonSchedule = lessonSchedules[0];
 
         // סטטוס דיווח
         let reportStatus = {
@@ -1982,15 +1991,55 @@ const fetchAssignments = async () => {
           }
         }
 
-        return lessonTasks.map((task) => ({
-          ...task,
-          lesson_title: lesson.title,
-          lesson_id: lesson.id,
-          lesson_number: lessonIndex + 1,
-          scheduled_start: lessonSchedule?.scheduled_start || null,
-          scheduled_end: lessonSchedule?.scheduled_end || null,
-          report_status: reportStatus,
-        }));
+        // אם יש תזמונים מרובים, צור משימה עבור כל תזמון
+        if (lessonSchedules.length > 1) {
+          return lessonSchedules.map((schedule, scheduleIndex) => {
+            // סטטוס דיווח עבור התזמון הספציפי
+            let scheduleReportStatus = { ...reportStatus };
+            
+            // בדוק אם יש דיווח עבור התזמון הזה
+            const possibleKeys = [
+              schedule.id,
+              `${instanceData.id}_${lesson.id}`,
+            ];
+            
+            for (const key of possibleKeys) {
+              if (statusMap.has(key)) {
+                scheduleReportStatus = statusMap.get(key);
+                break;
+              }
+            }
+            
+            return lessonTasks.map((task) => ({
+              ...task,
+              lesson_title: lesson.title,
+              lesson_id: lesson.id,
+              lesson_number: lessonIndex + 1,
+              scheduled_start: schedule.scheduled_start,
+              scheduled_end: schedule.scheduled_end,
+              report_status: scheduleReportStatus,
+              is_cancelled: schedule.is_cancelled || false,
+              is_postponed: schedule.is_postponed || false,
+              original_scheduled_date: schedule.original_scheduled_date,
+              new_scheduled_date: schedule.new_scheduled_date,
+            }));
+          }).flat();
+        } else {
+          // אם יש תזמון אחד בלבד, השתמש בלוגיקה הישנה
+          return lessonTasks.map((task) => ({
+            ...task,
+            lesson_title: lesson.title,
+            lesson_id: lesson.id,
+            lesson_number: lessonIndex + 1,
+            scheduled_start: lessonSchedule?.scheduled_start || null,
+            scheduled_end: lessonSchedule?.scheduled_end || null,
+            report_status: reportStatus,
+            is_cancelled: lessonSchedule?.is_cancelled || false,
+            is_postponed: lessonSchedule?.is_postponed || false,
+            original_scheduled_date: lessonSchedule?.original_scheduled_date,
+            new_scheduled_date: lessonSchedule?.new_scheduled_date,
+          }));
+        }
       });
 
       return {
@@ -3008,24 +3057,28 @@ const fetchAssignments = async () => {
                                 text: "📋 טרם דווח",
                                 color: "bg-gray-500",
                               };
+                            // בדיקה אם זה שיעור בוטל
+                            if (tasks[0]?.is_cancelled) {
+                              return {
+                                text: "❌ בוטל",
+                                color: "bg-red-500 text-white",
+                              };
+                            }
+                            
+                            // בדיקה אם זה שיעור נדחה
+                            if (tasks[0]?.is_postponed) {
+                              return {
+                                text: "📅 נדחה - טרם דווח",
+                                color: "bg-cyan-500 text-white",
+                              };
+                            }
+                            
+                            // בדיקה אם השיעור לא התקיים
                             if (report.isCompleted === false) {
-                              // בדיקה אם זה שיעור בוטל או נדחה
-                              if (tasks[0]?.is_cancelled) {
-                                return {
-                                  text: "❌ בוטל",
-                                  color: "bg-red-500 text-white",
-                                };
-                              } else if (tasks[0]?.is_postponed) {
-                                return {
-                                  text: "📅 נדחה - טרם דווח",
-                                  color: "bg-cyan-500 text-white",
-                                };
-                              } else {
-                                return {
-                                  text: "❌ לא התקיים",
-                                  color: "bg-orange-500 text-white",
-                                };
-                              }
+                              return {
+                                text: "❌ לא התקיים",
+                                color: "bg-orange-500 text-white",
+                              };
                             }
                             if (
                               report.isCompleted &&
