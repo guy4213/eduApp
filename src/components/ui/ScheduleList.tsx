@@ -248,15 +248,38 @@ const renderStatusBadge = () => {
 
   // בדיקות הלוגיקה הקיימת
   if (lessonStatus?.isCompleted === false) {
-    console.log('Returning: לא התקיים');
-    return (
-      <span 
-        className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-        style={{backgroundColor: '#FFA500'}}
-      >
-        ❌ לא התקיים
-      </span>
-    );
+    // בדיקה אם זה שיעור בוטל או נדחה
+    if (item?.is_cancelled) {
+      console.log('Returning: בוטל');
+      return (
+        <span 
+          className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+          style={{backgroundColor: '#FF6B6B'}}
+        >
+          ❌ בוטל
+        </span>
+      );
+    } else if (item?.is_postponed) {
+      console.log('Returning: נדחה - טרם דווח');
+      return (
+        <span 
+          className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+          style={{backgroundColor: '#4ECDC4'}}
+        >
+          📅 נדחה - טרם דווח
+        </span>
+      );
+    } else {
+      console.log('Returning: לא התקיים');
+      return (
+        <span 
+          className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+          style={{backgroundColor: '#FFA500'}}
+        >
+          ❌ לא התקיים
+        </span>
+      );
+    }
   }
 
   if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {

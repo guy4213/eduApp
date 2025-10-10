@@ -1467,6 +1467,10 @@ interface GeneratedLessonSchedule {
   course_instances?: any;
   lesson?: any;
   is_generated?: boolean; // להבדיל בין generated ל-saved
+  is_cancelled?: boolean; // סימון שהשיעור בוטל
+  is_postponed?: boolean; // סימון שהשיעור נדחה
+  original_scheduled_date?: string; // התאריך המקורי של השיעור
+  new_scheduled_date?: string; // התאריך החדש של השיעור הנדחה
 }
 
 // === NEW SYSTEM CONFIGURATION INTERFACES ===
@@ -1516,6 +1520,22 @@ const getScheduleAdjustments = async (courseInstanceId: string): Promise<Set<str
     return new Set();
   }
   return new Set(data.map(adj => adj.original_scheduled_date));
+};
+
+// --- פונקציה חדשה לשליפת התאמות מפורטות ---
+const getDetailedScheduleAdjustments = async (courseInstanceId: string) => {
+  const { data, error } = await supabase
+    .from('schedule_adjustments')
+    .select('*')
+    .eq('course_instance_id', courseInstanceId)
+    .eq('adjustment_type', 'POSTPONED')
+    .order('original_scheduled_date', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching detailed schedule adjustments:', error);
+    return [];
+  }
+  return data || [];
 };
 
 export const getSystemDefaults = async (forceRefresh: boolean = false): Promise<SystemDefaults> => {
@@ -1883,10 +1903,17 @@ export const generateLessonSchedulesFromPattern = async (
   }
 
   // שליפת החסימות הגלובליות והפרטיות במקביל
-  const [globalBlockedDates, instanceAdjustments] = await Promise.all([
+  const [globalBlockedDates, instanceAdjustments, detailedAdjustments] = await Promise.all([
     getBlockedDates(),
-    getScheduleAdjustments(course_instance_id)
+    getScheduleAdjustments(course_instance_id),
+    getDetailedScheduleAdjustments(course_instance_id)
   ]);
+
+  // יצירת מפה של התאמות לפי תאריך מקורי
+  const adjustmentsMap = new Map();
+  detailedAdjustments.forEach(adj => {
+    adjustmentsMap.set(adj.original_scheduled_date, adj);
+  });
 
   let currentDate = new Date(courseStartDate);
   const endDateTime = courseEndDate ? new Date(courseEndDate) : null;
@@ -1951,6 +1978,67 @@ export const generateLessonSchedulesFromPattern = async (
       break;
     }
   }
+
+  // הוספת שיעורים נדחים
+  for (const adjustment of detailedAdjustments) {
+    const originalDate = new Date(adjustment.original_scheduled_date);
+    const dayOfWeek = originalDate.getDay();
+    
+    if (sortedDays.includes(dayOfWeek)) {
+      const timeSlot = time_slots.find(ts => ts.day === dayOfWeek);
+      
+      if (timeSlot && timeSlot.start_time && timeSlot.end_time) {
+        // מצא את השיעור המתאים לפי מספר השיעור
+        const lessonNumber = adjustment.lesson_number || 1;
+        const lessonIndex = Math.min(lessonNumber - 1, lessons.length - 1);
+        const currentLesson = lessons[lessonIndex];
+        
+        if (currentLesson) {
+          // יצירת רשומה עבור התאריך המקורי (בוטל)
+          const originalScheduledStart = `${adjustment.original_scheduled_date}T${timeSlot.start_time}:00`;
+          const originalScheduledEnd = `${adjustment.original_scheduled_date}T${timeSlot.end_time}:00`;
+          
+          generatedSchedules.push({
+            id: `cancelled-${course_instance_id}-${lessonNumber}-${adjustment.original_scheduled_date}`,
+            course_instance_id: course_instance_id,
+            lesson_id: currentLesson.id,
+            scheduled_start: originalScheduledStart,
+            scheduled_end: originalScheduledEnd,
+            lesson_number: lessonNumber,
+            lesson: currentLesson,
+            is_generated: true,
+            is_cancelled: true, // סימון שהשיעור בוטל
+            original_scheduled_date: adjustment.original_scheduled_date,
+          });
+
+          // יצירת רשומה עבור התאריך החדש (נדחה)
+          const newDate = new Date(adjustment.new_scheduled_date || adjustment.original_scheduled_date);
+          const newDateStr = newDate.toISOString().split('T')[0];
+          const newScheduledStart = `${newDateStr}T${timeSlot.start_time}:00`;
+          const newScheduledEnd = `${newDateStr}T${timeSlot.end_time}:00`;
+          
+          generatedSchedules.push({
+            id: `postponed-${course_instance_id}-${lessonNumber}-${newDateStr}`,
+            course_instance_id: course_instance_id,
+            lesson_id: currentLesson.id,
+            scheduled_start: newScheduledStart,
+            scheduled_end: newScheduledEnd,
+            lesson_number: lessonNumber,
+            lesson: currentLesson,
+            is_generated: true,
+            is_postponed: true, // סימון שהשיעור נדחה
+            original_scheduled_date: adjustment.original_scheduled_date,
+            new_scheduled_date: newDateStr,
+          });
+        }
+      }
+    }
+  }
+
+  // מיון לפי תאריך
+  generatedSchedules.sort((a, b) => 
+    new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
+  );
 
   return generatedSchedules;
 };

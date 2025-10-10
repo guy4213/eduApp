@@ -1821,11 +1821,22 @@ const handleSubmit = async () => {
       const instanceId = courseInstanceIdForReport || courseInstanceId;
 
       if (instanceId) {
+        // חישוב התאריך החדש (השבוע הבא באותו יום)
+        const originalDate = new Date(adjustmentDate);
+        const newDate = new Date(originalDate);
+        newDate.setDate(newDate.getDate() + 7); // דחייה לשבוע הבא
+        const newScheduledDate = newDate.toISOString().split("T")[0];
+
+        // קבלת מספר השיעור מהדיווח
+        const lessonNumber = reportData.lesson_number || 1;
+
         const { error: adjustmentError } = await supabase
           .from('schedule_adjustments')
           .insert({
             course_instance_id: instanceId,
             original_scheduled_date: adjustmentDate,
+            new_scheduled_date: newScheduledDate,
+            lesson_number: lessonNumber,
             created_by: user.id,
             adjustment_type: 'POSTPONED'
           });
@@ -1838,7 +1849,7 @@ const handleSubmit = async () => {
             variant: "destructive",
           });
         } else {
-            console.log(`Adjustment created for ${adjustmentDate}. Future lessons will be postponed.`);
+            console.log(`Adjustment created for ${adjustmentDate} -> ${newScheduledDate}. Future lessons will be postponed.`);
         }
       } else {
         console.warn('Could not create schedule adjustment: missing courseInstanceId');

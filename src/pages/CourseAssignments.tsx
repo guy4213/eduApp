@@ -2261,11 +2261,26 @@ const fetchAssignments = async () => {
       }
 
       if (reportStatus.isCompleted === false) {
-        return (
-          <Badge className="bg-orange-500 text-white border-orange-600">
-            ❌ לא התקיים
-          </Badge>
-        );
+        // בדיקה אם זה שיעור בוטל או נדחה
+        if (task?.is_cancelled) {
+          return (
+            <Badge className="bg-red-500 text-white border-red-600">
+              ❌ בוטל
+            </Badge>
+          );
+        } else if (task?.is_postponed) {
+          return (
+            <Badge className="bg-cyan-500 text-white border-cyan-600">
+              📅 נדחה - טרם דווח
+            </Badge>
+          );
+        } else {
+          return (
+            <Badge className="bg-orange-500 text-white border-orange-600">
+              ❌ לא התקיים
+            </Badge>
+          );
+        }
       }
 
       if (reportStatus.isCompleted && reportStatus.isLessonOk === false) {
@@ -3058,11 +3073,25 @@ const fetchAssignments = async () => {
                                 text: "📋 טרם דווח",
                                 color: "bg-gray-500",
                               };
-                            if (report.isCompleted === false)
-                              return {
-                                text: "❌ לא התקיים",
-                                color: "bg-orange-500 text-white",
-                              };
+                            if (report.isCompleted === false) {
+                              // בדיקה אם זה שיעור בוטל או נדחה
+                              if (task?.is_cancelled) {
+                                return {
+                                  text: "❌ בוטל",
+                                  color: "bg-red-500 text-white",
+                                };
+                              } else if (task?.is_postponed) {
+                                return {
+                                  text: "📅 נדחה - טרם דווח",
+                                  color: "bg-cyan-500 text-white",
+                                };
+                              } else {
+                                return {
+                                  text: "❌ לא התקיים",
+                                  color: "bg-orange-500 text-white",
+                                };
+                              }
+                            }
                             if (
                               report.isCompleted &&
                               report.isLessonOk === false
