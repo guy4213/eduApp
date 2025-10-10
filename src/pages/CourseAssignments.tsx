@@ -2249,71 +2249,6 @@ const fetchAssignments = async () => {
     return `${day}.${month}.${year} ${hours}:${minutes}`;
   };
 
-  // שיפור פונקציית רינדור סטטוס עם טיפול בשגיאות
-  const renderReportStatus = (reportStatus: any) => {
-    try {
-      if (!reportStatus?.isReported) {
-        return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-700">
-            📋 טרם דווח
-          </Badge>
-        );
-      }
-
-      if (reportStatus.isCompleted === false) {
-        // בדיקה אם זה שיעור בוטל או נדחה
-        if (task?.is_cancelled) {
-          return (
-            <Badge className="bg-red-500 text-white border-red-600">
-              ❌ בוטל
-            </Badge>
-          );
-        } else if (task?.is_postponed) {
-          return (
-            <Badge className="bg-cyan-500 text-white border-cyan-600">
-              📅 נדחה - טרם דווח
-            </Badge>
-          );
-        } else {
-          return (
-            <Badge className="bg-orange-500 text-white border-orange-600">
-              ❌ לא התקיים
-            </Badge>
-          );
-        }
-      }
-
-      if (reportStatus.isCompleted && reportStatus.isLessonOk === false) {
-        return (
-          <Badge className="bg-red-500 text-white border-red-600">
-            ⚠️ לא התנהל כשורה
-          </Badge>
-        );
-      }
-
-      if (reportStatus.isCompleted && reportStatus.isLessonOk !== false) {
-        return (
-          <Badge className="bg-green-500 text-white border-green-600">
-            ✅ דווח והתקיים
-          </Badge>
-        );
-      }
-
-      // Fallback for unknown states
-      return (
-        <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-          ❓ סטטוס לא ברור
-        </Badge>
-      );
-    } catch (error) {
-      console.error("Error rendering report status:", error);
-      return (
-        <Badge variant="outline" className="bg-red-100 text-red-800">
-          ⚠️ שגיאה
-        </Badge>
-      );
-    }
-  };
 
   // Redirect if user doesn't have permission to view page
   // if (!hasAdminAccess && !isInstructor) {
@@ -3075,12 +3010,12 @@ const fetchAssignments = async () => {
                               };
                             if (report.isCompleted === false) {
                               // בדיקה אם זה שיעור בוטל או נדחה
-                              if (task?.is_cancelled) {
+                              if (tasks[0]?.is_cancelled) {
                                 return {
                                   text: "❌ בוטל",
                                   color: "bg-red-500 text-white",
                                 };
-                              } else if (task?.is_postponed) {
+                              } else if (tasks[0]?.is_postponed) {
                                 return {
                                   text: "📅 נדחה - טרם דווח",
                                   color: "bg-cyan-500 text-white",
