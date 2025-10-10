@@ -273,6 +273,19 @@ const renderStatusBadge = () => {
     );
   }
   
+  // בדיקה אם זה שיעור שבוטל (נדחה) - צריך להיות לפני בדיקת lessonStatus
+  if (item?.is_cancelled) {
+    console.log('Returning: בוטל - דווח על השיעור');
+    return (
+      <span 
+        className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+        style={{backgroundColor: '#10B981'}}
+      >
+        📋 דווח על השיעור
+      </span>
+    );
+  }
+  
   // בדיקה אם השיעור לא התקיים
   if (lessonStatus?.isCompleted === false) {
     console.log('Returning: לא התקיים');

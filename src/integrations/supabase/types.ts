@@ -869,6 +869,8 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           id: string
+          lesson_number: number | null
+          new_scheduled_date: string | null
           original_scheduled_date: string
         }
         Insert: {
@@ -877,6 +879,8 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          lesson_number?: number | null
+          new_scheduled_date?: string | null
           original_scheduled_date: string
         }
         Update: {
@@ -885,6 +889,8 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          lesson_number?: number | null
+          new_scheduled_date?: string | null
           original_scheduled_date?: string
         }
         Relationships: [

@@ -2106,7 +2106,7 @@ export const fetchAndGenerateSchedules = async (
       // שלוף שיעורים ייחודיים
       const { data: instanceLessons, error: instanceError } = await supabase
         .from('lessons')
-        .select('id, title, course_id, order_index, course_instance_id')
+        .select('*,id, title, course_id, order_index, course_instance_id')
         .eq('course_instance_id', schedule.course_instance_id)
         .order('order_index');
 
@@ -2117,7 +2117,7 @@ export const fetchAndGenerateSchedules = async (
       // שלוף שיעורי תבנית
       const { data: templateLessons, error: templateError } = await supabase
         .from('lessons')
-        .select('id, title, course_id, order_index, course_instance_id')
+        .select('*,id, title, course_id, order_index, course_instance_id')
         .eq('course_id', schedule.course_instances.course_id)
         .is('course_instance_id', null)
         .order('order_index');

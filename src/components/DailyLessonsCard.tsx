@@ -298,6 +298,20 @@ const instructorMap = useMemo(() => {
             );
           }
           
+          // בדיקה אם זה שיעור שבוטל (נדחה) - צריך להיות לפני בדיקת lessonStatus
+          if (lesson?.is_cancelled) {
+            return (
+              <button
+                className="rounded-full px-4 py-3 flex items-center font-bold text-base text-white hover:opacity-80 transition-opacity"
+                style={{backgroundColor: '#10B981'}}
+                title="השיעור בוטל - ניתן לדווח"
+                onClick={() => handleLessonClick(lesson)}
+              >
+                📋 דווח על השיעור
+              </button>
+            );
+          }
+          
           // בדיקה אם השיעור לא התקיים
           if (lessonStatus?.isCompleted === false) {
             return (
