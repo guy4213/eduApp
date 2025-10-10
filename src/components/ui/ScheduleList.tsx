@@ -260,7 +260,7 @@ const renderStatusBadge = () => {
     );
   }
   
-  // בדיקה אם זה שיעור נדחה
+  // בדיקה אם זה שיעור נדחה - צריך להיות לפני בדיקת lessonStatus
   if (item?.is_postponed) {
     console.log('Returning: נדחה - טרם דווח');
     return (

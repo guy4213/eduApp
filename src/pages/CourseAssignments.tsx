@@ -1991,55 +1991,41 @@ const fetchAssignments = async () => {
           }
         }
 
-        // אם יש תזמונים מרובים, צור משימה עבור כל תזמון
-        if (lessonSchedules.length > 1) {
-          return lessonSchedules.map((schedule, scheduleIndex) => {
-            // סטטוס דיווח עבור התזמון הספציפי
-            let scheduleReportStatus = { ...reportStatus };
-            
-            // בדוק אם יש דיווח עבור התזמון הזה
-            const possibleKeys = [
-              schedule.id,
-              `${instanceData.id}_${lesson.id}`,
-            ];
-            
-            for (const key of possibleKeys) {
-              if (statusMap.has(key)) {
-                scheduleReportStatus = statusMap.get(key);
-                break;
-              }
+        // צור משימה עבור כל תזמון (בוטל ונדחה)
+        return lessonSchedules.map((schedule, scheduleIndex) => {
+          // סטטוס דיווח עבור התזמון הספציפי
+          let scheduleReportStatus = { ...reportStatus };
+          
+          // בדוק אם יש דיווח עבור התזמון הזה
+          const possibleKeys = [
+            schedule.id,
+            `${instanceData.id}_${lesson.id}`,
+          ];
+          
+          for (const key of possibleKeys) {
+            if (statusMap.has(key)) {
+              scheduleReportStatus = statusMap.get(key);
+              break;
             }
-            
-            return lessonTasks.map((task) => ({
-              ...task,
-              lesson_title: lesson.title,
-              lesson_id: lesson.id,
-              lesson_number: lessonIndex + 1,
-              scheduled_start: schedule.scheduled_start,
-              scheduled_end: schedule.scheduled_end,
-              report_status: scheduleReportStatus,
-              is_cancelled: schedule.is_cancelled || false,
-              is_postponed: schedule.is_postponed || false,
-              original_scheduled_date: schedule.original_scheduled_date,
-              new_scheduled_date: schedule.new_scheduled_date,
-            }));
-          }).flat();
-        } else {
-          // אם יש תזמון אחד בלבד, השתמש בלוגיקה הישנה
+          }
+          
           return lessonTasks.map((task) => ({
             ...task,
             lesson_title: lesson.title,
             lesson_id: lesson.id,
             lesson_number: lessonIndex + 1,
-            scheduled_start: lessonSchedule?.scheduled_start || null,
-            scheduled_end: lessonSchedule?.scheduled_end || null,
-            report_status: reportStatus,
-            is_cancelled: lessonSchedule?.is_cancelled || false,
-            is_postponed: lessonSchedule?.is_postponed || false,
-            original_scheduled_date: lessonSchedule?.original_scheduled_date,
-            new_scheduled_date: lessonSchedule?.new_scheduled_date,
+            scheduled_start: schedule.scheduled_start,
+            scheduled_end: schedule.scheduled_end,
+            report_status: scheduleReportStatus,
+            is_cancelled: schedule.is_cancelled || false,
+            is_postponed: schedule.is_postponed || false,
+            original_scheduled_date: schedule.original_scheduled_date,
+            new_scheduled_date: schedule.new_scheduled_date,
+            // הוסף מזהה ייחודי לכל תזמון
+            schedule_id: schedule.id,
+            schedule_index: scheduleIndex,
           }));
-        }
+        }).flat();
       });
 
       return {

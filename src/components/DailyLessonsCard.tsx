@@ -284,7 +284,7 @@ const instructorMap = useMemo(() => {
             );
           }
           
-          // בדיקה אם זה שיעור נדחה
+          // בדיקה אם זה שיעור נדחה - צריך להיות לפני בדיקת lessonStatus
           if (lesson?.is_postponed) {
             return (
               <button
