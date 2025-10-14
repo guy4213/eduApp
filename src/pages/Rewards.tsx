@@ -481,7 +481,7 @@ const pendingClosures = filteredSalesLeads.filter(
               תגמולים ומכירות
             </h1>
           </div>
-          <p className="text-xl text-gray-700 mb-2">
+          <p className="text-xl text-gray-700 my-2 text-center">
             שלום {user.user_metadata.full_name}! אתה בדרך לסגור את החודש הגדול שלך 
             <Flame className="h-6 w-6 text-orange-500 inline mx-2" />
           </p>

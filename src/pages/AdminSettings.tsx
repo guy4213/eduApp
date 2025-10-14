@@ -70,16 +70,22 @@ interface SystemDefaults {
 
 }
 
+
+interface Contact {
+  name: string;
+  phone: string;
+  email: string;
+  role: string;
+}
+
 interface Institution {
   id: string;
   name: string;
   city: string;
   address?: string;
-  contact_phone?: string;
-  contact_person?: string;
-  contact_email?: string;
   notes?: string;
   created_at?: string;
+  contacts?: Contact[]; // 👈 החדש במקום contact_person, contact_phone, contact_email
 }
 
 
@@ -140,16 +146,14 @@ const AdminSettings = () => {
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
   const [showInstitutionModal, setShowInstitutionModal] = useState(false);
-  const [institutionForm, setInstitutionForm] = useState<Partial<Institution>>({
-    name: '',
-    city: '',
-    address: '',
-    contact_phone: '',
-    contact_person: '',
-    contact_email: '',
-    notes: ''
-  });
-  
+const [institutionForm, setInstitutionForm] = useState<Partial<Institution>>({
+  name: '',
+  city: '',
+  address: '',
+  notes: '',
+  contacts: [{ name: '', phone: '', email: '', role: '' }]
+});
+
   // States for instructors  
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [selectedInstructor, setSelectedInstructor] = useState<Instructor | null>(null);
@@ -356,47 +360,151 @@ const handleUpdateInstructor = async () => {
     }
   };
 
-  // Save institution
-  const saveInstitution = async () => {
-    if (!institutionForm.name || !institutionForm.city) {
-        toast({ title: "שדות חובה חסרים", description: "אנא מלא שם מוסד ועיר.", variant: "destructive" });
-        return;
-    }
-    setLoading(true);
-    try {
-      if (editingInstitution) {
-        // Update existing
-        const { error } = await supabase
-          .from('educational_institutions')
-          .update(institutionForm)
-          .eq('id', editingInstitution.id);
-        
-        if (!error) {
-          toast({ title: "✅ המוסד עודכן בהצלחה" });
-        }
-      } else {
-        // Create new
-        const { error } = await supabase
-          .from('educational_institutions')
-          .insert([institutionForm]);
-        
-        if (!error) {
-          toast({ title: "✅ המוסד נוסף בהצלחה" });
-        }
-      }
-      
-      fetchInstitutions();
-      closeInstitutionModal();
-    } catch (error) {
-      toast({
-        title: "❌ שגיאה בשמירת המוסד",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+const addContact = () => {
+  const currentContacts = institutionForm.contacts || [];
+  if (currentContacts.length >= 5) {
+    toast({
+      title: "הגעת למקסימום",
+      description: "ניתן להוסיף עד 5 אנשי קשר בלבד",
+      variant: "destructive",
+    });
+    return;
+  }
+  setInstitutionForm(prev => ({
+    ...prev,
+    contacts: [...(prev.contacts || []), { name: '', phone: '', email: '', role: '' }]
+  }));
+};
 
+const removeContact = (index: number) => {
+  const currentContacts = institutionForm.contacts || [];
+  if (currentContacts.length <= 1) {
+    toast({
+      title: "לא ניתן להסיר",
+      description: "חייב להיות לפחות איש קשר אחד",
+      variant: "destructive",
+    });
+    return;
+  }
+    setInstitutionForm(prev => ({
+    ...prev,
+    contacts: (prev.contacts || []).filter((_, i) => i !== index)
+  }));
+};
+
+const updateContact = (index: number, field: keyof Contact, value: string) => {
+  setInstitutionForm(prev => ({
+    ...prev,
+    contacts: (prev.contacts || []).map((contact, i) => 
+      i === index ? { ...contact, [field]: value } : contact
+    )
+  }));
+};
+
+
+  // Save institution
+  // const saveInstitution = async () => {
+  //   if (!institutionForm.name || !institutionForm.city) {
+  //       toast({ title: "שדות חובה חסרים", description: "אנא מלא שם מוסד ועיר.", variant: "destructive" });
+  //       return;
+  //   }
+  //   setLoading(true);
+  //   try {
+  //     if (editingInstitution) {
+  //       // Update existing
+  //       const { error } = await supabase
+  //         .from('educational_institutions')
+  //         .update(institutionForm)
+  //         .eq('id', editingInstitution.id);
+        
+  //       if (!error) {
+  //         toast({ title: "✅ המוסד עודכן בהצלחה" });
+  //       }
+  //     } else {
+  //       // Create new
+  //       const { error } = await supabase
+  //         .from('educational_institutions')
+  //         .insert([institutionForm]);
+        
+  //       if (!error) {
+  //         toast({ title: "✅ המוסד נוסף בהצלחה" });
+  //       }
+  //     }
+      
+  //     fetchInstitutions();
+  //     closeInstitutionModal();
+  //   } catch (error) {
+  //     toast({
+  //       title: "❌ שגיאה בשמירת המוסד",
+  //       variant: "destructive"
+  //     });
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  
+const saveInstitution = async () => {
+  if (!institutionForm.name?.trim() || !institutionForm.city?.trim()) {
+    toast({
+      title: "שגיאה",
+      description: "נדרש למלא שם מוסד ועיר",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  // וידוא שיש לפחות איש קשר אחד עם שם
+  const validContacts = (institutionForm.contacts || []).filter(c => c.name.trim());
+  if (validContacts.length === 0) {
+    toast({
+      title: "שגיאה",
+      description: "נדרש לפחות איש קשר אחד עם שם",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const dataToSave = {
+      name: institutionForm.name,
+      city: institutionForm.city,
+      address: institutionForm.address || null,
+      notes: institutionForm.notes || null,
+      contacts: validContacts // שומר רק אנשי קשר תקינים
+    };
+
+    if (editingInstitution) {
+      const { error } = await supabase
+        .from('educational_institutions')
+        .update(dataToSave)
+        .eq('id', institutionForm.id!);
+
+      if (error) throw error;
+      toast({ title: "הצלחה", description: "המוסד עודכן בהצלחה" });
+    } else {
+      const { error } = await supabase
+        .from('educational_institutions')
+        .insert([dataToSave]);
+
+      if (error) throw error;
+      toast({ title: "הצלחה", description: "המוסד נוסף בהצלחה" });
+    }
+
+    closeInstitutionModal();
+    fetchInstitutions();
+  } catch (error) {
+    console.error('Error saving institution:', error);
+    toast({
+      title: "שגיאה",
+      description: "אירעה שגיאה בשמירת המוסד",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
   // Delete institution
   const deleteInstitution = async (id: string) => {
     if (!confirm('האם אתה בטוח שברצונך למחוק מוסד זה?')) return;
@@ -438,40 +546,61 @@ const handleUpdateInstructor = async () => {
     }
   };
 
-  // Open institution modal
-  const openInstitutionModal = (institution?: Institution) => {
-    if (institution) {
-      setEditingInstitution(institution);
-      setInstitutionForm(institution);
-    } else {
-      setEditingInstitution(null);
-      setInstitutionForm({
-        name: '',
-        city: '',
-        address: '',
-        contact_phone: '',
-        contact_person: '',
-        contact_email: '',
-        notes: ''
-      });
-    }
-    setShowInstitutionModal(true);
-  };
+  // // Open institution modal
+  // const openInstitutionModal = (institution?: Institution) => {
+  //   if (institution) {
+  //     setEditingInstitution(institution);
+  //     setInstitutionForm(institution);
+  //   } else {
+  //     setEditingInstitution(null);
+  //     setInstitutionForm({
+  //       name: '',
+  //       city: '',
+  //       address: '',
+  //       contact_phone: '',
+  //       contact_person: '',
+  //       contact_email: '',
+  //       notes: ''
+  //     });
+  //   }
+  //   setShowInstitutionModal(true);
+  // };
 
-  // Close institution modal
-  const closeInstitutionModal = () => {
-    setShowInstitutionModal(false);
+const openInstitutionModal = (institution?: Institution) => {
+  if (institution) {
+    setEditingInstitution(institution);
+    setInstitutionForm({
+      ...institution,
+      contacts: institution.contacts && institution.contacts.length > 0 
+        ? institution.contacts 
+        : [{ name: '', phone: '', email: '', role: '' }]
+    });
+  } else {
     setEditingInstitution(null);
     setInstitutionForm({
+      id: '',
       name: '',
       city: '',
       address: '',
-      contact_phone: '',
-      contact_person: '',
-      contact_email: '',
-      notes: ''
+      notes: '',
+      contacts: [{ name: '', phone: '', email: '', role: '' }]
     });
-  };
+  }
+  setShowInstitutionModal(true);
+};
+
+  // Close institution modal
+const closeInstitutionModal = () => {
+  setShowInstitutionModal(false);
+  setEditingInstitution(null);
+  setInstitutionForm({
+    name: '',
+    city: '',
+    address: '',
+    notes: '',
+    contacts: [{ name: '', phone: '', email: '', role: '' }]
+  });
+};
 
   // Fetch instructors
   const fetchInstructors = async () => {
@@ -1222,7 +1351,7 @@ const getRoleBadge = (role: string) => {
                         <TableRow>
                           <TableHead className="text-right">שם המוסד</TableHead>
                           <TableHead className="text-right" >עיר</TableHead>
-                          <TableHead className="text-right">איש קשר</TableHead>
+                          <TableHead className="text-right">אנשי קשר </TableHead>
                           <TableHead className="text-right">טלפון</TableHead>
                           <TableHead  className="text-center">פעולות</TableHead>
                         </TableRow>
@@ -1232,8 +1361,38 @@ const getRoleBadge = (role: string) => {
                           <TableRow key={institution.id}>
                             <TableCell className="font-medium">{institution.name}</TableCell>
                             <TableCell>{institution.city}</TableCell>
-                            <TableCell>{institution.contact_person || '-'}</TableCell>
-                            <TableCell>{institution.contact_phone || '-'}</TableCell>
+                            <TableCell>
+                              {institution.contacts && institution.contacts.length > 0 ? (
+                                <div className="space-y-1">
+                                  {institution.contacts.map((contact, idx) => (
+                                    <div key={idx} className="text-xs">
+                                      <div className="font-medium">{contact.name}</div>
+                                      {contact.role && (
+                                        <div className="text-gray-500 text-[10px]">({contact.role})</div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                '-'
+                              )}
+                            </TableCell>
+
+                            {/* טלפונים */}
+                            <TableCell>
+                              {institution.contacts && institution.contacts.length > 0 ? (
+                                <div className="space-y-1">
+                                  {institution.contacts.map((contact, idx) => (
+                                    <div key={idx} className="text-xs">
+                                      {contact.phone || '-'}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                '-'
+                              )}
+                            </TableCell>
+
                             <TableCell>
                               <div className="flex justify-center gap-2">
                                 <Button
@@ -1607,6 +1766,166 @@ const getRoleBadge = (role: string) => {
 
         {/* Institution Modal */}
         <Dialog open={showInstitutionModal} onOpenChange={setShowInstitutionModal}>
+  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
+    <DialogHeader>
+      <DialogTitle>
+        {editingInstitution ? 'עריכת מוסד חינוכי' : 'הוספת מוסד חינוכי'}
+      </DialogTitle>
+    </DialogHeader>
+    
+    <div className="space-y-6 py-4">
+      {/* פרטי מוסד בסיסיים */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="name">שם המוסד *</Label>
+          <Input
+            id="name"
+            value={institutionForm.name}
+            onChange={(e) => setInstitutionForm({ ...institutionForm, name: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="city">עיר *</Label>
+          <Input
+            id="city"
+            value={institutionForm.city}
+            onChange={(e) => setInstitutionForm({ ...institutionForm, city: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="address">כתובת</Label>
+        <Input
+          id="address"
+          value={institutionForm.address}
+          onChange={(e) => setInstitutionForm({ ...institutionForm, address: e.target.value })}
+        />
+      </div>
+
+      {/* אנשי קשר */}
+      <div className="space-y-4 border-t pt-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-semibold">אנשי קשר</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addContact}
+            disabled={(institutionForm.contacts?.length || 0) >= 5}
+          >
+            <Plus className="h-4 w-4 ml-1" />
+            הוסף איש קשר
+          </Button>
+        </div>
+
+        <div className="space-y-3">
+          {(institutionForm.contacts || []).map((contact, index) => (
+            <Card key={index} className="p-4 bg-gray-50">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm font-medium text-gray-700">
+                    איש קשר {index + 1}
+                  </Label>
+                  {(institutionForm.contacts?.length || 0) > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeContact(index)}
+                      className="text-red-500 hover:text-red-700 h-8"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor={`contact-name-${index}`} className="text-xs">
+                      שם מלא *
+                    </Label>
+                    <Input
+                      id={`contact-name-${index}`}
+                      value={contact.name}
+                      onChange={(e) => updateContact(index, 'name', e.target.value)}
+                      placeholder="ישראל ישראלי"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`contact-role-${index}`} className="text-xs">
+                      תפקיד
+                    </Label>
+                    <Input
+                      id={`contact-role-${index}`}
+                      value={contact.role}
+                      onChange={(e) => updateContact(index, 'role', e.target.value)}
+                      placeholder="מנהל / רכז / סגן"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`contact-phone-${index}`} className="text-xs">
+                      טלפון
+                    </Label>
+                    <Input
+                      id={`contact-phone-${index}`}
+                      type="tel"
+                      value={contact.phone}
+                      onChange={(e) => updateContact(index, 'phone', e.target.value)}
+                      placeholder="050-1234567"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`contact-email-${index}`} className="text-xs">
+                      אימייל
+                    </Label>
+                    <Input
+                      id={`contact-email-${index}`}
+                      type="email"
+                      value={contact.email}
+                      onChange={(e) => updateContact(index, 'email', e.target.value)}
+                      placeholder="example@school.co.il"
+                    />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {(institutionForm.contacts?.length || 0) < 5 && (
+          <div className="text-xs text-gray-500 text-center bg-blue-50 p-2 rounded">
+            💡 ניתן להוסיף עוד {5 - (institutionForm.contacts?.length || 0)} אנשי קשר
+          </div>
+        )}
+      </div>
+
+      {/* הערות */}
+      <div>
+        <Label htmlFor="notes">הערות</Label>
+        <Textarea
+          id="notes"
+          value={institutionForm.notes}
+          onChange={(e) => setInstitutionForm({ ...institutionForm, notes: e.target.value })}
+          rows={3}
+        />
+      </div>
+    </div>
+
+    <DialogFooter>
+      <Button variant="ghost" onClick={closeInstitutionModal}>ביטול</Button>
+      <Button onClick={saveInstitution} disabled={loading}>
+        {loading ? <Loader2 className="animate-spin" /> : 'שמור'}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+        
+        
+        {/* <Dialog open={showInstitutionModal} onOpenChange={setShowInstitutionModal}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
@@ -1683,7 +2002,7 @@ const getRoleBadge = (role: string) => {
                 </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+        </Dialog> */}
 
         {/* Delete Instructor Confirmation Modal */}
         <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

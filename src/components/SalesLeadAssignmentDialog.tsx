@@ -31,7 +31,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Loader2, Plus } from "lucide-react";
+import { CalendarIcon, Loader2, Phone, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,7 @@ import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "./auth/AuthProvider";
+import { Label } from "@/components/ui/label"; // ✅ נכון
 
 const salesLeadSchema = z.object({
   institution_name: z.string().min(1, "שם מוסד הוא שדה חובה"),
@@ -73,15 +74,19 @@ interface Instructor {
   phone: string | null;
 }
 
+interface Contact {
+  name: string;
+  phone: string;
+  email: string;
+  role: string;
+}
+
 interface Institution {
   id: string;
   name: string;
-  contact_person: string | null;
-  contact_phone: string | null;
-  address: string | null;
-  contact_email: string | null;
+  contacts?: Contact[];
+  address?: string | null;
 }
-
 
 interface SalesLeadAssignmentDialogProps {
   open: boolean;
@@ -105,6 +110,8 @@ export default function SalesLeadAssignmentDialog({
   onOpenChange,
   onLeadCreated,
 }: SalesLeadAssignmentDialogProps) {
+  const [selectedContactIndex, setSelectedContactIndex] = useState<number>(0);
+const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [loading, setLoading] = useState(false);
@@ -158,7 +165,7 @@ export default function SalesLeadAssignmentDialog({
     try {
       const { data, error } = await supabase
         .from("educational_institutions")
-      .select("id, name, contact_person, contact_phone, address, contact_email")
+.select("id, name, contacts, address") // 👈 contacts במקום השדות הישנים!
         .order("name");
 
       if (error) throw error;
@@ -174,66 +181,128 @@ export default function SalesLeadAssignmentDialog({
   };
 
   const onSelectInstitution = (institutionId: string) => {
-    const institution = institutions.find((inst) => inst.id === institutionId);
-    if (institution) {
-      form.setValue("institution_name", institution.name);
-      if (institution.contact_person) {
-        form.setValue("contact_person", institution.contact_person);
-      }
-      if (institution.contact_phone) {
-        form.setValue("contact_phone", institution.contact_phone);
-      }
-      if (institution.address) {
-        form.setValue("address", institution.address);
-      }
-      if (institution.contact_email) {
-        form.setValue("email", institution.contact_email);
-      }
+  const institution = institutions.find((inst) => inst.id === institutionId);
+  if (institution) {
+    setSelectedInstitution(institution);
+    form.setValue("institution_name", institution.name);
+    
+    // אם יש אנשי קשר, מלא מאיש הקשר הראשון
+    if (institution.contacts && institution.contacts.length > 0) {
+      const firstContact = institution.contacts[0];
+      form.setValue("contact_person", firstContact.name || '');
+      form.setValue("contact_phone", firstContact.phone || '');
+      form.setValue("email", firstContact.email || '');
+      setSelectedContactIndex(0);
+    } else {
+      // אין אנשי קשר - נקה שדות
+      form.setValue("contact_person", '');
+      form.setValue("contact_phone", '');
+      form.setValue("email", '');
     }
-  };
+    
+    if (institution.address) {
+      form.setValue("address", institution.address);
+    }
+  }
+};
+
+const onSelectContact = (index: number) => {
+  if (!selectedInstitution || !selectedInstitution.contacts) return;
+  
+  const contact = selectedInstitution.contacts[index];
+  if (contact) {
+    setSelectedContactIndex(index);
+    form.setValue("contact_person", contact.name || '');
+    form.setValue("contact_phone", contact.phone || '');
+    form.setValue("email", contact.email || '');
+  }
+};
+
+
+  // const checkAndCreateInstitution = async (data: SalesLeadFormData) => {
+  //   try {
+  //     // Check if institution already exists
+  //     const { data: existingInstitution, error: checkError } = await supabase
+  //       .from("educational_institutions")
+  //       .select("id, name")
+  //       .eq("name", data.institution_name)
+  //       .single();
+
+  //     if (checkError && checkError.code !== "PGRST116") {
+  //       // PGRST116 is "not found" error, which is expected if institution doesn't exist
+  //       throw checkError;
+  //     }
+
+  //     // If institution exists, return it
+  //     if (existingInstitution) {
+  //       return existingInstitution;
+  //     }
+
+  //     // If institution doesn't exist, create it
+  //     const { data: newInstitution, error: createError } = await supabase
+  //       .from("educational_institutions")
+  //       .insert([
+  //         {
+  //           name: data.institution_name,
+  //           address: data.address,
+  //           contact_person: data.contact_person,
+  //           contact_phone: data.contact_phone,
+  //           contact_email: data.email,
+  //         },
+  //       ])
+  //       .select("id, name")
+  //       .single();
+
+  //     if (createError) throw createError;
+
+  //     return newInstitution;
+  //   } catch (error) {
+  //     console.error("Error checking/creating institution:", error);
+  //     throw error;
+  //   }
+  // };
+
+
 
   const checkAndCreateInstitution = async (data: SalesLeadFormData) => {
-    try {
-      // Check if institution already exists
-      const { data: existingInstitution, error: checkError } = await supabase
-        .from("educational_institutions")
-        .select("id, name")
-        .eq("name", data.institution_name)
-        .single();
+  try {
+    const { data: existingInstitution, error: checkError } = await supabase
+      .from("educational_institutions")
+      .select("id, name")
+      .eq("name", data.institution_name)
+      .single();
 
-      if (checkError && checkError.code !== "PGRST116") {
-        // PGRST116 is "not found" error, which is expected if institution doesn't exist
-        throw checkError;
-      }
-
-      // If institution exists, return it
-      if (existingInstitution) {
-        return existingInstitution;
-      }
-
-      // If institution doesn't exist, create it
-      const { data: newInstitution, error: createError } = await supabase
-        .from("educational_institutions")
-        .insert([
-          {
-            name: data.institution_name,
-            address: data.address,
-            contact_person: data.contact_person,
-            contact_phone: data.contact_phone,
-            contact_email: data.email,
-          },
-        ])
-        .select("id, name")
-        .single();
-
-      if (createError) throw createError;
-
-      return newInstitution;
-    } catch (error) {
-      console.error("Error checking/creating institution:", error);
-      throw error;
+    if (checkError && checkError.code !== "PGRST116") {
+      throw checkError;
     }
-  };
+
+    if (existingInstitution) {
+      return existingInstitution;
+    }
+
+    // יצירת מוסד חדש - רק אדמין/מנהל פדגוגי יכולים להגיע לכאן
+    const { data: newInstitution, error: createError } = await supabase
+      .from("educational_institutions")
+      .insert([{
+        name: data.institution_name,
+        address: data.address,
+        contacts: [{
+          name: data.contact_person,
+          phone: data.contact_phone,
+          email: data.email,
+          role: ''
+        }]
+      }])
+      .select("id, name")
+      .single();
+
+    if (createError) throw createError;
+    return newInstitution;
+  } catch (error) {
+    console.error("Error checking/creating institution:", error);
+    throw error;
+  }
+};
 
   const onSubmit = async (data: SalesLeadFormData) => {
  
@@ -313,48 +382,106 @@ export default function SalesLeadAssignmentDialog({
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Institution Selection */}
-              <FormField
-                control={form.control}
-                name="institution_name"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                   
-                    <div className="flex gap-2"> 
-                   <>
-                  {user.user_metadata?.role !== "instructor" && (
-                    <>
-                      <FormLabel>שם מוסד</FormLabel>
-                      <FormControl className="flex-1">
-                        <Input
-                          placeholder="הכנס שם מוסד או בחר מהרשימה"
-                          {...field}
-                          className="text-right"
-                        />
-                      </FormControl>
-                    </>
-                  )}
-                </>
-                      <Select onValueChange={onSelectInstitution}>
-                
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue placeholder="בחר מוסד" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {institutions.map((institution) => (
-                            <SelectItem
-                              key={institution.id}
-                              value={institution.id}
-                            >
-                              {institution.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
+              {/* בחירת מוסד */}
+<FormField
+  control={form.control}
+  name="institution_name"
+  render={({ field }) => (
+    <FormItem className="md:col-span-2">
+      <div className="flex gap-2 items-end">
+        {/* שדה טקסט - רק לאדמין/מנהל פדגוגי */}
+        {user.user_metadata?.role !== "instructor" && (
+          <div className="flex-1">
+            <FormLabel>שם מוסד *</FormLabel>
+            <FormControl>
+              <Input
+                placeholder="הכנס שם מוסד או בחר מהרשימה"
+                {...field}
+                className="text-right"
               />
+            </FormControl>
+          </div>
+        )}
+
+        {/* רשימה נפתחת - לכולם */}
+        <div className={user.user_metadata?.role === "instructor" ? "flex-1" : "w-[180px]"}>
+          {user.user_metadata?.role === "instructor" && (
+            <FormLabel>בחר מוסד *</FormLabel>
+          )}
+          <Select 
+            onValueChange={onSelectInstitution}
+            value={selectedInstitution?.id || ''}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="בחר מוסד" />
+            </SelectTrigger>
+            <SelectContent>
+              {institutions.map((institution) => (
+                <SelectItem key={institution.id} value={institution.id}>
+                  {institution.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <FormMessage />
+    </FormItem>
+  )}
+/>
+
+{selectedInstitution && 
+ selectedInstitution.contacts && 
+ selectedInstitution.contacts.length > 1 && (
+  <div className="md:col-span-2 space-y-2 border rounded-lg p-4 bg-gray-50">
+    <Label className="text-sm font-semibold">
+      בחר איש קשר ({selectedInstitution.contacts.length} אנשי קשר זמינים)
+    </Label>
+    <div className="grid grid-cols-1 gap-2">
+      {selectedInstitution.contacts.map((contact, index) => (
+        <Button
+          key={index}
+          type="button"
+          variant={selectedContactIndex === index ? "default" : "outline"}
+          className="justify-start text-right h-auto py-3 px-4"
+          onClick={() => onSelectContact(index)}
+        >
+          <div className="flex items-start gap-3 w-full">
+            <div className="flex-shrink-0">
+              {selectedContactIndex === index ? (
+                <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center">
+                  <div className="w-3 h-3 bg-primary rounded-full" />
+                </div>
+              ) : (
+                <div className="w-5 h-5 border-2 border-gray-300 rounded-full" />
+              )}
+            </div>
+            <div className="flex flex-col items-start flex-1">
+              <div className="font-medium text-base">{contact.name}</div>
+              {contact.role && (
+                <div className="text-xs opacity-75 bg-white/20 px-2 py-0.5 rounded mt-1">
+                  {contact.role}
+                </div>
+              )}
+              {contact.phone && (
+                <div className="text-xs opacity-90 mt-1 flex items-center gap-1">
+                  <Phone className="h-3 w-3" />
+                  {contact.phone}
+                </div>
+              )}
+              {contact.email && (
+                <div className="text-xs opacity-75 mt-0.5">{contact.email}</div>
+              )}
+            </div>
+          </div>
+        </Button>
+      ))}
+    </div>
+    <div className="text-xs text-gray-500 mt-2 bg-blue-50 p-2 rounded">
+      💡 בחר את איש הקשר הרלוונטי. הפרטים ימולאו אוטומטית בשדות למטה.
+    </div>
+  </div>
+)}
 
               {/* Instructor Selection */}
               <FormField

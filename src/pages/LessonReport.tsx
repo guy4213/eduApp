@@ -43,6 +43,10 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import FeedbackDialog from "@/components/FeedbackDialog";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { useMemo } from "react";
+import { Upload, FileSpreadsheet } from "lucide-react";
+import * as XLSX from 'xlsx';
+
 
 const LessonReport = () => {
   const fileInputRef = useRef(null);
@@ -80,6 +84,16 @@ const LessonReport = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const isInstructor = user?.user_metadata.role === "instructor";
   const isAdmin = user?.user_metadata.role === "admin";
+  const [isUploadingExcel, setIsUploadingExcel] = useState(false);
+  const excelInputRef = useRef<HTMLInputElement>(null);
+
+
+const [selectAll, setSelectAll] = useState(false);
+const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+const [editedName, setEditedName] = useState("");
+
+
+
 
   // Date filtering state (admin only)
   const [selectedMonth, setSelectedMonth] = useState<string>("");
@@ -98,6 +112,150 @@ const [institutions, setInstitutions] = useState<{id: string, name: string}[]>([
   const [lessonNumber, setLessonNumber] = useState<any>();
   const navigate = useNavigate();
   const selectedDate = location.state?.selectedDate; // התאריך שנשלח מהיומן
+
+
+
+
+
+
+
+const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  // בדיקת סוג הקובץ
+  const validTypes = [
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv'
+  ];
+  
+  if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls|csv)$/i)) {
+    toast({
+      title: "שגיאה",
+      description: "יש להעלות קובץ Excel או CSV בלבד",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setIsUploadingExcel(true);
+
+  try {
+    // קריאת הקובץ
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { 
+      type: 'array',
+      cellStyles: true,
+      cellDates: true 
+    });
+
+    // קריאת הגיליון הראשון
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    
+    // המרה ל-JSON
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+      header: 1,
+      defval: ''
+    }) as string[][];
+
+    console.log("Excel data:", jsonData);
+
+    // חילוץ שמות מהקובץ
+    const extractedNames: string[] = [];
+    
+    // מעבר על כל השורות
+    for (let i = 0; i < jsonData.length; i++) {
+      const row = jsonData[i];
+      
+      // דילוג על שורות ריקות
+      if (!row || row.length === 0) continue;
+      
+      // חיפוש עמודת "שם" או לקיחת העמודה הראשונה
+      let name = '';
+      
+      // אם זו שורת כותרת (בדיקה פשוטה)
+      if (i === 0 && typeof row[0] === 'string' && 
+          (row[0].includes('שם') || row[0].includes('name') || 
+           row[0].includes('Name') || row[0].includes('תלמיד'))) {
+        continue; // דילוג על שורת כותרות
+      }
+      
+      // חיפוש העמודה הראשונה עם ערך
+      for (const cell of row) {
+        if (cell && typeof cell === 'string' && cell.trim()) {
+          name = cell.trim();
+          break;
+        }
+      }
+      
+      // הוספת השם אם הוא תקין
+      if (name && name.length > 1 && name.length < 100) {
+        // בדיקה שהשם לא קיים כבר
+        const nameExists = attendanceList.some(
+          s => s.name.toLowerCase() === name.toLowerCase()
+        );
+        const duplicateInExtracted = extractedNames.some(
+          n => n.toLowerCase() === name.toLowerCase()
+        );
+        
+        if (!nameExists && !duplicateInExtracted) {
+          extractedNames.push(name);
+        }
+      }
+    }
+
+    console.log("Extracted names:", extractedNames);
+
+    if (extractedNames.length === 0) {
+      toast({
+        title: "אין תוצאות",
+        description: "לא נמצאו שמות תלמידים בקובץ. ודא שהקובץ מכיל עמודה עם שמות.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // הוספת התלמידים לרשימה
+    const newStudents = extractedNames.map(name => ({
+      id: `temp_${Date.now()}_${Math.random()}`,
+      name: name,
+      isPresent: false,
+      isNew: true,
+    }));
+
+    setAttendanceList(prev => [...prev, ...newStudents]);
+
+    toast({
+      title: "הצלחה! 🎉",
+      description: `נוספו ${extractedNames.length} תלמידים מהקובץ`,
+    });
+
+    // איפוס ה-input
+    if (excelInputRef.current) {
+      excelInputRef.current.value = '';
+    }
+
+  } catch (error) {
+    console.error("Error reading Excel file:", error);
+    toast({
+      title: "שגיאה בקריאת הקובץ",
+      description: "אירעה שגיאה בעת ניתוח הקובץ. ודא שהקובץ תקין.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsUploadingExcel(false);
+  }
+};
+
+
+
+
+
+
+
+
 
   async function getMaxParticipantsByScheduleId(scheduleId) {
     console.log("Getting max participants for schedule ID:", scheduleId);
@@ -323,6 +481,106 @@ const [institutions, setInstitutions] = useState<{id: string, name: string}[]>([
       prev.filter((student) => student.id !== studentId)
     );
   };
+
+// פונקציה 1: מיון תלמידים לפי א-ב
+// ─────────────────────────────────────────────────────────────────
+const sortedAttendanceList = useMemo(() => {
+  return [...attendanceList].sort((a, b) => 
+    a.name.localeCompare(b.name, 'he')
+  );
+}, [attendanceList]);
+
+// פונקציה 2: בחירת הכל / ביטול הכל
+// ─────────────────────────────────────────────────────────────────
+const handleSelectAll = () => {
+  const newSelectAllState = !selectAll;
+  setSelectAll(newSelectAllState);
+  
+  setAttendanceList((prev) =>
+    prev.map((student) => ({
+      ...student,
+      isPresent: newSelectAllState,
+    }))
+  );
+};
+
+// פונקציה 3: התחלת עריכת שם תלמיד
+// ─────────────────────────────────────────────────────────────────
+const handleStartEdit = (studentId: string, currentName: string) => {
+  setEditingStudentId(studentId);
+  setEditedName(currentName);
+};
+
+
+// פונקציה 4: ביטול עריכה
+// ─────────────────────────────────────────────────────────────────
+const handleCancelEdit = () => {
+  setEditingStudentId(null);
+  setEditedName("");
+};
+
+
+const handleSaveEdit = async (studentId: string) => {
+  if (!editedName.trim()) {
+    toast({
+      title: "שגיאה",
+      description: "נדרש להזין שם תלמיד",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  // בדיקת כפילויות
+  const isDuplicate = attendanceList.some(
+    (student) => 
+      student.id !== studentId && 
+      student.name.toLowerCase() === editedName.trim().toLowerCase()
+  );
+
+  if (isDuplicate) {
+    toast({
+      title: "שגיאה",
+      description: "תלמיד עם שם זה כבר קיים ברשימה",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  // עדכון במסד הנתונים רק אם התלמיד לא חדש
+  const student = attendanceList.find(s => s.id === studentId);
+  if (student && !student.isNew) {
+    const { error } = await supabase
+      .from("students")
+      .update({ full_name: editedName.trim() })
+      .eq("id", studentId);
+
+    if (error) {
+      toast({
+        title: "שגיאה",
+        description: "שגיאה בעדכון שם התלמיד במסד הנתונים",
+        variant: "destructive",
+      });
+      return;
+    }
+  }
+
+  // עדכון ברשימה המקומית
+  setAttendanceList((prev) =>
+    prev.map((student) =>
+      student.id === studentId
+        ? { ...student, name: editedName.trim() }
+        : student
+    )
+  );
+
+  toast({
+    title: "הצלחה",
+    description: "שם התלמיד עודכן בהצלחה",
+  });
+
+  setEditingStudentId(null);
+  setEditedName("");
+};
 
   // Save new students to database and get their IDs
   async function saveNewStudents() {
@@ -1800,18 +2058,23 @@ console.log('reports',filteredReports)
 
                 {/* Student Attendance List */}
                 <div>
-                  <Label className="flex items-center">
-                    <UserCheck className="h-4 w-4 ml-2" />
-                    רשימת נוכחות תלמידים
-                    {!courseInstanceId && (
-                      <Badge
-                        variant="outline"
-                        className="mr-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200"
-                      >
-                        טוען...
-                      </Badge>
-                    )}
-                  </Label>
+                 <Label className="flex items-center justify-between">
+              <span className="flex items-center">
+                <UserCheck className="h-4 w-4 ml-2" />
+                רשימת נוכחות תלמידים
+                {!courseInstanceId && (
+                  <Badge
+                    variant="outline"
+                    className="mr-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200"
+                  >
+                    טוען...
+                  </Badge>
+                )}
+              </span>
+              {/* כפתור בחר הכל */}
+       
+            </Label>
+
 
                   {!isCompleted && (
                     <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -1822,27 +2085,86 @@ console.log('reports',filteredReports)
                   )}
 
                   {/* Add new student */}
-                  <div className="flex gap-2 mb-4">
-                    <Input
-                      placeholder="הזן שם תלמיד חדש"
-                      value={newStudentName}
-                      onChange={(e) => setNewStudentName(e.target.value)}
-                      onKeyPress={(e) =>
-                        e.key === "Enter" && handleAddStudent()
-                      }
-                      className="flex-1"
-                      disabled={!isCompleted}
-                    />
-                    <Button
-                      type="button"
-                      onClick={handleAddStudent}
-                      variant="outline"
-                      disabled={!isCompleted}
-                    >
-                      <Plus className="h-4 w-4" />
-                      הוסף
-                    </Button>
-                  </div>
+                 <div className="space-y-3 mb-4">
+  {/* שורה ראשונה: הוספה ידנית */}
+  <div className="flex gap-2">
+    <Input
+      placeholder="הזן שם תלמיד חדש"
+      value={newStudentName}
+      onChange={(e) => setNewStudentName(e.target.value)}
+      onKeyPress={(e) => e.key === "Enter" && handleAddStudent()}
+      className="flex-1"
+      disabled={!isCompleted}
+    />
+    <Button
+      type="button"
+      onClick={handleAddStudent}
+      variant="outline"
+      disabled={!isCompleted}
+    >
+      <Plus className="h-4 w-4" />
+      הוסף
+    </Button>
+  </div>
+
+  {/* שורה שנייה: העלאת אקסל */}
+  <div className="flex gap-2">
+    <input
+      ref={excelInputRef}
+      type="file"
+      accept=".xlsx,.xls,.csv"
+      onChange={handleExcelUpload}
+      className="hidden"
+      disabled={!isCompleted}
+    />
+    <Button
+      type="button"
+      onClick={() => excelInputRef.current?.click()}
+      variant="outline"
+      disabled={!isCompleted || isUploadingExcel}
+      className="flex-1 bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+    >
+      {isUploadingExcel ? (
+        <>
+          <div className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full ml-2" />
+          מעלה...
+        </>
+      ) : (
+        <>
+          <Upload className="h-4 w-4 ml-2" />
+          העלה קובץ אקסל
+        </>
+      )}
+    </Button>
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={() => {
+        toast({
+          title: "📋 הוראות שימוש",
+          description: (
+            <div className="text-sm space-y-2">
+              <p>1. הקובץ צריך להיות Excel (.xlsx, .xls) או CSV</p>
+              <p>2. העמודה הראשונה צריכה להכיל שמות תלמידים</p>
+              <p>3. השורה הראשונה יכולה להיות כותרת (תתעלם)</p>
+              <p>4. כל שם יופיע בשורה נפרדת</p>
+            </div>
+          ),
+        });
+      }}
+      className="text-blue-500"
+      title="הוראות שימוש"
+    >
+      ℹ️
+    </Button>
+  </div>
+
+  {/* הודעת מידע */}
+  <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-200">
+    💡 ניתן להעלות קובץ Excel עם רשימת שמות תלמידים. השמות יתווספו אוטומטית לרשימה.
+  </div>
+</div>
                   {!courseInstanceId && (
                     <div className="text-sm text-yellow-600 bg-yellow-50 p-2 rounded mb-2">
                       ⚠️ אזהרה: נתוני קורס עדיין נטענים. תלמידים חדשים יישמרו
@@ -1851,66 +2173,128 @@ console.log('reports',filteredReports)
                   )}
 
                   {/* Attendance list */}
-                  <div className="max-h-64 overflow-y-auto border rounded-lg bg-white">
-                    {attendanceList.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500">
-                        {!courseInstanceId
-                          ? "טוען נתוני קורס..."
-                          : "אין תלמידים ברשימה. הוסף תלמידים חדשים למעלה."}
-                      </div>
-                    ) : (
-                      <div className="divide-y">
-                        {attendanceList.map((student) => (
-                          <div
-                            key={student.id}
-                            className="flex items-center justify-between p-3 hover:bg-gray-50"
-                          >
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                checked={student.isPresent}
-                                onChange={() =>
-                                  handleTogglePresence(student.id)
-                                }
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                disabled={!isCompleted}
-                              />
-                              <span
-                                className={`font-medium ${
-                                  student.isPresent
-                                    ? "text-green-700"
-                                    : "text-gray-700"
-                                } ${!isCompleted ? "text-gray-400" : ""}`}
-                              >
-                                {student.name}
-                              </span>
-                              {student.isNew && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-blue-50 text-blue-700 border-blue-200"
-                                >
-                                  חדש
-                                </Badge>
-                              )}
-                            </div>
-                        
-                     {lesson?.order_index+1 ==1 &&  <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveStudent(student.id)}
-                              className="text-red-500 hover:text-red-700"
-                              disabled={!isCompleted}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <div className="max-h-64 overflow-y-auto border rounded-lg bg-white">
+  {sortedAttendanceList.length === 0 ? (
+    <div className="p-4 text-center text-gray-500">
+      {!courseInstanceId
+        ? "טוען נתוני קורס..."
+        : "אין תלמידים ברשימה. הוסף תלמידים חדשים למעלה."}
+    </div>
+  ) : (
+    <div className="divide-y">
+      {sortedAttendanceList.map((student) => (
+        <div
+          key={student.id}
+          className="flex items-center justify-between p-3 hover:bg-gray-50"
+        >
+          <div className="flex items-center gap-3 flex-1">
+            <input
+              type="checkbox"
+              checked={student.isPresent}
+              onChange={() => handleTogglePresence(student.id)}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              disabled={!isCompleted}
+            />
+            
+            {/* שם התלמיד - ניתן לעריכה */}
+            {editingStudentId === student.id ? (
+              <div className="flex items-center gap-2 flex-1">
+                <Input
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  className="h-8"
+                  autoFocus
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") {
+                      handleSaveEdit(student.id);
+                    } else if (e.key === "Escape") {
+                      handleCancelEdit();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleSaveEdit(student.id)}
+                  className="h-8 px-2"
+                >
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleCancelEdit}
+                  className="h-8 px-2"
+                >
+                  בטל
+                </Button>
+              </div>
+            ) : (
+              <>
+                <span
+                  className={`font-medium cursor-pointer ${
+                    student.isPresent
+                      ? "text-green-700"
+                      : "text-gray-700"
+                  } ${!isCompleted ? "text-gray-400" : ""}`}
+                  onDoubleClick={() => 
+                    isCompleted && handleStartEdit(student.id, student.name)
+                  }
+                  title="לחץ פעמיים לעריכת שם"
+                >
+                  {student.name}
+                </span>
+                {student.isNew && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                  >
+                    חדש
+                  </Badge>
+                )}
+              </>
+            )}
+          </div>
+          
+          {/* כפתורי פעולה */}
+          <div className="flex items-center gap-1">
+            {editingStudentId !== student.id &&lesson?.order_index + 1 === 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleStartEdit(student.id, student.name)}
+                className="text-blue-500 hover:text-blue-700 h-8 px-2"
+                disabled={!isCompleted}
+                title="ערוך שם"
+              >
+                ✏️
+              </Button>
+            )}
+            
+            {lesson?.order_index + 1 === 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleRemoveStudent(student.id)}
+                className="text-red-500 hover:text-red-700 h-8 px-2"
+                disabled={!isCompleted}
+                title="הסר תלמיד"
+              >
+                הסר
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
                   {/* Present students counter */}
-                  <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded mt-2">
+                  <div className="text-md text-gray-600 bg-gray-50 p-2 rounded mt-2">
                     נוכחים:{" "}
                     <span className="font-bold text-green-600">
                       {attendanceList.filter((s) => s.isPresent).length}
@@ -1919,6 +2303,19 @@ console.log('reports',filteredReports)
                     {maxPar && (
                       <span className="mr-2">(מקסימום: {maxPar})</span>
                     )}
+                    <span className="float-left">
+                             <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAll}
+                disabled={!isCompleted || attendanceList.length === 0}
+                className="text-md"
+              >
+                <CheckCircle className="h-3 w-3 ml-1" />
+                {selectAll ? "בטל סימון " : "סמן הכל"}
+              </Button>
+                    </span>
                   </div>
                 </div>
                 <div>
