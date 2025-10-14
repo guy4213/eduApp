@@ -70,11 +70,14 @@ const LessonReport = () => {
   const queryParams = new URLSearchParams(location.search);
   const scheduleId = queryParams.get("scheduleId");
   const courseInstanceIdFromUrl = queryParams.get("courseInstanceId");
+  const editReportId = queryParams.get("editReportId");
 
   const [lesson, setLesson] = useState(null);
   const [lessonTasks, setLessonTasks] = useState([]);
   const [checkedTasks, setCheckedTasks] = useState([]);
   const [allReports, setAllReports] = useState([]);
+  const [existingReport, setExistingReport] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isLessonOk, setIsLessonOk] = useState(false);
   const [isCompleted, setIsCompleted] = useState(true); // האם השיעור התקיים
@@ -696,12 +699,63 @@ const handleSaveEdit = async (studentId: string) => {
     });
   };
 
+  // Load existing report for editing
+  useEffect(() => {
+    if (editReportId) {
+      const fetchExistingReport = async () => {
+        const { data, error } = await supabase
+          .from("lesson_reports")
+          .select(`
+            *,
+            lesson_attendance (
+              student_id,
+              attended,
+              students (
+                id,
+                full_name
+              )
+            )
+          `)
+          .eq("id", editReportId)
+          .single();
+
+        if (error) {
+          console.error("Error fetching existing report:", error);
+        } else {
+          setExistingReport(data);
+          setIsEditMode(true);
+          // Populate form with existing data
+          setIsLessonOk(data.is_lesson_ok || false);
+          setIsCompleted(data.is_completed !== false);
+          setCheckedTasks(data.completed_task_ids || []);
+          setNotes(data.notes || "");
+          setFeedback(data.feedback || "");
+          setMarketingConsent(data.marketing_consent || false);
+          setParticipantsCount(data.participants_count || 0);
+          
+          // Set attendance data
+          if (data.lesson_attendance) {
+            const attendanceMap = new Map();
+            data.lesson_attendance.forEach(att => {
+              if (att.students) {
+                attendanceMap.set(att.students.id, att.attended);
+              }
+            });
+            setAttendance(attendanceMap);
+          }
+        }
+      };
+
+      fetchExistingReport();
+    }
+  }, [editReportId]);
+
   useEffect(() => {
    
     if (isInstructor && !id) return;
 
-    if (isInstructor) {
-      // Fetch lesson data for instructors
+    // If there's a lesson ID, fetch lesson data for all roles
+    if (id) {
       const fetchLessonData = async () => {
         const [lessonRes, tasksRes] = await Promise.all([
           supabase.from("lessons").select("*").eq("id", id).single(),
@@ -722,7 +776,7 @@ const handleSaveEdit = async (studentId: string) => {
       };
 
       fetchLessonData();
-    } else {
+    } else if (isAdminOrManager) {
       // Fetch all reports for admins/managers with enhanced data
       const fetchAllReports = async () => {
         setLoading(true);
@@ -1500,8 +1554,8 @@ const handleSaveEdit = async (studentId: string) => {
 //   };
 
 const handleSubmit = async () => {
-  // Validation for admins: must select an instructor
-  if (isAdminOrManager && !selectedInstructorForReport) {
+  // Validation for admins: must select an instructor (only for new reports)
+  if (isAdminOrManager && !selectedInstructorForReport && !isEditMode) {
     toast({
       title: "שגיאה",
       description: "יש לבחור מדריך לפני שליחת הדיווח",
@@ -1605,7 +1659,7 @@ const handleSubmit = async () => {
       throw new Error("לא ניתן ליצור דיווח ללא מזהה לוח זמנים תקין");
     }
 
-    // יצירת דיווח השיעור
+    // יצירת או עדכון דיווח השיעור
     const reportDataToInsert: any = {
       lesson_title: lessonTitle,
       participants_count: participantsCount,
@@ -1614,8 +1668,8 @@ const handleSubmit = async () => {
       marketing_consent: marketingConsent,
       instructor_id: isAdminOrManager && selectedInstructorForReport 
         ? selectedInstructorForReport 
-        : user.id,
-      reported_by: user.id, // Always track who actually created the report
+        : (isEditMode ? existingReport.instructor_id : user.id),
+      reported_by: user.id, // Always track who actually created/updated the report
       is_lesson_ok: isCompleted ? isLessonOk : null,
       is_completed: isCompleted,
       completed_task_ids: checkedTasks,
@@ -1628,15 +1682,31 @@ const handleSubmit = async () => {
       reportDataToInsert.lesson_schedule_id = lessonScheduleId;
     }
 
-    const { data: reportData, error: reportError } = await supabase
-      .from("lesson_reports")
-      .insert(reportDataToInsert)
-      .select()
-      .single();
+    let reportData;
+    if (isEditMode && existingReport) {
+      // Update existing report
+      const { data, error: reportError } = await supabase
+        .from("lesson_reports")
+        .update(reportDataToInsert)
+        .eq("id", existingReport.id)
+        .select()
+        .single();
 
-    if (reportError) throw reportError;
+      if (reportError) throw reportError;
+      reportData = data;
+      console.log("Lesson report updated:", reportData);
+    } else {
+      // Create new report
+      const { data, error: reportError } = await supabase
+        .from("lesson_reports")
+        .insert(reportDataToInsert)
+        .select()
+        .single();
 
-    console.log("Lesson report created:", reportData);
+      if (reportError) throw reportError;
+      reportData = data;
+      console.log("Lesson report created:", reportData);
+    }
 
     // Create a record in reported_lesson_instances
     const reportedInstanceData: any = {
@@ -2061,7 +2131,7 @@ console.log('reports',filteredReports)
 <div className="w-full px-4 my-8  xl:max-w-[98rem] md:max-w-[125rem] xl:mx-auto">  
         {isInstructor ? (
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            דיווח שיעור  {lesson?.order_index+1} - {lesson?.title}
+            {isEditMode ? 'עריכת דיווח שיעור' : 'דיווח שיעור'} {lesson?.order_index+1} - {lesson?.title}
             {!scheduleId && !courseInstanceIdFromUrl && (
               <Badge variant="destructive" className="mr-2 text-xs">
                 שגיאה: לא נמצא לוח זמנים
@@ -2465,7 +2535,7 @@ console.log('reports',filteredReports)
                   disabled={isSubmitting}
                 >
                   <CheckCircle className="h-4 w-4 ml-2" />
-                  {isSubmitting ? "שומר..." : "שמור דיווח"}
+                  {isSubmitting ? "שומר..." : (isEditMode ? "עדכן דיווח" : "שמור דיווח")}
                 </Button>
                 {!scheduleId &&
                   !courseInstanceIdFromUrl &&

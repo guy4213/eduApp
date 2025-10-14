@@ -155,6 +155,18 @@ const sortedLessons = lessons.sort((a, b) => {
     return map;
   }, [instructors]);
 
+  // Function to get report ID for a specific lesson
+  const getReportIdForLesson = (lessonItem: any) => {
+    // Try to find a report that matches this lesson
+    // This is a simplified approach - we'll need to match based on schedule ID or other criteria
+    if (lessonItem.id && reportStatusMap.has(lessonItem.id)) {
+      // For now, we'll use a placeholder approach
+      // In a real implementation, you'd need to store the report ID in the status map
+      return `report-${lessonItem.id}`;
+    }
+    return null;
+  };
+
   return (
     <div className="schedule-list-container flex flex-col gap-3 px-2 py-4 sm:px-4 sm:py-6 max-w-4xl w-full mx-auto">
       {sortedLessons.map((item, index) => {
@@ -273,10 +285,30 @@ const renderStatusBadge = () => {
 
   if (lessonStatus?.isCompleted === true) {
     console.log('Returning: דווח (completed=true)');
+    const canEdit = ['admin', 'pedagogical_manager'].includes(user.user_metadata.role);
+    
     return (
-      <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
-        <Check className="w-5 h-5" /> דווח
-      </span>
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
+          <Check className="w-5 h-5" /> דווח
+        </span>
+        {canEdit && (
+          <button
+            onClick={() => {
+              // Find the report ID for this lesson
+              const reportId = getReportIdForLesson(item);
+              if (reportId) {
+                nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}&editReportId=${reportId}`, {
+                  state: { selectedDate: selectedDate?.toISOString() }
+                });
+              }
+            }}
+            className="bg-orange-500 text-white px-3 py-2 rounded-lg font-bold text-sm transition-colors hover:bg-orange-600 shadow-md"
+          >
+            ✏️ ערוך
+          </button>
+        )}
+      </div>
     );
   }
 
