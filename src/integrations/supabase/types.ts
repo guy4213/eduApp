@@ -110,6 +110,7 @@ export type Database = {
           id: string
           institution_id: string | null
           instructor_id: string | null
+          lesson_mode: string | null
           max_participants: number | null
           price_for_customer: number | null
           price_for_instructor: number | null
@@ -125,6 +126,7 @@ export type Database = {
           id?: string
           institution_id?: string | null
           instructor_id?: string | null
+          lesson_mode?: string | null
           max_participants?: number | null
           price_for_customer?: number | null
           price_for_instructor?: number | null
@@ -140,6 +142,7 @@ export type Database = {
           id?: string
           institution_id?: string | null
           instructor_id?: string | null
+          lesson_mode?: string | null
           max_participants?: number | null
           price_for_customer?: number | null
           price_for_instructor?: number | null
@@ -211,6 +214,7 @@ export type Database = {
           contact_email: string | null
           contact_person: string | null
           contact_phone: string | null
+          contacts: Json | null
           created_at: string | null
           id: string
           name: string
@@ -222,6 +226,7 @@ export type Database = {
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
+          contacts?: Json | null
           created_at?: string | null
           id?: string
           name: string
@@ -233,6 +238,7 @@ export type Database = {
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
+          contacts?: Json | null
           created_at?: string | null
           id?: string
           name?: string
@@ -275,6 +281,77 @@ export type Database = {
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_cancellations: {
+        Row: {
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          course_instance_id: string
+          created_at: string | null
+          id: string
+          is_rescheduled: boolean | null
+          lesson_id: string
+          original_scheduled_date: string
+          rescheduled_to_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          course_instance_id: string
+          created_at?: string | null
+          id?: string
+          is_rescheduled?: boolean | null
+          lesson_id: string
+          original_scheduled_date: string
+          rescheduled_to_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          course_instance_id?: string
+          created_at?: string | null
+          id?: string
+          is_rescheduled?: boolean | null
+          lesson_id?: string
+          original_scheduled_date?: string
+          rescheduled_to_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_cancellations_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_cancellations_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_cancellations_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_cancellations_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
             referencedColumns: ["id"]
           },
         ]
@@ -325,12 +402,14 @@ export type Database = {
       }
       lesson_reports: {
         Row: {
+          cancellation_reason: string | null
           completed_task_ids: string[] | null
           course_instance_id: string | null
           created_at: string
           feedback: string | null
           id: string
           instructor_id: string | null
+          is_cancelled: boolean | null
           is_completed: boolean | null
           is_lesson_ok: boolean | null
           lesson_id: string | null
@@ -339,15 +418,18 @@ export type Database = {
           marketing_consent: boolean | null
           notes: string | null
           participants_count: number | null
+          reported_by: string | null
           updated_at: string
         }
         Insert: {
+          cancellation_reason?: string | null
           completed_task_ids?: string[] | null
           course_instance_id?: string | null
           created_at?: string
           feedback?: string | null
           id?: string
           instructor_id?: string | null
+          is_cancelled?: boolean | null
           is_completed?: boolean | null
           is_lesson_ok?: boolean | null
           lesson_id?: string | null
@@ -356,15 +438,18 @@ export type Database = {
           marketing_consent?: boolean | null
           notes?: string | null
           participants_count?: number | null
+          reported_by?: string | null
           updated_at?: string
         }
         Update: {
+          cancellation_reason?: string | null
           completed_task_ids?: string[] | null
           course_instance_id?: string | null
           created_at?: string
           feedback?: string | null
           id?: string
           instructor_id?: string | null
+          is_cancelled?: boolean | null
           is_completed?: boolean | null
           is_lesson_ok?: boolean | null
           lesson_id?: string | null
@@ -373,6 +458,7 @@ export type Database = {
           marketing_consent?: boolean | null
           notes?: string | null
           participants_count?: number | null
+          reported_by?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -782,6 +868,61 @@ export type Database = {
           },
         ]
       }
+      schedule_adjustments: {
+        Row: {
+          adjustment_type: string
+          course_instance_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          lesson_number: number | null
+          new_scheduled_date: string | null
+          original_scheduled_date: string
+        }
+        Insert: {
+          adjustment_type?: string
+          course_instance_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          lesson_number?: number | null
+          new_scheduled_date?: string | null
+          original_scheduled_date: string
+        }
+        Update: {
+          adjustment_type?: string
+          course_instance_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          lesson_number?: number | null
+          new_scheduled_date?: string | null
+          original_scheduled_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_adjustments_course_instance_id_fkey"
+            columns: ["course_instance_id"]
+            isOneToOne: false
+            referencedRelation: "course_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_adjustments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_adjustments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
           course_instance_id: string | null
@@ -814,7 +955,6 @@ export type Database = {
       system_defaults: {
         Row: {
           created_at: string | null
-          default_break_duration: number
           default_lesson_duration: number
           default_task_duration: number
           id: string
@@ -822,7 +962,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
-          default_break_duration?: number
           default_lesson_duration?: number
           default_task_duration?: number
           id?: string
@@ -830,7 +969,6 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
-          default_break_duration?: number
           default_lesson_duration?: number
           default_task_duration?: number
           id?: string
@@ -905,14 +1043,41 @@ export type Database = {
       }
     }
     Functions: {
+      cancel_lesson_and_reschedule: {
+        Args: {
+          p_cancellation_reason?: string
+          p_cancelled_by?: string
+          p_course_instance_id: string
+          p_lesson_id: string
+          p_original_date: string
+        }
+        Returns: Json
+      }
       delete_by_course_instance_id: {
         Args: { p_uuid: string }
         Returns: number
+      }
+      delete_course_template: {
+        Args: { p_course_id: string }
+        Returns: undefined
       }
       get_admin_emails: {
         Args: Record<PropertyKey, never>
         Returns: {
           email: string
+        }[]
+      }
+      get_cancellation_history: {
+        Args: { p_course_instance_id: string }
+        Returns: {
+          cancellation_id: string
+          cancellation_reason: string
+          cancelled_at: string
+          cancelled_by_name: string
+          is_rescheduled: boolean
+          lesson_title: string
+          original_date: string
+          rescheduled_to_date: string
         }[]
       }
       get_current_user_role: {
