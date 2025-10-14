@@ -759,20 +759,15 @@ const handleSaveEdit = async (studentId: string) => {
     if (id) {
       console.log("Loading lesson data for ID:", id, "Role:", user?.user_metadata?.role);
       const fetchLessonData = async () => {
+        // First try to find the lesson in the database
         console.log("Fetching lesson with ID:", id);
-        const [lessonRes, tasksRes] = await Promise.all([
-          supabase.from("lessons").select("*").eq("id", id).single(),
-          supabase.from("lesson_tasks").select("*").eq("lesson_id", id),
-        ]);
-
-        console.log("Lesson fetch result:", lessonRes);
-        console.log("Tasks fetch result:", tasksRes);
-
+        const lessonRes = await supabase.from("lessons").select("*").eq("id", id).single();
+        
         if (lessonRes.error) {
-          console.error("Lesson fetch error:", lessonRes.error);
-          // If lesson not found, try to find it by course_instance_id and lesson_id from URL
+          console.log("Lesson not found in database, creating mock lesson");
+          // If lesson not found, create a mock lesson from course data
           if (courseInstanceIdFromUrl) {
-            console.log("Trying to find lesson by course_instance_id:", courseInstanceIdFromUrl);
+            console.log("Trying to find course data by course_instance_id:", courseInstanceIdFromUrl);
             const { data: courseInstanceData, error: courseError } = await supabase
               .from("course_instances")
               .select(`
@@ -801,12 +796,17 @@ const handleSaveEdit = async (studentId: string) => {
             }
           }
         } else {
+          console.log("Lesson found in database:", lessonRes.data);
           setLesson(lessonRes.data);
         }
 
+        // Try to fetch tasks for this lesson
+        const tasksRes = await supabase.from("lesson_tasks").select("*").eq("lesson_id", id);
         if (tasksRes.error) {
-          console.error("Tasks fetch error:", tasksRes.error);
+          console.log("No tasks found for this lesson");
+          setLessonTasks([]);
         } else {
+          console.log("Tasks found:", tasksRes.data);
           setLessonTasks(tasksRes.data || []);
         }
       };
