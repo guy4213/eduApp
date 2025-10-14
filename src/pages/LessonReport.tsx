@@ -78,6 +78,7 @@ const LessonReport = () => {
   const [allReports, setAllReports] = useState([]);
   const [existingReport, setExistingReport] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditingReport, setIsEditingReport] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isLessonOk, setIsLessonOk] = useState(false);
   const [isCompleted, setIsCompleted] = useState(true); // האם השיעור התקיים
@@ -702,6 +703,7 @@ const handleSaveEdit = async (studentId: string) => {
   // Load existing report for editing
   useEffect(() => {
     if (editReportId) {
+      setIsEditingReport(true);
       const fetchExistingReport = async () => {
         const { data, error } = await supabase
           .from("lesson_reports")
@@ -735,13 +737,14 @@ const handleSaveEdit = async (studentId: string) => {
           
           // Set attendance data
           if (data.lesson_attendance) {
-            const attendanceMap = new Map();
-            data.lesson_attendance.forEach(att => {
-              if (att.students) {
-                attendanceMap.set(att.students.id, att.attended);
-              }
-            });
-            setAttendance(attendanceMap);
+            // Convert attendance data to attendanceList format
+            const attendanceList = data.lesson_attendance.map(att => ({
+              id: att.students.id,
+              name: att.students.full_name,
+              isPresent: att.attended,
+              isNew: false
+            }));
+            setAttendanceList(attendanceList);
           }
         }
       };
@@ -751,9 +754,15 @@ const handleSaveEdit = async (studentId: string) => {
   }, [editReportId]);
 
   useEffect(() => {
-    console.log("useEffect triggered - ID:", id, "Role:", user?.user_metadata?.role, "isAdminOrManager:", isAdminOrManager);
+    console.log("useEffect triggered - ID:", id, "Role:", user?.user_metadata?.role, "isAdminOrManager:", isAdminOrManager, "isEditingReport:", isEditingReport);
    
     if (isInstructor && !id) return;
+
+    // If editing a report, don't load lesson data
+    if (isEditingReport) {
+      console.log("Editing report mode - skipping lesson data loading");
+      return;
+    }
 
     // If there's a lesson ID, fetch lesson data for all roles
     if (id) {
@@ -962,7 +971,7 @@ const handleSaveEdit = async (studentId: string) => {
 
       fetchAllReports();
     }
-  }, [id, isInstructor, toast]);
+  }, [id, isInstructor, toast, isEditingReport]);
 
   // Date filtering effect (admin only)
   useEffect(() => {
