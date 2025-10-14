@@ -756,6 +756,7 @@ const handleSaveEdit = async (studentId: string) => {
 
     // If there's a lesson ID, fetch lesson data for all roles
     if (id) {
+      console.log("Loading lesson data for ID:", id, "Role:", user?.user_metadata?.role);
       const fetchLessonData = async () => {
         const [lessonRes, tasksRes] = await Promise.all([
           supabase.from("lessons").select("*").eq("id", id).single(),
@@ -776,7 +777,7 @@ const handleSaveEdit = async (studentId: string) => {
       };
 
       fetchLessonData();
-    } else if (isAdminOrManager) {
+    } else if (isAdminOrManager && !id) {
       // Fetch all reports for admins/managers with enhanced data
       const fetchAllReports = async () => {
         setLoading(true);

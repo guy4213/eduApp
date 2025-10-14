@@ -12,7 +12,7 @@ export const ScheduleList: React.FC<any> = ({ lessons,selectedDate }) => {
   const [reportedScheduleIds, setReportedScheduleIds] = useState<Set<string>>(
     new Set()
   );
-  const [reportStatusMap, setReportStatusMap] = useState<Map<string, {isCompleted: boolean, isLessonOk: boolean}>>(
+  const [reportStatusMap, setReportStatusMap] = useState<Map<string, {isCompleted: boolean, isLessonOk: boolean, reportId?: string}>>(
     new Map()
   );
   const { user } = useAuth();
@@ -64,7 +64,7 @@ const sortedLessons = lessons.sort((a, b) => {
 
     // Create a set of reported lesson instance IDs and status map
     const reportedIds = new Set<string>();
-    const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
+    const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean, reportId?: string}>();
     
     lessonReports?.forEach((report: any) => {
       // A lesson report can have multiple reported_lesson_instances
@@ -84,7 +84,8 @@ const sortedLessons = lessons.sort((a, b) => {
         if (key) {
           statusMap.set(key, {
             isCompleted: report.is_completed !== false, // Default to true if null
-            isLessonOk: report.is_lesson_ok || false
+            isLessonOk: report.is_lesson_ok || false,
+            reportId: report.id
           });
         }
       });
@@ -158,11 +159,18 @@ const sortedLessons = lessons.sort((a, b) => {
   // Function to get report ID for a specific lesson
   const getReportIdForLesson = (lessonItem: any) => {
     // Try to find a report that matches this lesson
-    // This is a simplified approach - we'll need to match based on schedule ID or other criteria
-    if (lessonItem.id && reportStatusMap.has(lessonItem.id)) {
-      // For now, we'll use a placeholder approach
-      // In a real implementation, you'd need to store the report ID in the status map
-      return `report-${lessonItem.id}`;
+    let key = '';
+    if (lessonItem.id) {
+      // Try legacy architecture first
+      key = lessonItem.id;
+    } else if (lessonItem.course_instance_id && lessonItem.lesson?.id) {
+      // Try new architecture
+      key = `${lessonItem.course_instance_id}_${lessonItem.lesson.id}`;
+    }
+    
+    if (key && reportStatusMap.has(key)) {
+      const status = reportStatusMap.get(key);
+      return status?.reportId || null;
     }
     return null;
   };
@@ -297,10 +305,15 @@ const renderStatusBadge = () => {
             onClick={() => {
               // Find the report ID for this lesson
               const reportId = getReportIdForLesson(item);
+              console.log('Edit button clicked for item:', item);
+              console.log('Report ID found:', reportId);
+              console.log('Report status map:', reportStatusMap);
               if (reportId) {
                 nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}&editReportId=${reportId}`, {
                   state: { selectedDate: selectedDate?.toISOString() }
                 });
+              } else {
+                console.log('No report ID found for this lesson');
               }
             }}
             className="bg-orange-500 text-white px-3 py-2 rounded-lg font-bold text-sm transition-colors hover:bg-orange-600 shadow-md"
