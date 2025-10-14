@@ -812,6 +812,7 @@ const handleSaveEdit = async (studentId: string) => {
       };
 
       fetchLessonData();
+      return; // Stop here if we have a lesson ID
     } else if (isAdminOrManager && !id) {
       console.log("Loading all reports for admin/manager - no lesson ID");
       // Fetch all reports for admins/managers with enhanced data
