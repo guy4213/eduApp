@@ -164,13 +164,13 @@ Deno.serve(async (req) => {
             message: `Failed to send: ${error.message || 'Unknown error'}`
           });
         }
-      } catch (emailError) {
+      } catch (emailError: any) {
         console.log(`💥 Error sending email to ${email}:`, emailError);
         emailResults.push({
           email,
           status: 'failed',
-          error: emailError.message,
-          message: `Exception: ${emailError.message}`
+          error: emailError?.message || 'Unknown error',
+          message: `Exception: ${emailError?.message || 'Unknown error'}`
         });
       }
     }
@@ -179,8 +179,8 @@ Deno.serve(async (req) => {
     console.log(`Email results:`, emailResults);
     console.log(`=== ULTRA DEBUG END ===`);
     
-    const successCount = emailResults.filter(r => r.status === 'sent').length;
-    const failureCount = emailResults.filter(r => r.status === 'failed').length;
+    const successCount = emailResults.filter((r: any) => r.status === 'sent').length;
+    const failureCount = emailResults.filter((r: any) => r.status === 'failed').length;
     
     return new Response(JSON.stringify({ 
       message: `🚀 Email sending completed. ${successCount} sent, ${failureCount} failed.`,
@@ -196,13 +196,13 @@ Deno.serve(async (req) => {
       status: 200,
     });
 
-  } catch (error) {
-    console.log(`💥 CRITICAL ERROR: ${error.message}`);
+  } catch (error: any) {
+    console.log(`💥 CRITICAL ERROR: ${error?.message || 'Unknown error'}`);
     console.log(`Error details:`, error);
-    console.log(`Error stack:`, error.stack);
+    console.log(`Error stack:`, error?.stack);
     
     return new Response(JSON.stringify({ 
-      error: error.message
+      error: error?.message || 'Unknown error occurred'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,

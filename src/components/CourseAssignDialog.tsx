@@ -1963,7 +1963,9 @@ console.log(" instance id from dialog assign ",instanceId)
   if (mode === 'create' && courseId) {
     fetchTemplateLessons().then(templates => {
       const lessonList = templates || [];
-      setCourseSchedule(prev => ({ ...prev, total_lessons: lessonList.length || 1 }));
+      if (lessonList.length > 0) {
+        setCourseSchedule(prev => ({ ...prev, total_lessons: lessonList.length || 1 }));
+      }
     });
   } else if (mode === 'edit' && editData) {
     fetchExistingSchedule();
@@ -2222,12 +2224,14 @@ const fetchExistingSchedule = async () => {
 
     // Check the mode and fetch template lessons if needed
     if (instanceData) {
-      if (instanceData.lesson_mode === 'combined') {
+      const lessonMode = (instanceData as any).lesson_mode;
+      if (lessonMode === 'combined') {
         setIsCombinedMode(true);
       }
       // This is the crucial fix: fetch template lessons for the correct course
-      if (instanceData.course_id) {
-        fetchTemplateLessons(instanceData.course_id);
+      const coursId = (instanceData as any).course_id;
+      if (coursId) {
+        fetchTemplateLessons(coursId);
       }
     }
     // END of CHANGE
@@ -2239,16 +2243,19 @@ const fetchExistingSchedule = async () => {
       .single();
 
     if (scheduleData && !scheduleError) {
+      const durMinutes = (scheduleData as any).lesson_duration_minutes;
+      const taskDurMinutes = (scheduleData as any).task_duration_minutes;
+      
       setCourseSchedule({
         days_of_week: scheduleData.days_of_week || [],
         time_slots: (scheduleData.time_slots as TimeSlot[]) || [],
         total_lessons: scheduleData.total_lessons || 1,
         lesson_duration_minutes:
-          scheduleData.lesson_duration_minutes ||
+          durMinutes ||
           systemDefaults?.default_lesson_duration ||
           45,
         task_duration_minutes:
-          scheduleData.task_duration_minutes ||
+          taskDurMinutes ||
           systemDefaults?.default_task_duration ||
           25,
       });
