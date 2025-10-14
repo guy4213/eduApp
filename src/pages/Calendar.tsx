@@ -1,6 +1,6 @@
 // Calendar.tsx - Updated version with date context
 import React, { useEffect, useState } from "react";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -87,16 +87,27 @@ const Calendar = () => {
             <p className="text-sm sm:text-base text-gray-600">צפייה במערכת השעות והשיעורים הקרובים</p>
           </div>
           
-          <button
-            onClick={() => {
-              console.log('Manual refresh of calendar...');
-              fetchLessonsData();
-            }}
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors shadow-md"
-          >
-            <CalendarIcon className="h-4 w-4 ml-2 inline" />
-            רענן יומן
-          </button>
+          <div className="flex items-center space-x-2">
+            {['admin', 'pedagogical_manager'].includes(user?.user_metadata?.role) && (
+              <button
+                onClick={() => nav('/reports')}
+                className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors shadow-md flex items-center"
+              >
+                <BarChart3 className="h-4 w-4 ml-2" />
+                דוחות ושכר
+              </button>
+            )}
+            <button
+              onClick={() => {
+                console.log('Manual refresh of calendar...');
+                fetchLessonsData();
+              }}
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors shadow-md flex items-center"
+            >
+              <CalendarIcon className="h-4 w-4 ml-2" />
+              רענן יומן
+            </button>
+          </div>
         </div>
       </div>
 

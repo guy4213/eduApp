@@ -735,7 +735,7 @@ const handleSaveEdit = async (studentId: string) => {
       id,
       full_name
     ),
-    reported_by_profile:reported_by (
+    reported_by_profile:reported_by!profiles (
       id,
       full_name
     ),

@@ -282,7 +282,9 @@ const renderStatusBadge = () => {
 
   if (!isReported) {
     console.log('Returning: not reported, role:', user.user_metadata.role);
-    return user.user_metadata.role === "instructor" ? (
+    const canReport = ['instructor', 'admin', 'pedagogical_manager'].includes(user.user_metadata.role);
+    
+    return canReport ? (
       <button
         onClick={() =>
           nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {

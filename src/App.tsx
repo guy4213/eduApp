@@ -120,7 +120,7 @@ const App = () => (
                <Route 
                  path="/reports"
                 element={
-                  <ProtectedRoute allowedRoles={['admin']}>
+                  <ProtectedRoute allowedRoles={['admin', 'pedagogical_manager']}>
                     <div className="min-h-screen">
                       <Navigation />
                       <Reports />

@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { BarChart3, Calendar, DollarSign, TrendingUp, Download, FileText, Users, BookOpen, CheckCircle, X, Filter, CalendarDays, ChevronDown, ChevronUp, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -93,6 +94,7 @@ interface CourseDetail {
 
 const Reports = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState<'instructors' | 'institutions'>('instructors');
   const [monthlyReports, setMonthlyReports] = useState<Map<string, MonthlyReport>>(new Map());
@@ -978,10 +980,20 @@ const Reports = () => {
                 </Badge>
               )}
             </div>
-            <Button className="flex items-center space-x-2">
-              <Download className="h-4 w-4" />
-              <span>ייצוא דוח</span>
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button 
+                variant="outline" 
+                className="flex items-center space-x-2"
+                onClick={() => navigate('/calendar')}
+              >
+                <Calendar className="h-4 w-4" />
+                <span>יומן</span>
+              </Button>
+              <Button className="flex items-center space-x-2">
+                <Download className="h-4 w-4" />
+                <span>ייצוא דוח</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
