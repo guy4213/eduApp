@@ -338,9 +338,9 @@ const renderStatusBadge = () => {
     return canReport ? (
       <button
         onClick={() =>
-          nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`, {
-              state: { selectedDate: selectedDate?.toISOString() }
-         })
+       nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}&instructorId=${item.course_instances?.instructor?.id || item.instructor_id}`, {
+  state: { selectedDate: selectedDate?.toISOString() }
+})
         }
         className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
       >

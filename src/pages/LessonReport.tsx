@@ -71,7 +71,7 @@ const LessonReport = () => {
   const scheduleId = queryParams.get("scheduleId");
   const courseInstanceIdFromUrl = queryParams.get("courseInstanceId");
   const editReportId = queryParams.get("editReportId");
-
+  const instructorIdFromUrl = queryParams.get("instructorId");
   const [lesson, setLesson] = useState(null);
   const [lessonTasks, setLessonTasks] = useState([]);
   const [checkedTasks, setCheckedTasks] = useState([]);
@@ -344,6 +344,14 @@ const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => 
     
     fetchInstructors();
   }, [isAdminOrManager]);
+
+
+  useEffect(() => {
+  if (isAdminOrManager && instructorIdFromUrl && !isEditMode) {
+    console.log("Auto-populating instructor from URL:", instructorIdFromUrl);
+    setSelectedInstructorForReport(instructorIdFromUrl);
+  }
+}, [instructorIdFromUrl, isAdminOrManager, isEditMode]);
 
   // Fetch existing students for the course instance
   async function fetchStudentsByCourseInstance(courseInstanceId) {
@@ -701,62 +709,132 @@ const handleSaveEdit = async (studentId: string) => {
   };
 
   // Load existing report for editing
-  useEffect(() => {
-    if (editReportId) {
-      setIsEditingReport(true);
-      const fetchExistingReport = async () => {
-        const { data, error } = await supabase
-          .from("lesson_reports")
-          .select(`
-            *,
-            lesson_attendance (
-              student_id,
-              attended,
-              students (
-                id,
-                full_name
-              )
-            )
-          `)
-          .eq("id", editReportId)
-          .single();
+  // useEffect(() => {
+  //   if (editReportId) {
+  //     setIsEditingReport(true);
+  //     const fetchExistingReport = async () => {
+  //       const { data, error } = await supabase
+  //         .from("lesson_reports")
+  //         .select(`
+  //           *,
+  //           lesson_attendance (
+  //             student_id,
+  //             attended,
+  //             students (
+  //               id,
+  //               full_name
+  //             )
+  //           )
+  //         `)
+  //         .eq("id", editReportId)
+  //         .single();
 
-        if (error) {
-          console.error("Error fetching existing report:", error);
-        } else {
-          setExistingReport(data);
-          setIsEditMode(true);
-          // Populate form with existing data
-          setIsLessonOk(data.is_lesson_ok || false);
-          setIsCompleted(data.is_completed !== false);
-          setCheckedTasks(data.completed_task_ids || []);
-          setNotes(data.notes || "");
-          setFeedback(data.feedback || "");
-          setMarketingConsent(data.marketing_consent || false);
-          // participantsCount is calculated from attendance, not stored separately
+  //       if (error) {
+  //         console.error("Error fetching existing report:", error);
+  //       } else {
+  //         setExistingReport(data);
+  //         setIsEditMode(true);
+  //         // Populate form with existing data
+  //         setIsLessonOk(data.is_lesson_ok || false);
+  //         setIsCompleted(data.is_completed !== false);
+  //         setCheckedTasks(data.completed_task_ids || []);
+  //         setNotes(data.notes || "");
+  //         setFeedback(data.feedback || "");
+  //         setMarketingConsent(data.marketing_consent || false);
+  //         // participantsCount is calculated from attendance, not stored separately
           
-          // Set attendance data
-          if (data.lesson_attendance) {
-            // Convert attendance data to attendanceList format
-            const attendanceList = data.lesson_attendance.map(att => ({
-              id: att.students.id,
-              name: att.students.full_name,
-              isPresent: att.attended,
-              isNew: false
-            }));
-            setAttendanceList(attendanceList);
-          }
-        }
-      };
+  //         // Set attendance data
+  //         if (data.lesson_attendance) {
+  //           // Convert attendance data to attendanceList format
+  //           const attendanceList = data.lesson_attendance.map(att => ({
+  //             id: att.students.id,
+  //             name: att.students.full_name,
+  //             isPresent: att.attended,
+  //             isNew: false
+  //           }));
+  //           setAttendanceList(attendanceList);
+  //         }
+  //       }
+  //     };
 
-      fetchExistingReport();
-    }
-  }, [editReportId]);
+  //     fetchExistingReport();
+  //   }
+  // }, [editReportId]);
+
+useEffect(() => {
+  if (editReportId) {
+    setIsEditingReport(true);
+    const fetchExistingReport = async () => {
+      const { data, error } = await supabase
+        .from("lesson_reports")
+        .select(`
+          *,
+          lessons:lesson_id (
+            id,
+            title,
+            order_index,
+            course_id
+          ),
+          lesson_attendance (
+            student_id,
+            attended,
+            students (
+              id,
+              full_name
+            )
+          )
+        `)
+        .eq("id", editReportId)
+        .single();
+
+      if (error) {
+        console.error("Error fetching existing report:", error);
+      } else {
+        setExistingReport(data);
+        setIsEditMode(true);
+        
+        // Set lesson data
+        if (data.lessons) {
+          setLesson(data.lessons);
+        }
+        
+        // ⭐ הוסף את זה - מלא את המדריך במצב עריכה! ⭐
+        if (isAdminOrManager && data.instructor_id) {
+          setSelectedInstructorForReport(data.instructor_id);
+        }
+        
+        // Populate form with existing data
+        setLessonTitle(data.lesson_title);
+        setIsLessonOk(data.is_lesson_ok || false);
+        setIsCompleted(data.is_completed !== false);
+        setCheckedTasks(data.completed_task_ids || []);
+        setNotes(data.notes || "");
+        setFeedback(data.feedback || "");
+        setMarketingConsent(data.marketing_consent || false);
+        
+        // Set attendance data
+        if (data.lesson_attendance) {
+          const attendanceList = data.lesson_attendance.map(att => ({
+            id: att.students.id,
+            name: att.students.full_name,
+            isPresent: att.attended,
+            isNew: false
+          }));
+          setAttendanceList(attendanceList);
+        }
+      }
+    };
+
+    fetchExistingReport();
+  }
+}, [editReportId, isAdminOrManager]);
+
+
 
   useEffect(() => {
     console.log("useEffect triggered - ID:", id, "Role:", user?.user_metadata?.role, "isAdminOrManager:", isAdminOrManager, "isEditingReport:", isEditingReport);
-   
-    if (isInstructor && !id) return;
+   if (!id && isInstructor) return;
+
 
     // If editing a report, don't load lesson data
     if (isEditingReport) {
@@ -844,7 +922,8 @@ const handleSaveEdit = async (studentId: string) => {
         full_name
       )
     ),
-    lessons:lesson_id (
+    reported_by,
+        lessons:lesson_id (
       id,
       course_id,
       lesson_tasks (
@@ -896,7 +975,20 @@ const handleSaveEdit = async (studentId: string) => {
                   .single();
 
                 courseInstanceData = { course_instances: courseInstance };
-              } else if (report.lesson_schedule_id) {
+              } 
+               let reportedByName = null;
+               let reportedRole = null;
+    if (report.reported_by) {
+      const { data: reporterProfile } = await supabase
+        .from('profiles')
+        .select('full_name ,role')
+        .eq('id', report.reported_by)
+        .single();
+      
+      reportedByName = reporterProfile?.full_name || 'משתמש מערכת';
+      reportedRole = reporterProfile?.role || 'לא ידוע';
+    }
+else if (report.lesson_schedule_id) {
                 // Legacy architecture: get from lesson_schedule_id
                 // Try to get from new course_instance_schedules first
                 let { data: scheduleData } = await supabase
@@ -954,6 +1046,8 @@ const handleSaveEdit = async (studentId: string) => {
 
               return {
                 ...report,
+                reported_by_name: reportedByName,
+                reported_by_role: reportedRole,
                 totalStudents: allStudents.length,
                 attendanceData: attendanceData,
                 // חישוב מספר הנוכחים מתוך טבלת הנוכחות
@@ -2176,7 +2270,7 @@ console.log('reports',filteredReports)
         <MobileNavigation />
       </div>
 <div className="w-full px-4 my-8  xl:max-w-[98rem] md:max-w-[125rem] xl:mx-auto">  
-        {isInstructor ? (
+       {(isInstructor || (isAdminOrManager && id)) ?  (
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {isEditMode ? 'עריכת דיווח שיעור' : 'דיווח שיעור'} {lesson?.order_index+1} - {lesson?.title}
             {!scheduleId && !courseInstanceIdFromUrl && (
@@ -2191,7 +2285,7 @@ console.log('reports',filteredReports)
           </h1>
         )}
 
-        {isInstructor ? (
+        {(isInstructor || (isAdminOrManager && id)) ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Report Form */}
             <Card>
@@ -2301,7 +2395,7 @@ console.log('reports',filteredReports)
       className="hidden"
       disabled={!isCompleted}
     />
-    <Button
+ { lesson?.order_index + 1 === 1 &&  <Button
       type="button"
       onClick={() => excelInputRef.current?.click()}
       variant="outline"
@@ -2319,8 +2413,8 @@ console.log('reports',filteredReports)
           העלה קובץ אקסל
         </>
       )}
-    </Button>
-    <Button
+    </Button>}
+    {lesson?.order_index + 1 === 1 &&<Button
       type="button"
       variant="ghost"
       size="sm"
@@ -2341,13 +2435,13 @@ console.log('reports',filteredReports)
       title="הוראות שימוש"
     >
       ℹ️
-    </Button>
+    </Button>}
   </div>
 
   {/* הודעת מידע */}
-  <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-200">
+ {lesson?.order_index + 1 === 1 && <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-200">
     💡 ניתן להעלות קובץ Excel עם רשימת שמות תלמידים. השמות יתווספו אוטומטית לרשימה.
-  </div>
+  </div>}
 </div>
                   {!courseInstanceId && (
                     <div className="text-sm text-yellow-600 bg-yellow-50 p-2 rounded mb-2">
@@ -2906,6 +3000,13 @@ console.log('reports',filteredReports)
                                     {report.lesson_title}
                                   </div>
                                 </TableCell>
+                                <TableCell className="py-4 px-6">
+  <div className="flex items-center gap-2 ">
+    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-medium p-4">
+      {report.lessons?.courses?.name || "לא זמין"}
+    </Badge>
+  </div>
+</TableCell>
                 <TableCell className="py-4 ml-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -2919,9 +3020,11 @@ console.log('reports',filteredReports)
                     {/* Show if reported by someone else (admin) */}
                     {report.reported_by !== report.instructor_id && (
                       <div className="flex items-center gap-1 mr-6">
-                        <Badge variant="outline" className="text-xs bg-amber-50 border-amber-300 text-amber-700">
-                          דווח על ידי: {report.reported_by_profile?.full_name || 'משתמש אחר'}
-                        </Badge>
+                        <Badge variant="outline" className="text-xs bg-amber-50 border-amber-300 text-amber-700 p-4">
+                          דווח על ידי:
+                          <br/>
+{report.reported_by_name || 'משתמש מערכת'} {report.reported_by_role } 
+                              </Badge>
                       </div>
                     )}
                   </div>

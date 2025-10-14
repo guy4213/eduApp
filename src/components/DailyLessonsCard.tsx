@@ -68,11 +68,92 @@ export const DailyLessonsCard: React.FC<any> = ({
 }) => {
 
   const [reportedScheduleIds, setReportedScheduleIds] = useState<Set<string>>(new Set());
-  const [reportStatusMap, setReportStatusMap] = useState<Map<string, {isCompleted: boolean, isLessonOk: boolean}>>(new Map());
+const [reportStatusMap, setReportStatusMap] = useState<Map<string, {
+  isCompleted: boolean, 
+  isLessonOk: boolean,
+  reportId?: string  // ⬅️ הוסף את זה!
+}>>(new Map());
+
+// useEffect(() => {
+//   async function fetchReportedSchedules() {
+//     // Get lesson reports with their associated reported_lesson_instances
+//     const { data: lessonReports, error } = await supabase
+//       .from("lesson_reports")
+//       .select(`
+//         id,
+//         is_completed,
+//         is_lesson_ok,
+//         reported_lesson_instances (
+//           lesson_schedule_id,
+//           course_instance_id,
+//           lesson_id,
+//           scheduled_date
+//         )
+//       `);
+
+//     if (error) {
+//       console.error('Failed to fetch lesson reports:', error);
+//       return;
+//     }
+
+//     // Create a set of reported lesson instance IDs and status map
+//     const reportedIds = new Set<string>();
+//     const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
+    
+//     lessonReports?.forEach((report: any) => {
+//       // A lesson report can have multiple reported_lesson_instances
+//       report.reported_lesson_instances?.forEach((instance: any) => {
+//         let key = '';
+//         if (instance.lesson_schedule_id) {
+//           // Legacy architecture: use lesson_schedule_id
+//           key = instance.lesson_schedule_id;
+//           reportedIds.add(instance.lesson_schedule_id);
+//         } else if (instance.course_instance_id && instance.lesson_id) {
+//           // New architecture: create a composite key for course_instance_id + lesson_id
+//           key = `${instance.course_instance_id}_${instance.lesson_id}`;
+//           reportedIds.add(key);
+//         }
+
+//         // Store the status for this lesson
+//         if (key) {
+//           statusMap.set(key, {
+//             isCompleted: report.is_completed !== false, // Default to true if null
+//             isLessonOk: report.is_lesson_ok || false
+//           });
+//         }
+//       });
+//     });
+    
+//     setReportedScheduleIds(reportedIds);
+//     setReportStatusMap(statusMap);
+//   }
+
+//   fetchReportedSchedules();
+  
+//   // Set up real-time subscription to listen for changes
+//   const channel = supabase
+//     .channel('lesson_reports_changes')
+//     .on(
+//       'postgres_changes',
+//       {
+//         event: '*',
+//         schema: 'public',
+//         table: 'lesson_reports'
+//       },
+//       () => {
+//         // Refresh data when lesson reports change
+//         fetchReportedSchedules();
+//       }
+//     )
+//     .subscribe();
+
+//   return () => {
+//     supabase.removeChannel(channel);
+//   };
+// }, []);
 
 useEffect(() => {
   async function fetchReportedSchedules() {
-    // Get lesson reports with their associated reported_lesson_instances
     const { data: lessonReports, error } = await supabase
       .from("lesson_reports")
       .select(`
@@ -92,29 +173,29 @@ useEffect(() => {
       return;
     }
 
-    // Create a set of reported lesson instance IDs and status map
     const reportedIds = new Set<string>();
-    const statusMap = new Map<string, {isCompleted: boolean, isLessonOk: boolean}>();
+    const statusMap = new Map<string, {
+      isCompleted: boolean, 
+      isLessonOk: boolean, 
+      reportId: string  // ⬅️ הוסף את זה!
+    }>();
     
     lessonReports?.forEach((report: any) => {
-      // A lesson report can have multiple reported_lesson_instances
       report.reported_lesson_instances?.forEach((instance: any) => {
         let key = '';
         if (instance.lesson_schedule_id) {
-          // Legacy architecture: use lesson_schedule_id
           key = instance.lesson_schedule_id;
           reportedIds.add(instance.lesson_schedule_id);
         } else if (instance.course_instance_id && instance.lesson_id) {
-          // New architecture: create a composite key for course_instance_id + lesson_id
           key = `${instance.course_instance_id}_${instance.lesson_id}`;
           reportedIds.add(key);
         }
 
-        // Store the status for this lesson
         if (key) {
           statusMap.set(key, {
-            isCompleted: report.is_completed !== false, // Default to true if null
-            isLessonOk: report.is_lesson_ok || false
+            isCompleted: report.is_completed !== false,
+            isLessonOk: report.is_lesson_ok || false,
+            reportId: report.id  // ⬅️ שמור את report ID
           });
         }
       });
@@ -126,34 +207,27 @@ useEffect(() => {
 
   fetchReportedSchedules();
   
-  // Set up real-time subscription to listen for changes
   const channel = supabase
     .channel('lesson_reports_changes')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'lesson_reports'
-      },
-      () => {
-        // Refresh data when lesson reports change
-        fetchReportedSchedules();
-      }
-    )
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'lesson_reports'
+    }, () => {
+      fetchReportedSchedules();
+    })
     .subscribe();
 
   return () => {
     supabase.removeChannel(channel);
   };
 }, []);
-
   const filteredClasses = (lessons??[]).filter((c) => {
   console.log("DATE", c.scheduled_start);
   if (!c.scheduled_start) return true;
 
   const classDate = new Date(c.scheduled_start);
-  const selected = new Date(Date.now() -2*24 * 60 * 60 * 1000);
+  const selected = new Date(Date.now() );
 // -*24 * 60 * 60 * 1000
   // Normalize both dates to YYYY-MM-DD strings
   const classDateStr = classDate.toISOString().split("T")[0];
@@ -254,59 +328,178 @@ const instructorMap = useMemo(() => {
         const lessonStatus = reportStatusMap.get(statusKey);
 
         // Function to render status badge
-        const renderStatusBadge = () => {
-          if (!isReported) {
-            return user.user_metadata?.role === "instructor" ? (
-              <button
-                onClick={() => nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}`)}
-                className="bg-blue-500 text-white rounded-full px-4 py-3 font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
-              >
-                📋 דווח על השיעור
-              </button>
-            ) : (
-              <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
-                📋 טרם דווח
-              </span>
-            );
-          }
+        // const renderStatusBadge = () => {
+        //   if (!isReported) {
+        //     return user.user_metadata?.role === "instructor" ? (
+        //       <button
+        //         onClick={() => nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}&instructorId=${lesson.instructor_id}`)}
+        //         className="bg-blue-500 text-white rounded-full px-4 py-3 font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
+        //       >
+        //         📋 דווח על השיעור
+        //       </button>
+        //     ) : (
+        //       <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
+        //         📋 טרם דווח
+        //       </span>
+        //     );
+        //   }
 
-          if (lessonStatus?.isCompleted === false) {
-            return (
-              <button
-                disabled
-                className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
-                style={{backgroundColor: '#FFA500'}}
-                title="השיעור לא התקיים"
-              >
-                ❌ לא התקיים
-              </button>
-            );
-          }
+        //   if (lessonStatus?.isCompleted === false) {
+        //     return (
+        //       <button
+        //         disabled
+        //         className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
+        //         style={{backgroundColor: '#FFA500'}}
+        //         title="השיעור לא התקיים"
+        //       >
+        //         ❌ לא התקיים
+        //       </button>
+        //     );
+        //   }
 
-          if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
-            return (
-              <button
-                disabled
-                className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
-                style={{backgroundColor: '#FF0000'}}
-                title="השיעור לא התנהל כשורה"
-              >
-                ⚠️ לא התנהל כשורה
-              </button>
-            );
-          }
+        //   if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
+        //     return (
+        //       <button
+        //         disabled
+        //         className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
+        //         style={{backgroundColor: '#FF0000'}}
+        //         title="השיעור לא התנהל כשורה"
+        //       >
+        //         ⚠️ לא התנהל כשורה
+        //       </button>
+        //     );
+        //   }
 
-          return (
-            <button
-              disabled
-              className="bg-green-400 rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base"
-              title="השיעור דווח בהצלחה"
-            >
-              <Check className="w-6 h-6 ml-2" />
-              דווח
-            </button>
-          );
-        };
+        //   return (
+        //     <button
+        //       disabled
+        //       className="bg-green-400 rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base"
+        //       title="השיעור דווח בהצלחה"
+        //     >
+        //       <Check className="w-6 h-6 ml-2" />
+        //       דווח
+        //     </button>
+        //   );
+        // };
+const renderStatusBadge = () => {
+  const canEdit = ['admin', 'pedagogical_manager'].includes(user?.user_metadata?.role);
+  
+  // אם דווח בהצלחה
+  if (isReported && lessonStatus?.isCompleted && lessonStatus?.isLessonOk) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          disabled
+          className="bg-green-400 rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base"
+          title="השיעור דווח בהצלחה"
+        >
+          <Check className="w-6 h-6 ml-2" />
+          דווח
+        </button>
+        
+        {/* כפתור עריכה - רק לאדמין/מנהל */}
+        {canEdit && lessonStatus?.reportId && (
+          <button
+            onClick={() => {
+              nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}&editReportId=${lessonStatus.reportId}&instructorId=${lesson.instructor_id}`, {
+                state: { selectedDate: new Date().toISOString() }
+              });
+            }}
+            className="bg-orange-500 text-white px-3 py-2 rounded-lg font-bold text-sm transition-colors hover:bg-orange-600 shadow-md"
+            title="ערוך דיווח"
+          >
+            ✏️ ערוך
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // אם לא דווח
+  if (!isReported) {
+    const canReport = ['instructor', 'admin', 'pedagogical_manager'].includes(user?.user_metadata?.role);
+    
+    return canReport ? (
+      <button
+        onClick={() => 
+          nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}&instructorId=${lesson.instructor_id}`)
+        }
+        className="bg-blue-500 text-white rounded-full px-4 py-3 font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
+      >
+        📋 דווח על השיעור
+      </button>
+    ) : (
+      <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
+        📋 טרם דווח
+      </span>
+    );
+  }
+
+  // אם השיעור לא התקיים
+  if (lessonStatus?.isCompleted === false) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          disabled
+          className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
+          style={{backgroundColor: '#FFA500'}}
+          title="השיעור לא התקיים"
+        >
+          ❌ לא התקיים
+        </button>
+        
+        {canEdit && lessonStatus?.reportId && (
+          <button
+            onClick={() => {
+              nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}&editReportId=${lessonStatus.reportId}&instructorId=${lesson.instructor_id}`);
+            }}
+            className="bg-orange-500 text-white px-3 py-2 rounded-lg font-bold text-sm transition-colors hover:bg-orange-600 shadow-md"
+          >
+            ✏️ ערוך
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // אם השיעור לא התנהל כשורה
+  if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          disabled
+          className="rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base text-white"
+          style={{backgroundColor: '#FF0000'}}
+          title="השיעור לא התנהל כשורה"
+        >
+          ⚠️ לא התנהל כשורה
+        </button>
+        
+        {canEdit && lessonStatus?.reportId && (
+          <button
+            onClick={() => {
+              nav(`/lesson-report/${lesson.lesson_id}?courseInstanceId=${lesson.course_instance_id}&editReportId=${lessonStatus.reportId}&instructorId=${lesson.instructor_id}`);
+            }}
+            className="bg-orange-500 text-white px-3 py-2 rounded-lg font-bold text-sm transition-colors hover:bg-orange-600 shadow-md"
+          >
+            ✏️ ערוך
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Fallback
+  return (
+    <button
+      disabled
+      className="bg-green-400 rounded-full px-4 py-3 flex items-center font-bold cursor-default text-base"
+    >
+      <Check className="w-6 h-6 ml-2" />
+      דווח
+    </button>
+  );
+};
 
             return (
            

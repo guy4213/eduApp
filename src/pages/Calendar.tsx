@@ -88,15 +88,7 @@ const Calendar = () => {
           </div>
           
           <div className="flex items-center space-x-2">
-            {['admin', 'pedagogical_manager'].includes(user?.user_metadata?.role) && (
-              <button
-                onClick={() => nav('/reports')}
-                className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors shadow-md flex items-center"
-              >
-                <BarChart3 className="h-4 w-4 ml-2" />
-                דוחות ושכר
-              </button>
-            )}
+        
             <button
               onClick={() => {
                 console.log('Manual refresh of calendar...');
