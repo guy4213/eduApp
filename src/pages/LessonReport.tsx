@@ -731,7 +731,7 @@ const handleSaveEdit = async (studentId: string) => {
           setNotes(data.notes || "");
           setFeedback(data.feedback || "");
           setMarketingConsent(data.marketing_consent || false);
-          setParticipantsCount(data.participants_count || 0);
+          // participantsCount is calculated from attendance, not stored separately
           
           // Set attendance data
           if (data.lesson_attendance) {
