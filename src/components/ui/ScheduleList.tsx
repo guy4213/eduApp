@@ -160,16 +160,22 @@ const sortedLessons = lessons.sort((a, b) => {
   const getReportIdForLesson = (lessonItem: any) => {
     // Try to find a report that matches this lesson
     let key = '';
-    if (lessonItem.id) {
-      // Try legacy architecture first
-      key = lessonItem.id;
+    
+    // Try new architecture first (course_instance_id + lesson_id)
+    if (lessonItem.course_instance_id && lessonItem.lesson_id) {
+      key = `${lessonItem.course_instance_id}_${lessonItem.lesson_id}`;
     } else if (lessonItem.course_instance_id && lessonItem.lesson?.id) {
-      // Try new architecture
       key = `${lessonItem.course_instance_id}_${lessonItem.lesson.id}`;
+    } else if (lessonItem.id) {
+      // Try legacy architecture
+      key = lessonItem.id;
     }
+    
+    console.log('Looking for key:', key, 'in map keys:', Array.from(reportStatusMap.keys()));
     
     if (key && reportStatusMap.has(key)) {
       const status = reportStatusMap.get(key);
+      console.log('Found status:', status);
       return status?.reportId || null;
     }
     return null;
