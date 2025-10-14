@@ -84,16 +84,8 @@ const LessonReport = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const isInstructor = user?.user_metadata.role === "instructor";
   const isAdmin = user?.user_metadata.role === "admin";
-  const isPedagogicalManager = user?.user_metadata.role === "pedagogical_manager";
-  const isAdminOrManager = isAdmin || isPedagogicalManager;
   const [isUploadingExcel, setIsUploadingExcel] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
-  
-  // Admin reporting: select instructor to report for
-  const [selectedInstructorForReport, setSelectedInstructorForReport] = useState<string>("");
-  const [instructorsList, setInstructorsList] = useState<any[]>([]);
-  const [reportedBy, setReportedBy] = useState<string | null>(null);
-  const [reportedByName, setReportedByName] = useState<string | null>(null);
 
 
 const [selectAll, setSelectAll] = useState(false);
@@ -319,27 +311,6 @@ const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => 
       courseInstanceId: data.course_instances?.id ?? null,
     };
   }
-
-  // Fetch instructors list for admin reporting
-  useEffect(() => {
-    const fetchInstructors = async () => {
-      if (!isAdminOrManager) return;
-      
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('role', 'instructor')
-        .order('full_name');
-      
-      if (error) {
-        console.error('Error fetching instructors:', error);
-      } else {
-        setInstructorsList(data || []);
-      }
-    };
-    
-    fetchInstructors();
-  }, [isAdminOrManager]);
 
   // Fetch existing students for the course instance
   async function fetchStudentsByCourseInstance(courseInstanceId) {
@@ -732,10 +703,6 @@ const handleSaveEdit = async (studentId: string) => {
     *,
     reported_lesson_instances(lesson_number),
     instructor:instructor_id (
-      id,
-      full_name
-    ),
-    reported_by_profile:reported_by (
       id,
       full_name
     ),
@@ -1507,16 +1474,6 @@ const handleSaveEdit = async (studentId: string) => {
 //   };
 
 const handleSubmit = async () => {
-  // Validation for admins: must select an instructor
-  if (isAdminOrManager && !selectedInstructorForReport) {
-    toast({
-      title: "שגיאה",
-      description: "יש לבחור מדריך לפני שליחת הדיווח",
-      variant: "destructive",
-    });
-    return;
-  }
-
   // Count present students
   const presentStudents = attendanceList.filter(
     (student) => student.isPresent
@@ -1613,16 +1570,13 @@ const handleSubmit = async () => {
     }
 
     // יצירת דיווח השיעור
-    const reportDataToInsert: any = {
+    const reportDataToInsert = {
       lesson_title: lessonTitle,
       participants_count: participantsCount,
       notes,
       feedback,
       marketing_consent: marketingConsent,
-      instructor_id: isAdminOrManager && selectedInstructorForReport 
-        ? selectedInstructorForReport 
-        : user.id,
-      reported_by: user.id, // Always track who actually created the report
+      instructor_id: user.id,
       is_lesson_ok: isCompleted ? isLessonOk : null,
       is_completed: isCompleted,
       completed_task_ids: checkedTasks,
@@ -1646,7 +1600,7 @@ const handleSubmit = async () => {
     console.log("Lesson report created:", reportData);
 
     // Create a record in reported_lesson_instances
-    const reportedInstanceData: any = {
+    const reportedInstanceData = {
       lesson_report_id: reportData.id,
       lesson_id: id,
       scheduled_date: selectedDate 
@@ -2101,34 +2055,6 @@ console.log('reports',filteredReports)
                     required
                   />
                 </div>
-
-                {/* Admin: Select instructor for reporting */}
-                {isAdminOrManager && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <User className="h-4 w-4 text-amber-600" />
-                      <Label htmlFor="select-instructor" className="text-amber-900 font-semibold">
-                        דיווח עבור מדריך (אדמין/מנהל בלבד)
-                      </Label>
-                    </div>
-                    <select
-                      id="select-instructor"
-                      className="w-full h-10 px-3 rounded-md border border-amber-300 bg-white"
-                      value={selectedInstructorForReport}
-                      onChange={(e) => setSelectedInstructorForReport(e.target.value)}
-                    >
-                      <option value="">בחר מדריך</option>
-                      {instructorsList.map((instructor) => (
-                        <option key={instructor.id} value={instructor.id}>
-                          {instructor.full_name}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-amber-700 mt-2">
-                      כאשר תבחר מדריך, הדיווח יירשם עבורו אך יסומן כ"דווח על ידי {user?.user_metadata?.full_name}"
-                    </p>
-                  </div>
-                )}
 
                 {/* Student Attendance List */}
                 <div>
@@ -2796,26 +2722,25 @@ console.log('reports',filteredReports)
                                     {report.lesson_title}
                                   </div>
                                 </TableCell>
-                <TableCell className="py-4 ml-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-primary/10 rounded-full">
-                        <User className="h-4 w-4 text-primary" />
-                      </div>
-                      <span className="font-medium text-foreground">
-                        {report.instructor?.full_name || "לא זמין"}
-                      </span>
-                    </div>
-                    {/* Show if reported by someone else (admin) */}
-                    {report.reported_by !== report.instructor_id && report.reported_by_profile && (
-                      <div className="flex items-center gap-1 mr-6">
-                        <Badge variant="outline" className="text-xs bg-amber-50 border-amber-300 text-amber-700">
-                          דווח על ידי: {report.reported_by_profile.full_name}
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-                </TableCell>
+                                <TableCell className="py-4 ml-4">
+                                  <Badge
+                                    variant="outline"
+                                    className="font-medium border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 p-4"
+                                  >
+                                    {report.lessons?.courses?.name || "לא זמין"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="py-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="p-1.5 bg-primary/10 rounded-full">
+                                      <User className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <span className="font-medium text-foreground">
+                                      {report.instructor?.full_name ||
+                                        "לא זמין"}
+                                    </span>
+                                  </div>
+                                </TableCell>
                                 <TableCell className="py-4 px-6">
                                   <div className="flex items-center gap-2">
                                     <div className="p-1.5 bg-accent/20 rounded-full">
