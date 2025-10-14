@@ -751,6 +751,7 @@ const handleSaveEdit = async (studentId: string) => {
   }, [editReportId]);
 
   useEffect(() => {
+    console.log("useEffect triggered - ID:", id, "Role:", user?.user_metadata?.role, "isAdminOrManager:", isAdminOrManager);
    
     if (isInstructor && !id) return;
 
@@ -758,13 +759,47 @@ const handleSaveEdit = async (studentId: string) => {
     if (id) {
       console.log("Loading lesson data for ID:", id, "Role:", user?.user_metadata?.role);
       const fetchLessonData = async () => {
+        console.log("Fetching lesson with ID:", id);
         const [lessonRes, tasksRes] = await Promise.all([
           supabase.from("lessons").select("*").eq("id", id).single(),
           supabase.from("lesson_tasks").select("*").eq("lesson_id", id),
         ]);
 
+        console.log("Lesson fetch result:", lessonRes);
+        console.log("Tasks fetch result:", tasksRes);
+
         if (lessonRes.error) {
           console.error("Lesson fetch error:", lessonRes.error);
+          // If lesson not found, try to find it by course_instance_id and lesson_id from URL
+          if (courseInstanceIdFromUrl) {
+            console.log("Trying to find lesson by course_instance_id:", courseInstanceIdFromUrl);
+            const { data: courseInstanceData, error: courseError } = await supabase
+              .from("course_instances")
+              .select(`
+                id,
+                course_id,
+                courses (
+                  id,
+                  name
+                )
+              `)
+              .eq("id", courseInstanceIdFromUrl)
+              .single();
+            
+            if (courseError) {
+              console.error("Course instance fetch error:", courseError);
+            } else {
+              console.log("Course instance data:", courseInstanceData);
+              // Create a mock lesson object
+              const mockLesson = {
+                id: id,
+                title: "שיעור מתוכנן",
+                course_id: courseInstanceData.course_id,
+                order_index: 0
+              };
+              setLesson(mockLesson);
+            }
+          }
         } else {
           setLesson(lessonRes.data);
         }
