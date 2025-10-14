@@ -735,13 +735,6 @@ const handleSaveEdit = async (studentId: string) => {
       id,
       full_name
     ),
-    reported_by_profile:reported_by!profiles (
-      id,
-      full_name
-    ),
-    profiles (
-      full_name
-    ),
     lesson_attendance (
       student_id,
       attended,
@@ -2807,10 +2800,10 @@ console.log('reports',filteredReports)
                       </span>
                     </div>
                     {/* Show if reported by someone else (admin) */}
-                    {report.reported_by !== report.instructor_id && report.reported_by_profile && (
+                    {report.reported_by !== report.instructor_id && (
                       <div className="flex items-center gap-1 mr-6">
                         <Badge variant="outline" className="text-xs bg-amber-50 border-amber-300 text-amber-700">
-                          דווח על ידי: {report.reported_by_profile.full_name}
+                          דווח על ידי: {report.reported_by_profile?.full_name || 'משתמש אחר'}
                         </Badge>
                       </div>
                     )}
