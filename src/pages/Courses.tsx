@@ -409,6 +409,7 @@ const Courses = () => {
       approx_end_date: course?.approx_end_date,
       school_type: course.school_type,
       presentation_link: course.presentation_link,
+      program_link: course.program_link,
     });
     setShowCreateDialog(true);
   };

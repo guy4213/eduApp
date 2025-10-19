@@ -23,7 +23,7 @@ const navigationItems = [
   isAdminOrManager && { path: '/lesson-report', label: 'דיווח שיעור', icon: FileText },
   { path: '/courses', label: 'קורסים', icon: Users },
   { path: '/course-assignments', label: 'הקצאות קורסים', icon: Users },
-  isAdminOrManager && { path: '/reports', label: 'דוחות ושכר', icon: BarChart3 },
+  isAdmin && { path: '/reports', label: 'דוחות ושכר', icon: BarChart3 },
   { path: '/rewards', label: 'תגמולים', icon: BarChart3 },
   { path: '/profile', label: 'פרופיל', icon: User },
    isAdminOrManager && { path: '/AdminSettings', label: 'הגדרות מנהל ', icon: Settings2Icon },

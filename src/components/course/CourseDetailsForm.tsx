@@ -20,6 +20,7 @@ interface CourseDetailsFormProps {
 }
 
 const CourseDetailsForm = ({ formData, onInputChange }: CourseDetailsFormProps) => {
+  console.log("formData in CourseDetailsForm: ", formData);
   return (
     <div className="space-y-4">
       <div className="space-y-2">
