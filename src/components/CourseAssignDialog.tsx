@@ -1894,7 +1894,7 @@ const [systemDefaults, setSystemDefaults] = useState<any>(null);
 const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 const [draggedLessonIndex, setDraggedLessonIndex] = useState<number | null>(null);
 const [lessonSource, setLessonSource] = useState<'none' | 'template' | 'scratch'>('none');
-const [lessonMode, setLessonMode] = useState<'template' | 'custom_only' | 'combined'|'none'>('none');
+const [lessonMode, setLessonMode] = useState<'template' | 'custom_only' | 'combined'|'none'>('combined');
 const [isCombinedMode, setIsCombinedMode] = useState(true);
 
 console.log(" instance id from dialog assign ",instanceId)
