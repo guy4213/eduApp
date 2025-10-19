@@ -136,6 +136,7 @@ const CourseCreateDialog = ({ open, onOpenChange, onCourseCreated, editCourse }:
       const formattedLessons = lessonsData.map(lesson => ({
         id: lesson.id, // Preserve real database IDs
         title: lesson.title,
+         description: lesson.description,
         tasks: lesson.lesson_tasks.map(task => ({
           id: task.id,
           title: task.title,

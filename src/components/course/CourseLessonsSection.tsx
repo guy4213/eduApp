@@ -735,6 +735,7 @@ const handleSaveLesson = (lessonData: Lesson) => {
          {lessons.length > 0 && (
            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
              {lessons.map((lesson, index) => (
+              console.log('Rendering lesson:', lesson), // Debug log
                <Card 
                  key={lesson.id} 
                  className={`cursor-pointer transition-colors ${
