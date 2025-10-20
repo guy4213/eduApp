@@ -675,25 +675,94 @@ const handleSaveEdit = async (studentId: string) => {
   }
 
   // שמירת נוכחות בטבלת lesson_attendance
-  async function saveStudentAttendance(lessonReportId, attendanceList) {
-    const attendanceRecords = attendanceList
-      .filter((student) => !student.isNew) // רק סטודנטים קיימים (עם ID אמיתי)
-      .map((student) => ({
-        lesson_report_id: lessonReportId,
-        student_id: student.id,
-        attended: student.isPresent,
-      }));
+  // async function saveStudentAttendance(lessonReportId, attendanceList) {
+  //   const attendanceRecords = attendanceList
+  //     .filter((student) => !student.isNew) // רק סטודנטים קיימים (עם ID אמיתי)
+  //     .map((student) => ({
+  //       lesson_report_id: lessonReportId,
+  //       student_id: student.id,
+  //       attended: student.isPresent,
+  //     }));
 
-    if (attendanceRecords.length > 0) {
-      const { error } = await supabase
+  //   if (attendanceRecords.length > 0) {
+  //     const { error } = await supabase
+  //       .from("lesson_attendance")
+  //       .insert(attendanceRecords);
+
+  //     if (error) {
+  //       throw new Error(`שגיאה בשמירת נוכחות: ${error.message}`);
+  //     }
+  //   }
+  // }
+  // שמירת נוכחות בטבלת lesson_attendance
+async function saveStudentAttendance(lessonReportId, attendanceList, isUpdate = false) {
+  const attendanceRecords = attendanceList
+    .filter((student) => !student.isNew) // רק סטודנטים קיימים (עם ID אמיתי)
+    .map((student) => ({
+      lesson_report_id: lessonReportId,
+      student_id: student.id,
+      attended: student.isPresent,
+    }));
+
+  if (attendanceRecords.length === 0) return;
+
+  if (isUpdate) {
+    // במצב עדכון - נעבור על כל תלמיד ונעדכן/נוסיף
+    for (const record of attendanceRecords) {
+      // בדוק אם הרשומה כבר קיימת
+      const { data: existing } = await supabase
         .from("lesson_attendance")
-        .insert(attendanceRecords);
+        .select("id")
+        .eq("lesson_report_id", lessonReportId)
+        .eq("student_id", record.student_id)
+        .maybeSingle(); // שימוש ב-maybeSingle במקום single
 
-      if (error) {
-        throw new Error(`שגיאה בשמירת נוכחות: ${error.message}`);
+      if (existing) {
+        // עדכן רשומה קיימת
+        const { error } = await supabase
+          .from("lesson_attendance")
+          .update({ attended: record.attended })
+          .eq("id", existing.id);
+
+        if (error) {
+          throw new Error(`שגיאה בעדכון נוכחות: ${error.message}`);
+        }
+      } else {
+        // הוסף רשומה חדשה (תלמיד חדש שנוסף בעדכון)
+        const { error } = await supabase
+          .from("lesson_attendance")
+          .insert(record);
+
+        if (error) {
+          throw new Error(`שגיאה בהוספת נוכחות: ${error.message}`);
+        }
       }
     }
+
+    // מחק רשומות של תלמידים שהוסרו מהרשימה
+    const studentIdsInList = attendanceRecords.map(r => r.student_id);
+    if (studentIdsInList.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("lesson_attendance")
+        .delete()
+        .eq("lesson_report_id", lessonReportId)
+        .not("student_id", "in", `(${studentIdsInList.join(",")})`);
+
+      if (deleteError && deleteError.code !== 'PGRST116') {
+        console.error("Error deleting removed students:", deleteError);
+      }
+    }
+  } else {
+    // במצב יצירה חדשה - פשוט הוסף את כל הרשומות
+    const { error } = await supabase
+      .from("lesson_attendance")
+      .insert(attendanceRecords);
+
+    if (error) {
+      throw new Error(`שגיאה בשמירת נוכחות: ${error.message}`);
+    }
   }
+}
 
   // Toggle row expansion for attendance details
   const toggleRowExpansion = (reportId) => {
@@ -1889,17 +1958,18 @@ const handleSubmit = async () => {
     }
 
     // שמירת נתוני נוכחות
-    try {
-      await saveStudentAttendance(reportData.id, updatedAttendanceList);
-      console.log("Attendance saved successfully");
-    } catch (attendanceError) {
-      console.error("Failed to save attendance:", attendanceError);
-      toast({
-        title: "אזהרה",
-        description: "הדיווח נשמר אך הייתה שגיאה בשמירת הנוכחות",
-        variant: "destructive",
-      });
-    }
+   try {
+  // העבר את isEditMode כפרמטר שלישי כדי שהפונקציה תדע אם זה עדכון
+  await saveStudentAttendance(reportData.id, updatedAttendanceList, isEditMode);
+  console.log("Attendance saved successfully");
+} catch (attendanceError) {
+  console.error("Failed to save attendance:", attendanceError);
+  toast({
+    title: "אזהרה",
+    description: "הדיווח נשמר אך הייתה שגיאה בשמירת הנוכחות",
+    variant: "destructive",
+  });
+}
 
     // --- START: EMAIL NOTIFICATIONS ---
 
