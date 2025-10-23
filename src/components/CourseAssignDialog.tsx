@@ -3583,7 +3583,7 @@ const handleFinalSave = async () => {
           <Label htmlFor="grade_level">כיתה</Label>
           <Input id="grade_level" value={formData.grade_level} onChange={(e) => handleInputChange("grade_level", e.target.value)} placeholder="למשל: כיתה ז'"/>
         </div>
-
+{isAdmin &&<>  
         <div className="space-y-2">
           <Label htmlFor="price_for_customer">מחיר ללקוח</Label>
           <Input id="price_for_customer" type="number" disabled={!isAdmin} value={formData.price_for_customer} onChange={(e) => handleInputChange("price_for_customer", e.target.value)} placeholder="מחיר בשקלים"/>
@@ -3593,7 +3593,7 @@ const handleFinalSave = async () => {
           <Label htmlFor="price_for_instructor">מחיר למדריך</Label>
           <Input id="price_for_instructor" type="number"  disabled={!isAdmin} value={formData.price_for_instructor} onChange={(e) => handleInputChange("price_for_instructor", e.target.value)} placeholder="מחיר בשקלים"/>
         </div>
-        
+            </>}
 
 
         {/* <div className="space-y-2">
