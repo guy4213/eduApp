@@ -571,12 +571,9 @@ const Courses = () => {
         ) : (
           <>
             <div className="space-y-8">
-              {filteredCourses.map(
-                (course) => (
-                  console.log("course", course),
-                  (
-                    <Card
-                    key={course.instance_id || course.id}
+              {filteredCourses.map((course) => (
+                <Card
+                  key={course.instance_id || course.id}
                     className={`shadow-xl border-0 backdrop-blur-sm ${
                       course.is_assigned
                         ? "bg-white/80"
@@ -1067,9 +1064,7 @@ const Courses = () => {
                     )}
                   </Card>
                 )
-                )
-              )
-            )}
+              )}
             </div>
 
             {/* PAGINATION UI - רק UI חדש, לא שינוי בלוגיקה! */}
