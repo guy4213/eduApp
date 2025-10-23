@@ -1851,7 +1851,7 @@ const fetchAssignments = async () => {
       courseIds.length > 0
         ? supabase
             .from("lessons")
-            .select("*")
+            .select("id, title, course_id, course_instance_id, order_index, description, duration_minutes")
             .in("course_id", courseIds)
             .or(
               `course_instance_id.is.null,course_instance_id.in.(${courseInstanceIds.join(
@@ -1859,6 +1859,7 @@ const fetchAssignments = async () => {
               )})`
             )
             .order("order_index")
+            .limit(500) // הגבלת כמות השיעורים
             .then(({ data, error }) => {
               if (error) {
                 console.error("Error fetching lessons:", error);
@@ -1896,15 +1897,16 @@ const fetchAssignments = async () => {
       if (lessonIds.length > 0) {
         const { data: tasks, error: tasksError } = await supabase
           .from("lesson_tasks")
-          .select("*")
+          .select("id, title, description, estimated_duration, is_mandatory, lesson_id, order_index")
           .in("lesson_id", lessonIds)
-          .order("order_index");
+          .order("order_index")
+          .limit(2000); // הגבלת כמות המשימות
 
         if (tasksError) {
           console.error("Error fetching tasks:", tasksError);
         } else {
           tasksData = tasks || [];
-          console.log(`[DEBUG] Found ${tasksData.length} tasks`);
+          console.log(`[DEBUG] Found ${tasksData.length} tasks (limited to 2000)`);
         }
       }
     }
@@ -2338,7 +2340,11 @@ const fetchAssignments = async () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-lg text-gray-700 font-medium">טוען הקצאות...</p>
+          <p className="text-sm text-gray-500 mt-2">אנא המתן, זה עשוי לקחת מספר שניות</p>
+        </div>
       </div>
     );
   }
