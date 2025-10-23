@@ -569,12 +569,13 @@ const Courses = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-8">
-            {filteredCourses.map(
-              (course) => (
-                console.log("course", course),
-                (
-                  <Card
+          <>
+            <div className="space-y-8">
+              {filteredCourses.map(
+                (course) => (
+                  console.log("course", course),
+                  (
+                    <Card
                     key={course.instance_id || course.id}
                     className={`shadow-xl border-0 backdrop-blur-sm ${
                       course.is_assigned
@@ -1066,23 +1067,25 @@ const Courses = () => {
                     )}
                   </Card>
                 )
+                )
               )
             )}
-          </div>
-
-          {/* PAGINATION UI - רק UI חדש, לא שינוי בלוגיקה! */}
-          {!loading && totalCount > 0 && (
-            <div className="mt-6">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={Math.ceil(totalCount / pageSize)}
-                totalItems={totalCount}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                isLoading={loading}
-              />
             </div>
-          )}
+
+            {/* PAGINATION UI - רק UI חדש, לא שינוי בלוגיקה! */}
+            {!loading && totalCount > 0 && (
+              <div className="mt-6">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(totalCount / pageSize)}
+                  totalItems={totalCount}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  isLoading={loading}
+                />
+              </div>
+            )}
+          </>
         )}
 
         <CourseCreateDialog
