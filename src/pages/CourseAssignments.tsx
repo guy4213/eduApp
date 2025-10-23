@@ -960,7 +960,8 @@ const CourseAssignments = () => {
   // PAGINATION STATE - רק state חדש, לא שינוי בלוגיקה!
   const [currentPage, setCurrentPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  const pageSize = 20; // 20 assignments per page
+  const pageSize = 8; // 8 assignments per page
+  const [isLoadingMore, setIsLoadingMore] = useState(false); // Loading state for pagination
 
   // Report status state
   const [reportStatusMap, setReportStatusMap] = useState<
@@ -1781,7 +1782,12 @@ const fetchAssignments = async () => {
   if (!user) return;
 
   try {
-    setLoading(true);
+    // Use different loading state for pagination vs initial load
+    if (currentPage === 0) {
+      setLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
     
     // *** שליפת ההקצאות כולל lesson_mode ***
     let query = supabase.from("course_instances").select(`
@@ -1870,21 +1876,10 @@ const fetchAssignments = async () => {
             })
         : Promise.resolve([]),
 
-      // שליפת תזמונים
-      courseInstanceIds.length > 0
-        ? fetchCombinedSchedules()
-            .then((allSchedules) => {
-              const filtered = allSchedules.filter((schedule) =>
-                courseInstanceIds.includes(schedule.course_instance_id)
-              );
-              console.log(`[DEBUG] Found ${filtered.length} schedules`);
-              return filtered;
-            })
-            .catch((error) => {
-              console.error("Error fetching combined schedules:", error);
-              return [];
-            })
-        : Promise.resolve([]),
+      // שליפת תזמונים - DISABLED FOR PERFORMANCE
+      // לא טוענים תזמונים בטעינה ראשונית - זה אלפי רשומות!
+      // התזמונים יטענו רק כשפותחים כרטיס ספציפי
+      Promise.resolve([]),
 
       // שליפת סטטוסים
       getCachedReportStatuses(courseInstanceIds),
@@ -2063,6 +2058,7 @@ const fetchAssignments = async () => {
     console.error("Error fetching assignments:", error);
   } finally {
     setLoading(false);
+    setIsLoadingMore(false);
   }
 };
   useEffect(() => {
@@ -2894,7 +2890,7 @@ const fetchAssignments = async () => {
         </div>
 
         {/* Assignments List */}
-        <div className="space-y-8">
+        <div className={`space-y-8 transition-opacity duration-300 ${isLoadingMore ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
           {filteredAssignments.map((assignment) => (
             <Card
               key={assignment.instance_id}
@@ -3226,8 +3222,14 @@ const fetchAssignments = async () => {
               totalItems={totalCount}
               pageSize={pageSize}
               onPageChange={setCurrentPage}
-              isLoading={loading}
+              isLoading={isLoadingMore}
             />
+            {isLoadingMore && (
+              <div className="flex justify-center items-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span className="mr-3 text-gray-600">טוען עמוד {currentPage + 1}...</span>
+              </div>
+            )}
           </div>
         )}
 
