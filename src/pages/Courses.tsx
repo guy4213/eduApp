@@ -46,6 +46,7 @@ import MobileNavigation from "@/components/layout/MobileNavigation";
 // Step 1: Add new imports
 import { Trash2 } from "lucide-react";
 import DeleteCourseDialog from "@/components/DeleteCourseDialog"; // Import the new dialog
+import { Pagination } from "@/components/ui/Pagination"; // Pagination component
 
 interface Task {
   id: string;
@@ -99,6 +100,11 @@ const Courses = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<any | null>(null);
   const [assignmentDetails, setAssignmentDetails] = useState<any[]>([]);
+
+  // PAGINATION STATE - רק state חדש, לא שינוי בלוגיקה!
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 20; // 20 courses per page
 
   const userRole = user?.user_metadata?.role;
   const hasAdminAccess = ["admin", "pedagogical_manager"].includes(userRole);
@@ -206,17 +212,25 @@ const Courses = () => {
       // Only fetch template courses for the courses page
       // Course instances are now handled in the CourseAssignments page
 
-      // Fetch all courses for templates
-      const { data: allCoursesData, error: coursesError } = await supabase.from(
-        "courses"
-      ).select(`
+      // Fetch courses with pagination
+      const start = currentPage * pageSize;
+      const end = start + pageSize - 1;
+
+      const { data: allCoursesData, error: coursesError, count } = await supabase
+        .from("courses")
+        .select(`
           id,
           name,
           school_type,
           presentation_link,
           program_link,
           created_at
-        `);
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(start, end);
+
+      // Store total count for pagination
+      setTotalCount(count || 0);
 
       if (coursesError) throw coursesError;
 
@@ -361,7 +375,7 @@ const Courses = () => {
 
   useEffect(() => {
     fetchCourses();
-  }, [user]);
+  }, [user, currentPage]); // Added currentPage dependency
 
   // Filter courses based on school type
   useEffect(() => {
@@ -1055,6 +1069,20 @@ const Courses = () => {
               )
             )}
           </div>
+
+          {/* PAGINATION UI - רק UI חדש, לא שינוי בלוגיקה! */}
+          {!loading && totalCount > 0 && (
+            <div className="mt-6">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(totalCount / pageSize)}
+                totalItems={totalCount}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                isLoading={loading}
+              />
+            </div>
+          )}
         )}
 
         <CourseCreateDialog

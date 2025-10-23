@@ -876,6 +876,7 @@ import CourseAssignDialog from "@/components/CourseAssignDialog";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
 import { DeleteConfirmationPopup } from "@/components/ui/DeleteConfirmationPopup ";
+import { Pagination } from "@/components/ui/Pagination";
 
 interface Task {
   id: string;
@@ -955,6 +956,11 @@ const CourseAssignments = () => {
   const [institutions, setInstitutions] = useState<any[]>([]);
   const [courseTemplates, setCourseTemplates] = useState<any[]>([]);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+
+  // PAGINATION STATE - רק state חדש, לא שינוי בלוגיקה!
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 20; // 20 assignments per page
 
   // Report status state
   const [reportStatusMap, setReportStatusMap] = useState<
@@ -1803,13 +1809,23 @@ const fetchAssignments = async () => {
         id,
         name
       )
-    `);
+    `, { count: 'exact' }); // Add count for pagination
 
     if (isInstructor && user?.id) {
       query = query.eq("instructor_id", user.id);
     }
 
-    const { data: coursesData, error: instancesError } = await query;
+    // Add pagination
+    const start = currentPage * pageSize;
+    const end = start + pageSize - 1;
+    query = query
+      .order('created_at', { ascending: false })
+      .range(start, end);
+
+    const { data: coursesData, error: instancesError, count } = await query;
+
+    // Store total count for pagination
+    setTotalCount(count || 0);
 
     if (instancesError) throw instancesError;
 
@@ -2050,7 +2066,7 @@ const fetchAssignments = async () => {
   useEffect(() => {
     fetchAssignments();
     fetchFilterOptions();
-  }, [user]);
+  }, [user, currentPage]); // Added currentPage dependency
 
   const handleDeleteConfirm = () => {
     // רענון הרשימה אחרי מחיקה מוצלחת
@@ -3194,6 +3210,21 @@ const fetchAssignments = async () => {
             </Card>
           ))}
         </div>
+
+        {/* PAGINATION UI - רק UI חדש, לא שינוי בלוגיקה! */}
+        {!loading && totalCount > 0 && (
+          <div className="mt-6">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(totalCount / pageSize)}
+              totalItems={totalCount}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              isLoading={loading}
+            />
+          </div>
+        )}
+
         {deleteTargetAssignment && (
           <DeleteConfirmationPopup
             assignment={deleteTargetAssignment}
