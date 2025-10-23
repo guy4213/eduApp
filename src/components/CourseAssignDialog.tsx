@@ -1780,6 +1780,7 @@ import {
   clearSystemCache 
 } from "@/utils/scheduleUtils"; // עדכן את הנתיב לפי המיקום הנכון
 import { Switch } from "@radix-ui/react-switch";
+import { useAuth } from "./auth/AuthProvider";
 
 // --- Interfaces ---
 interface Institution {
@@ -1879,6 +1880,8 @@ const CourseAssignDialog = ({
   const { toast } = useToast();
   
   // --- States ---
+  const {user}=useAuth();
+  const isAdmin = ['admin'].includes(user?.user_metadata?.role);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loading, setLoading] = useState(false);
@@ -3583,12 +3586,12 @@ const handleFinalSave = async () => {
 
         <div className="space-y-2">
           <Label htmlFor="price_for_customer">מחיר ללקוח</Label>
-          <Input id="price_for_customer" type="number" value={formData.price_for_customer} onChange={(e) => handleInputChange("price_for_customer", e.target.value)} placeholder="מחיר בשקלים"/>
+          <Input id="price_for_customer" type="number" disabled={!isAdmin} value={formData.price_for_customer} onChange={(e) => handleInputChange("price_for_customer", e.target.value)} placeholder="מחיר בשקלים"/>
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="price_for_instructor">מחיר למדריך</Label>
-          <Input id="price_for_instructor" type="number" value={formData.price_for_instructor} onChange={(e) => handleInputChange("price_for_instructor", e.target.value)} placeholder="מחיר בשקלים"/>
+          <Input id="price_for_instructor" type="number"  disabled={!isAdmin} value={formData.price_for_instructor} onChange={(e) => handleInputChange("price_for_instructor", e.target.value)} placeholder="מחיר בשקלים"/>
         </div>
         
 
