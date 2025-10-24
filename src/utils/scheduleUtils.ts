@@ -2070,7 +2070,9 @@ export const fetchSchedulesByDateRange = async (
   courseInstanceIds?: string | string[]
 ): Promise<any[]> => {
   try {
-    console.log(`[fetchSchedulesByDateRange] Fetching schedules from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    console.log(`[fetchSchedulesByDateRange] ====== START ======`);
+    console.log(`[fetchSchedulesByDateRange] Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    console.log(`[fetchSchedulesByDateRange] Course instance IDs filter:`, courseInstanceIds);
 
     // Get all course instance schedules (patterns)
     let patternsQuery = supabase
@@ -2100,6 +2102,7 @@ export const fetchSchedulesByDateRange = async (
       `);
 
     if (courseInstanceIds) {
+      console.log('[fetchSchedulesByDateRange] Applying course instance filter');
       if (Array.isArray(courseInstanceIds)) {
         patternsQuery = patternsQuery.in('course_instance_id', courseInstanceIds);
       } else {
@@ -2107,59 +2110,105 @@ export const fetchSchedulesByDateRange = async (
       }
     }
 
+    console.log('[fetchSchedulesByDateRange] Fetching schedule patterns...');
     const { data: patterns, error: patternsError } = await patternsQuery;
 
     if (patternsError) {
-      console.error('[fetchSchedulesByDateRange] Error fetching patterns:', patternsError);
+      console.error('[fetchSchedulesByDateRange] ❌ Error fetching patterns:', patternsError);
       return [];
     }
 
+    console.log(`[fetchSchedulesByDateRange] ✅ Found ${patterns?.length || 0} schedule patterns`);
+    if (patterns && patterns.length > 0) {
+      console.log('[fetchSchedulesByDateRange] Patterns:', patterns.map(p => ({
+        id: p.id,
+        course_instance_id: p.course_instance_id,
+        days_of_week: p.days_of_week,
+        time_slots_count: p.time_slots?.length,
+        course_name: p.course_instances?.course?.name
+      })));
+    }
+
     if (!patterns || patterns.length === 0) {
-      console.log('[fetchSchedulesByDateRange] No schedule patterns found');
+      console.log('[fetchSchedulesByDateRange] ⚠️ No schedule patterns found - returning empty array');
       return [];
     }
 
     // Generate schedules for each pattern
     const allSchedules: any[] = [];
 
-    for (const pattern of patterns) {
-      if (!pattern.course_instances) continue;
+    console.log(`[fetchSchedulesByDateRange] Processing ${patterns.length} patterns...`);
+
+    for (let i = 0; i < patterns.length; i++) {
+      const pattern = patterns[i];
+      console.log(`[fetchSchedulesByDateRange] --- Pattern ${i + 1}/${patterns.length} ---`);
+      console.log(`[fetchSchedulesByDateRange]   Course Instance ID: ${pattern.course_instance_id}`);
+      console.log(`[fetchSchedulesByDateRange]   Has course_instances:`, !!pattern.course_instances);
+
+      if (!pattern.course_instances) {
+        console.log(`[fetchSchedulesByDateRange]   ⚠️ Skipping - no course_instances data`);
+        continue;
+      }
 
       const lessonMode = pattern.course_instances.lesson_mode || 'template';
+      console.log(`[fetchSchedulesByDateRange]   Lesson mode: ${lessonMode}`);
+      console.log(`[fetchSchedulesByDateRange]   Course ID: ${pattern.course_instances.course_id}`);
+      console.log(`[fetchSchedulesByDateRange]   Course name: ${pattern.course_instances.course?.name}`);
 
       // Fetch lessons based on lesson mode
-      const { data: instanceLessons } = await supabase
+      console.log(`[fetchSchedulesByDateRange]   Fetching instance lessons...`);
+      const { data: instanceLessons, error: instanceError } = await supabase
         .from('lessons')
         .select('id, title, course_id, order_index, course_instance_id')
         .eq('course_instance_id', pattern.course_instance_id)
         .order('order_index');
 
-      const { data: templateLessons } = await supabase
+      if (instanceError) {
+        console.error(`[fetchSchedulesByDateRange]   ❌ Error fetching instance lessons:`, instanceError);
+      } else {
+        console.log(`[fetchSchedulesByDateRange]   Found ${instanceLessons?.length || 0} instance lessons`);
+      }
+
+      console.log(`[fetchSchedulesByDateRange]   Fetching template lessons...`);
+      const { data: templateLessons, error: templateError } = await supabase
         .from('lessons')
         .select('id, title, course_id, order_index, course_instance_id')
         .eq('course_id', pattern.course_instances.course_id)
         .is('course_instance_id', null)
         .order('order_index');
 
+      if (templateError) {
+        console.error(`[fetchSchedulesByDateRange]   ❌ Error fetching template lessons:`, templateError);
+      } else {
+        console.log(`[fetchSchedulesByDateRange]   Found ${templateLessons?.length || 0} template lessons`);
+      }
+
       let lessons: any[] = [];
       switch (lessonMode) {
         case 'custom_only':
           lessons = instanceLessons || [];
+          console.log(`[fetchSchedulesByDateRange]   Using ${lessons.length} custom-only lessons`);
           break;
         case 'combined':
           lessons = [...(templateLessons || []), ...(instanceLessons || [])].sort(
             (a, b) => a.order_index - b.order_index
           );
+          console.log(`[fetchSchedulesByDateRange]   Using ${lessons.length} combined lessons (${templateLessons?.length || 0} template + ${instanceLessons?.length || 0} instance)`);
           break;
         case 'template':
         default:
           lessons = templateLessons || [];
+          console.log(`[fetchSchedulesByDateRange]   Using ${lessons.length} template lessons`);
           break;
       }
 
-      if (lessons.length === 0) continue;
+      if (lessons.length === 0) {
+        console.log(`[fetchSchedulesByDateRange]   ⚠️ No lessons found - skipping pattern`);
+        continue;
+      }
 
       // Generate schedules only for the requested date range
+      console.log(`[fetchSchedulesByDateRange]   Generating schedules for date range...`);
       const schedules = await generateSchedulesInDateRange(
         pattern,
         lessons,
@@ -2167,10 +2216,15 @@ export const fetchSchedulesByDateRange = async (
         endDate
       );
 
+      console.log(`[fetchSchedulesByDateRange]   ✅ Generated ${schedules.length} schedules`);
       allSchedules.push(...schedules);
     }
 
-    console.log(`[fetchSchedulesByDateRange] Generated ${allSchedules.length} schedules in date range`);
+    console.log(`[fetchSchedulesByDateRange] ====== COMPLETE ======`);
+    console.log(`[fetchSchedulesByDateRange] 🎯 Total schedules generated: ${allSchedules.length}`);
+    if (allSchedules.length > 0) {
+      console.log(`[fetchSchedulesByDateRange] Sample schedule:`, allSchedules[0]);
+    }
     return allSchedules;
   } catch (error) {
     console.error('[fetchSchedulesByDateRange] Error:', error);
@@ -2187,37 +2241,74 @@ async function generateSchedulesInDateRange(
   startDate: Date,
   endDate: Date
 ): Promise<any[]> {
+  console.log(`[generateSchedulesInDateRange] --- START ---`);
+  console.log(`[generateSchedulesInDateRange] Course instance: ${pattern.course_instance_id}`);
+  console.log(`[generateSchedulesInDateRange] Lessons count: ${lessons.length}`);
+  console.log(`[generateSchedulesInDateRange] Date range: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`);
+
   const generatedSchedules: any[] = [];
   const { days_of_week, time_slots, course_instance_id, course_instances } = pattern;
 
+  console.log(`[generateSchedulesInDateRange] Days of week:`, days_of_week);
+  console.log(`[generateSchedulesInDateRange] Time slots:`, time_slots);
+
   if (!days_of_week?.length || !time_slots?.length || !lessons.length) {
+    console.log(`[generateSchedulesInDateRange] ⚠️ Missing required data - returning empty`);
+    console.log(`[generateSchedulesInDateRange]   days_of_week: ${days_of_week?.length || 0}`);
+    console.log(`[generateSchedulesInDateRange]   time_slots: ${time_slots?.length || 0}`);
+    console.log(`[generateSchedulesInDateRange]   lessons: ${lessons.length}`);
     return generatedSchedules;
   }
 
   // Get reported lessons
-  const { data: existingReports } = await supabase
+  console.log(`[generateSchedulesInDateRange] Fetching reported lessons...`);
+  const { data: existingReports, error: reportsError } = await supabase
     .from('reported_lesson_instances')
     .select('lesson_id, lesson_number')
     .eq('course_instance_id', course_instance_id);
+
+  if (reportsError) {
+    console.error(`[generateSchedulesInDateRange] Error fetching reports:`, reportsError);
+  } else {
+    console.log(`[generateSchedulesInDateRange] Found ${existingReports?.length || 0} reported lessons`);
+  }
 
   const reportedLessonIds = new Set(existingReports?.map(r => r.lesson_id) || []);
 
   // Start from the course start date or the requested start date, whichever is later
   const courseStartDate = new Date(course_instances.start_date);
+  console.log(`[generateSchedulesInDateRange] Course start date: ${courseStartDate.toLocaleDateString()}`);
+  console.log(`[generateSchedulesInDateRange] Requested start date: ${startDate.toLocaleDateString()}`);
+
   let currentDate = new Date(Math.max(courseStartDate.getTime(), startDate.getTime()));
+  console.log(`[generateSchedulesInDateRange] Starting generation from: ${currentDate.toLocaleDateString()}`);
 
   // Find first matching day of week
+  let searchAttempts = 0;
   while (!days_of_week.includes(currentDate.getDay())) {
     currentDate.setDate(currentDate.getDate() + 1);
-    if (currentDate > endDate) return generatedSchedules;
+    searchAttempts++;
+    if (currentDate > endDate) {
+      console.log(`[generateSchedulesInDateRange] ⚠️ No matching day of week found before end date`);
+      return generatedSchedules;
+    }
+    if (searchAttempts > 7) {
+      console.log(`[generateSchedulesInDateRange] ⚠️ Couldn't find matching day in a week - config error?`);
+      return generatedSchedules;
+    }
   }
+
+  console.log(`[generateSchedulesInDateRange] First matching day: ${currentDate.toLocaleDateString()} (day ${currentDate.getDay()})`);
 
   const sortedDays = [...days_of_week].sort();
   let lessonIndex = 0;
   let lessonNumber = 1;
+  let daysProcessed = 0;
 
   // Generate schedules within the date range
+  console.log(`[generateSchedulesInDateRange] Starting schedule generation loop...`);
   while (currentDate <= endDate && lessonIndex < lessons.length) {
+    daysProcessed++;
     const dayOfWeek = currentDate.getDay();
 
     if (sortedDays.includes(dayOfWeek)) {
@@ -2234,7 +2325,7 @@ async function generateSchedulesInDateRange(
           const currentLesson = lessons[lessonIndex];
           const isReported = reportedLessonIds.has(currentLesson.id);
 
-          generatedSchedules.push({
+          const schedule = {
             id: `generated-${course_instance_id}-${lessonNumber}`,
             course_instance_id: course_instance_id,
             lesson_id: currentLesson.id,
@@ -2245,16 +2336,40 @@ async function generateSchedulesInDateRange(
             is_generated: true,
             is_reported: isReported,
             course_instances: course_instances,
-          });
+          };
+
+          generatedSchedules.push(schedule);
+
+          if (lessonIndex === 0) {
+            console.log(`[generateSchedulesInDateRange] 📅 First schedule generated:`, {
+              date: dateStr,
+              time: `${timeSlot.start_time}-${timeSlot.end_time}`,
+              lesson: currentLesson.title
+            });
+          }
 
           lessonIndex++;
           lessonNumber++;
+        } else {
+          console.log(`[generateSchedulesInDateRange]   Skipping blocked date: ${currentDate.toLocaleDateString()}`);
         }
+      } else {
+        console.log(`[generateSchedulesInDateRange]   No time slot for day ${dayOfWeek}`);
       }
     }
 
     currentDate.setDate(currentDate.getDate() + 1);
+
+    if (daysProcessed > 365) {
+      console.log(`[generateSchedulesInDateRange] ⚠️ Safety break - processed ${daysProcessed} days`);
+      break;
+    }
   }
+
+  console.log(`[generateSchedulesInDateRange] --- COMPLETE ---`);
+  console.log(`[generateSchedulesInDateRange] Generated ${generatedSchedules.length} schedules`);
+  console.log(`[generateSchedulesInDateRange] Days processed: ${daysProcessed}`);
+  console.log(`[generateSchedulesInDateRange] Lessons used: ${lessonIndex}/${lessons.length}`);
 
   return generatedSchedules;
 }
