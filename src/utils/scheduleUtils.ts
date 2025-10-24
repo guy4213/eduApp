@@ -2049,8 +2049,8 @@ export const filterSchedulesByDate = (schedules: any[], targetDate: Date): any[]
 };
 
 export const filterSchedulesByDateRange = (
-  schedules: any[], 
-  startDate: Date, 
+  schedules: any[],
+  startDate: Date,
   endDate: Date
 ): any[] => {
   return schedules.filter(schedule => {
@@ -2059,3 +2059,202 @@ export const filterSchedulesByDateRange = (
     return scheduleDate >= startDate && scheduleDate <= endDate;
   });
 };
+
+/**
+ * Fetches schedules filtered by date range at the database level for better performance
+ * This is much more efficient than loading all schedules and filtering in JavaScript
+ */
+export const fetchSchedulesByDateRange = async (
+  startDate: Date,
+  endDate: Date,
+  courseInstanceIds?: string | string[]
+): Promise<any[]> => {
+  try {
+    console.log(`[fetchSchedulesByDateRange] Fetching schedules from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+    // Get all course instance schedules (patterns)
+    let patternsQuery = supabase
+      .from('course_instance_schedules')
+      .select(`
+        *,
+        course_instances:course_instance_id (
+          id,
+          course_id,
+          start_date,
+          end_date,
+          grade_level,
+          lesson_mode,
+          course:course_id (
+            id,
+            name
+          ),
+          institution:institution_id (
+            id,
+            name
+          ),
+          instructor:instructor_id (
+            id,
+            full_name
+          )
+        )
+      `);
+
+    if (courseInstanceIds) {
+      if (Array.isArray(courseInstanceIds)) {
+        patternsQuery = patternsQuery.in('course_instance_id', courseInstanceIds);
+      } else {
+        patternsQuery = patternsQuery.eq('course_instance_id', courseInstanceIds);
+      }
+    }
+
+    const { data: patterns, error: patternsError } = await patternsQuery;
+
+    if (patternsError) {
+      console.error('[fetchSchedulesByDateRange] Error fetching patterns:', patternsError);
+      return [];
+    }
+
+    if (!patterns || patterns.length === 0) {
+      console.log('[fetchSchedulesByDateRange] No schedule patterns found');
+      return [];
+    }
+
+    // Generate schedules for each pattern
+    const allSchedules: any[] = [];
+
+    for (const pattern of patterns) {
+      if (!pattern.course_instances) continue;
+
+      const lessonMode = pattern.course_instances.lesson_mode || 'template';
+
+      // Fetch lessons based on lesson mode
+      const { data: instanceLessons } = await supabase
+        .from('lessons')
+        .select('id, title, course_id, order_index, course_instance_id')
+        .eq('course_instance_id', pattern.course_instance_id)
+        .order('order_index');
+
+      const { data: templateLessons } = await supabase
+        .from('lessons')
+        .select('id, title, course_id, order_index, course_instance_id')
+        .eq('course_id', pattern.course_instances.course_id)
+        .is('course_instance_id', null)
+        .order('order_index');
+
+      let lessons: any[] = [];
+      switch (lessonMode) {
+        case 'custom_only':
+          lessons = instanceLessons || [];
+          break;
+        case 'combined':
+          lessons = [...(templateLessons || []), ...(instanceLessons || [])].sort(
+            (a, b) => a.order_index - b.order_index
+          );
+          break;
+        case 'template':
+        default:
+          lessons = templateLessons || [];
+          break;
+      }
+
+      if (lessons.length === 0) continue;
+
+      // Generate schedules only for the requested date range
+      const schedules = await generateSchedulesInDateRange(
+        pattern,
+        lessons,
+        startDate,
+        endDate
+      );
+
+      allSchedules.push(...schedules);
+    }
+
+    console.log(`[fetchSchedulesByDateRange] Generated ${allSchedules.length} schedules in date range`);
+    return allSchedules;
+  } catch (error) {
+    console.error('[fetchSchedulesByDateRange] Error:', error);
+    return [];
+  }
+};
+
+/**
+ * Helper function to generate schedules only within a specific date range
+ */
+async function generateSchedulesInDateRange(
+  pattern: any,
+  lessons: any[],
+  startDate: Date,
+  endDate: Date
+): Promise<any[]> {
+  const generatedSchedules: any[] = [];
+  const { days_of_week, time_slots, course_instance_id, course_instances } = pattern;
+
+  if (!days_of_week?.length || !time_slots?.length || !lessons.length) {
+    return generatedSchedules;
+  }
+
+  // Get reported lessons
+  const { data: existingReports } = await supabase
+    .from('reported_lesson_instances')
+    .select('lesson_id, lesson_number')
+    .eq('course_instance_id', course_instance_id);
+
+  const reportedLessonIds = new Set(existingReports?.map(r => r.lesson_id) || []);
+
+  // Start from the course start date or the requested start date, whichever is later
+  const courseStartDate = new Date(course_instances.start_date);
+  let currentDate = new Date(Math.max(courseStartDate.getTime(), startDate.getTime()));
+
+  // Find first matching day of week
+  while (!days_of_week.includes(currentDate.getDay())) {
+    currentDate.setDate(currentDate.getDate() + 1);
+    if (currentDate > endDate) return generatedSchedules;
+  }
+
+  const sortedDays = [...days_of_week].sort();
+  let lessonIndex = 0;
+  let lessonNumber = 1;
+
+  // Generate schedules within the date range
+  while (currentDate <= endDate && lessonIndex < lessons.length) {
+    const dayOfWeek = currentDate.getDay();
+
+    if (sortedDays.includes(dayOfWeek)) {
+      const timeSlot = time_slots.find((ts: any) => ts.day === dayOfWeek);
+
+      if (timeSlot && timeSlot.start_time && timeSlot.end_time) {
+        const isBlocked = await isDateBlocked(currentDate);
+
+        if (!isBlocked) {
+          const dateStr = currentDate.toISOString().split('T')[0];
+          const scheduledStart = `${dateStr}T${timeSlot.start_time}:00`;
+          const scheduledEnd = `${dateStr}T${timeSlot.end_time}:00`;
+
+          const currentLesson = lessons[lessonIndex];
+          const isReported = reportedLessonIds.has(currentLesson.id);
+
+          generatedSchedules.push({
+            id: `generated-${course_instance_id}-${lessonNumber}`,
+            course_instance_id: course_instance_id,
+            lesson_id: currentLesson.id,
+            scheduled_start: scheduledStart,
+            scheduled_end: scheduledEnd,
+            lesson_number: lessonNumber,
+            lesson: currentLesson,
+            is_generated: true,
+            is_reported: isReported,
+            course_instances: course_instances,
+          });
+
+          lessonIndex++;
+          lessonNumber++;
+        }
+      }
+    }
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return generatedSchedules;
+}
