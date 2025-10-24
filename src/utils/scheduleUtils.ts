@@ -1858,7 +1858,7 @@ export const generateLessonSchedulesFromPattern = async (
 
 
 export const fetchAndGenerateSchedules = async (
-  courseInstanceId?: string
+  courseInstanceIds?: string | string[]
 ): Promise<GeneratedLessonSchedule[]> => {
   try {
     let query = supabase
@@ -1887,8 +1887,12 @@ export const fetchAndGenerateSchedules = async (
         )
       `);
 
-    if (courseInstanceId) {
-      query = query.eq('course_instance_id', courseInstanceId);
+    if (courseInstanceIds) {
+      if (Array.isArray(courseInstanceIds)) {
+        query = query.in('course_instance_id', courseInstanceIds);
+      } else {
+        query = query.eq('course_instance_id', courseInstanceIds);
+      }
     }
 
     const { data: schedules, error: schedulesError } = await query;
@@ -1998,14 +2002,19 @@ export const fetchAndGenerateSchedules = async (
   }
 };
 export const fetchCombinedSchedules = async (
-  courseInstanceId?: string
+  courseInstanceIds?: string | string[]
 ): Promise<any[]> => {
   try {
     // Fetch generated schedules מה-pattern
-    const generatedSchedules = await fetchAndGenerateSchedules(courseInstanceId);
+    const generatedSchedules = await fetchAndGenerateSchedules(courseInstanceIds);
 
     // הלוחות זמנים כבר ממוינים ומסודרים
-    console.log(`Generated ${generatedSchedules.length} schedules from pattern`);
+    console.log(`[fetchCombinedSchedules] Generated ${generatedSchedules.length} schedules from pattern`);
+
+    // Log sample schedule for debugging
+    if (generatedSchedules.length > 0) {
+      console.log('[fetchCombinedSchedules] Sample schedule:', generatedSchedules[0]);
+    }
 
     return generatedSchedules;
   } catch (error) {

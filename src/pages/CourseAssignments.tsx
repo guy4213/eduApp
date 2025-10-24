@@ -1876,10 +1876,18 @@ const fetchAssignments = async () => {
             })
         : Promise.resolve([]),
 
-      // שליפת תזמונים - DISABLED FOR PERFORMANCE
-      // לא טוענים תזמונים בטעינה ראשונית - זה אלפי רשומות!
-      // התזמונים יטענו רק כשפותחים כרטיס ספציפי
-      Promise.resolve([]),
+      // שליפת תזמונים - RE-ENABLED with array support for current page only
+      courseInstanceIds.length > 0
+        ? fetchCombinedSchedules(courseInstanceIds)
+            .then((schedules) => {
+              console.log(`[DEBUG] Found ${schedules.length} schedules for current page`);
+              return schedules;
+            })
+            .catch((error) => {
+              console.error("Error fetching schedules:", error);
+              return [];
+            })
+        : Promise.resolve([]),
 
       // שליפת סטטוסים
       getCachedReportStatuses(courseInstanceIds),
