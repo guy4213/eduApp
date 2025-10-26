@@ -351,7 +351,7 @@ import {
   Target,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSchedulesByDateRange } from "@/utils/scheduleUtils";
+import { fetchCombinedSchedules } from "@/utils/scheduleUtils";
 import { DailyLessonsCard } from "@/components/DailyLessonsCard";
 import { useNavigate } from "react-router-dom";
 import MobileDashboard from "./MobileDashboard";
@@ -473,24 +473,24 @@ const Dashboard = () => {
 
       const courseIds = courses.map(c => c.id);
 
-      // *** OPTIMIZED: טעינה חכמה של תזמונים לפי טווח תאריכים ***
-      // טעינת תזמונים רק של החודש הנוכחי (במקום הכל)
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-      monthStart.setHours(0, 0, 0, 0);
-      const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
-      monthEnd.setHours(23, 59, 59, 999);
+      // משיכה מאוחדת של כל התזמונים (מורשת + נוצר מתבנית)
+      const combined = await fetchCombinedSchedules();
 
-      console.log('[Dashboard] Loading schedules for date range:', monthStart, 'to', monthEnd);
-
-      const combinedForCourses = await fetchSchedulesByDateRange(
-        monthStart,
-        monthEnd
-        // לא מעבירים courseInstanceIds כי אנחנו רוצים את כל התזמונים של המשתמש
+      // סינון לפי הקורסים הרלוונטיים בלבד
+      const combinedForCourses = (combined || []).filter((s: any) =>
+        courseIds.includes(s.course_instance_id || s?.course_instances?.id)
       );
 
-      console.log('[Dashboard] Loaded', combinedForCourses.length, 'schedules for current month');
+      // טווח חודשי
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
 
-      setMonthlySchedules(combinedForCourses.length);
+      const schedulesThisMonth = combinedForCourses.filter((s: any) => {
+        const d = new Date(s.scheduled_start);
+        return d >= monthStart && d <= monthEnd;
+      });
+
+      setMonthlySchedules(schedulesThisMonth.length);
 
       // שמירה על הלוגיקה הקיימת לסטטיסטיקות נוספות
       const { data: enrollments } = await supabase
