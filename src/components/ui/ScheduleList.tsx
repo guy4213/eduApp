@@ -181,231 +181,179 @@ const sortedLessons = lessons.sort((a, b) => {
     return null;
   };
 
-  return (
-    <div className="schedule-list-container flex flex-col gap-3 px-2 py-4 sm:px-4 sm:py-6 max-w-4xl w-full mx-auto">
-      {sortedLessons.map((item, index) => {
-        console.log('item',item)
-        const instructorName =
-          instructorMap.get(item?.course_instances?.instructor?.id) ||
-          item?.course_instances?.instructor?.full_name ||
-          "שם לא נמצא";
+ return (
+  <div className="schedule-list-container flex flex-col gap-3 px-2 py-4 sm:px-4 sm:py-6 max-w-4xl w-full mx-auto">
+    {sortedLessons.map((item, index) => {
+      console.log("item", item);
 
-        const startTime = formatTime(item.scheduled_start);
-        const endTime = formatTime(item.scheduled_end);
+      const instructorName =
+        instructorMap.get(item?.course_instances?.instructor?.id) ||
+        item?.course_instances?.instructor?.full_name ||
+        null;
 
-        // Check if lesson is reported - handle both old and new architecture
-        const isReported = reportedScheduleIds.has(item.id) || 
-                          (item.course_instance_id && item.lesson?.id && 
-                           reportedScheduleIds.has(`${item.course_instance_id}_${item.lesson.id}`));
+      const startTime = formatTime(item.scheduled_start);
+      const endTime = formatTime(item.scheduled_end);
 
-        // Get lesson status for reported lessons
-        const statusKey = reportedScheduleIds.has(item.id) ? item.id : 
-                         (item.course_instance_id && item.lesson?.id ? `${item.course_instance_id}_${item.lesson.id}` : '');
-        const lessonStatus = reportStatusMap.get(statusKey);
+      const isReported =
+        reportedScheduleIds.has(item.id) ||
+        (item.course_instance_id &&
+          item.lesson?.id &&
+          reportedScheduleIds.has(
+            `${item.course_instance_id}_${item.lesson.id}`
+          ));
 
-        // Function to render status badge
-        // const renderStatusBadge = () => {
-        //   if (!isReported) {
-        //     return user.user_metadata.role === "instructor" ? (
-        //       <button
-        //         onClick={() =>
-        //           nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}`)
-        //         }
-        //         className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
-        //       >
-        //         📋 דווח על השיעור
-        //       </button>
-        //     ) : (
-        //       <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
-        //         📋 טרם דווח
-        //       </span>
-        //     );
-        //   }
+      const statusKey = reportedScheduleIds.has(item.id)
+        ? item.id
+        : item.course_instance_id && item.lesson?.id
+        ? `${item.course_instance_id}_${item.lesson.id}`
+        : "";
+      const lessonStatus = reportStatusMap.get(statusKey);
 
-        //   if (lessonStatus?.isCompleted === false) {
-        //     return (
-        //       <span 
-        //         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-        //         style={{backgroundColor: '#FFA500'}}
-        //       >
-        //         ❌ לא התקיים
-        //       </span>
-        //     );
-        //   }
-
-        //   if (lessonStatus?.isCompleted === false) {
-        //     return (
-        //       <span 
-        //         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-        //         style={{backgroundColor: '#FFA500'}}
-        //       >
-        //         ❌ לא התקיים
-        //       </span>
-        //     );
-        //   }
-
-        //   if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
-        //     return (
-        //       <span 
-        //         className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-        //         style={{backgroundColor: '#FF0000'}}
-        //       >
-        //         ⚠️ לא התנהל כשורה
-        //       </span>
-        //     );
-        //   }
-
-        //   return (
-        //     <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
-        //       <Check className="w-5 h-5" /> דווח
-        //     </span>
-        //   );
-        // };
-
-const renderStatusBadge = () => {
-  // הוסף את זה כדי לדבג מה קורה
-  console.log('Debug info:', {
-    isReported,
-    lessonStatus,
-    userRole: user.user_metadata.role,
-    itemId: item?.id,
-    lessonId: item?.lesson?.id
-  });
-
-  // בדיקות הלוגיקה הקיימת
-  if (lessonStatus?.isCompleted === false) {
-    console.log('Returning: לא התקיים');
-    return (
-      <span 
-        className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-        style={{backgroundColor: '#FFA500'}}
-      >
-        ❌ לא התקיים
-      </span>
-    );
-  }
-
-  if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
-    console.log('Returning: לא התנהל כשורה');
-    return (
-      <span 
-        className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
-        style={{backgroundColor: '#FF0000'}}
-      >
-        ⚠️ לא התנהל כשורה
-      </span>
-    );
-  }
-
-  if (lessonStatus?.isCompleted === true) {
-    console.log('Returning: דווח (completed=true)');
-    const canEdit = ['admin', 'pedagogical_manager'].includes(user.user_metadata.role);
-    
-    return (
-      <div className="flex items-center gap-2">
-        <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
-          <Check className="w-5 h-5" /> דווח
-        </span>
-        {canEdit && (
-          <button
-            onClick={() => {
-              // Find the report ID for this lesson
-              const reportId = getReportIdForLesson(item);
-              console.log('Edit button clicked for item:', item);
-              console.log('Report ID found:', reportId);
-              console.log('Report status map:', reportStatusMap);
-              if (reportId) {
-                nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}&editReportId=${reportId}`, {
-                  state: { selectedDate: selectedDate?.toISOString() }
-                });
-              } else {
-                console.log('No report ID found for this lesson');
-              }
-            }}
-            className="bg-orange-500 text-white px-3 py-2 rounded-lg font-bold text-sm transition-colors hover:bg-orange-600 shadow-md"
-          >
-            ✏️ ערוך
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  if (!isReported) {
-    console.log('Returning: not reported, role:', user.user_metadata.role);
-    const canReport = ['instructor', 'admin', 'pedagogical_manager'].includes(user.user_metadata.role);
-    
-    return canReport ? (
-      <button
-        onClick={() =>
-       nav(`/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}&instructorId=${item.course_instances?.instructor?.id || item.instructor_id}`, {
-  state: { selectedDate: selectedDate?.toISOString() }
-})
+      const renderStatusBadge = () => {
+        if (lessonStatus?.isCompleted === false) {
+          return (
+            <span
+              className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+              style={{ backgroundColor: "#FFA500" }}
+            >
+              ❌ לא התקיים
+            </span>
+          );
         }
-        className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
-      >
-        📋 דווח על השיעור
-      </button>
-    ) : (
-      <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
-        📋 טרם דווח
-      </span>
-    );
-  }
 
-  console.log('Returning: fallback - דווח');
-  return (
-    <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
-      <Check className="w-5 h-5" /> דווח
-    </span>
-  );
-};
+        if (lessonStatus?.isCompleted && lessonStatus?.isLessonOk === false) {
+          return (
+            <span
+              className="inline-flex items-center gap-2 text-base font-bold px-4 py-2 rounded-full text-white"
+              style={{ backgroundColor: "#FF0000" }}
+            >
+              ⚠️ לא התנהל כשורה
+            </span>
+          );
+        }
+
+        if (lessonStatus?.isCompleted === true) {
+          const canEdit = ["admin", "pedagogical_manager"].includes(
+            user.user_metadata.role
+          );
+          return (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
+                <Check className="w-5 h-5" /> דווח
+              </span>
+              {canEdit && (
+                <button
+                  onClick={() => {
+                    const reportId = getReportIdForLesson(item);
+                    if (reportId) {
+                      nav(
+                        `/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}&editReportId=${reportId}`,
+                        {
+                          state: { selectedDate: selectedDate?.toISOString() },
+                        }
+                      );
+                    }
+                  }}
+                  className="bg-orange-500 text-white px-3 py-2 rounded-lg font-bold text-sm transition-colors hover:bg-orange-600 shadow-md"
+                >
+                  ✏️ ערוך
+                </button>
+              )}
+            </div>
+          );
+        }
+
+        if (!isReported) {
+          const canReport = [
+            "instructor",
+            "admin",
+            "pedagogical_manager",
+          ].includes(user.user_metadata.role);
+          return canReport ? (
+            <button
+              onClick={() =>
+                nav(
+                  `/lesson-report/${item?.lesson?.id}?courseInstanceId=${item.course_instance_id}&instructorId=${
+                    item.course_instances?.instructor?.id || item.instructor_id
+                  }`,
+                  { state: { selectedDate: selectedDate?.toISOString() } }
+                )
+              }
+              className="bg-blue-500 text-white px-4 py-3 rounded-full font-bold text-base transition-colors hover:bg-blue-600 shadow-md"
+            >
+              📋 דווח על השיעור
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-2 text-base font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
+              📋 טרם דווח
+            </span>
+          );
+        }
 
         return (
-          <div
-            key={index}
-            className="p-4 rounded-2xl shadow bg-white border text-right space-y-1"
-          >
-            <div className="flex justify-between items-start">
-              {/* lesson info */}
-              <div className="flex-1">
-                <h3 className="text-lg font-bold mb-2">
-                  📘 {item?.course_instances?.course?.name || "ללא שם קורס"} – שיעור מס׳ {item?.lesson_number || (item?.lesson?.order_index ? item.lesson.order_index + 1 : 1)}
-                </h3>
-                <p className="text-base mb-1">
-                  <span className="font-semibold">📖 שם השיעור:</span> {item?.lesson?.title}
-                </p>
-                <p className="text-base mb-1">
-                  <span className="font-semibold">🏫 מוסד:</span> {item?.course_instances?.institution?.name}
-                </p>
-                <p className="text-base mb-1">
-                  <span className="font-semibold">📚 כיתה:</span> {item?.course_instances?.grade_level}
-                </p>
-                {!item?.course_instances?.instructor?.full_name && user.user_metadata.role!=="instructor" ? (
-                  <p className="text-base mb-1 text-red-600 font-semibold">
-                    <span className="font-semibold">👨‍🏫 מדריך:</span> אין מדריך לקורס הזה
-                  </p>
-                ) : (
-                  user.user_metadata.role !== "instructor" && (
-                    <p className="text-base mb-1">
-                      <span className="font-semibold">👨‍🏫 מדריך:</span> {instructorName}
-                    </p>
-                  )
-                )}
-                
-                <p className="text-base font-medium text-gray-900 mt-3">
-                  🕐 {startTime}-{endTime}
-                </p>
-              </div>
-
-              {/* lesson action right */}
-              <div className="text-left">
-                {renderStatusBadge()}
-              </div>
-            </div>
-          </div>
+          <span className="inline-flex items-center gap-2 text-base font-bold text-green-700 bg-green-100 px-4 py-2 rounded-full">
+            <Check className="w-5 h-5" /> דווח
+          </span>
         );
-      })}
-    </div>
-  );
+      };
+
+      // ✅ שים לב – זה התנאי הנכון להצגת כל כרטיס
+      if (instructorName === null) return null;
+
+      return (
+        <div
+          key={index}
+          className="p-4 rounded-2xl shadow bg-white border text-right space-y-1"
+        >
+          <div className="flex justify-between items-start">
+            {/* lesson info */}
+            <div className="flex-1">
+              <h3 className="text-lg font-bold mb-2">
+                📘{" "}
+                {item?.course_instances?.course?.name || "ללא שם קורס"} – שיעור
+                מס׳{" "}
+                {item?.lesson_number ||
+                  (item?.lesson?.order_index
+                    ? item.lesson.order_index + 1
+                    : 1)}
+              </h3>
+              <p className="text-base mb-1">
+                <span className="font-semibold">📖 שם השיעור:</span>{" "}
+                {item?.lesson?.title}
+              </p>
+              <p className="text-base mb-1">
+                <span className="font-semibold">🏫 מוסד:</span>{" "}
+                {item?.course_instances?.institution?.name}
+              </p>
+              <p className="text-base mb-1">
+                <span className="font-semibold">📚 כיתה:</span>{" "}
+                {item?.course_instances?.grade_level}
+              </p>
+
+              {!item?.course_instances?.instructor?.full_name &&
+              user.user_metadata.role !== "instructor" ? (
+                <p className="text-base mb-1 text-red-600 font-semibold">
+                  <span className="font-semibold">👨‍🏫 מדריך:</span> אין מדריך
+                  לקורס הזה
+                </p>
+              ) : (
+                <p className="text-base mb-1">
+                  <span className="font-semibold">👨‍🏫 מדריך:</span>{" "}
+                  {instructorName}
+                </p>
+              )}
+
+              <p className="text-base font-medium text-gray-900 mt-3">
+                🕐 {startTime}-{endTime}
+              </p>
+            </div>
+
+            {/* lesson action right */}
+            <div className="text-left">{renderStatusBadge()}</div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
 };
