@@ -504,7 +504,9 @@ export type Database = {
           course_instance_id: string | null
           id: string
           instance_number: number | null
+          is_generated: boolean | null
           lesson_id: string | null
+          lesson_number: number | null
           scheduled_end: string | null
           scheduled_start: string | null
         }
@@ -512,7 +514,9 @@ export type Database = {
           course_instance_id?: string | null
           id?: string
           instance_number?: number | null
+          is_generated?: boolean | null
           lesson_id?: string | null
+          lesson_number?: number | null
           scheduled_end?: string | null
           scheduled_start?: string | null
         }
@@ -520,7 +524,9 @@ export type Database = {
           course_instance_id?: string | null
           id?: string
           instance_number?: number | null
+          is_generated?: boolean | null
           lesson_id?: string | null
+          lesson_number?: number | null
           scheduled_end?: string | null
           scheduled_start?: string | null
         }
@@ -1061,8 +1067,31 @@ export type Database = {
         Args: { p_course_id: string }
         Returns: undefined
       }
+      generate_and_insert_schedules_for_range: {
+        Args: {
+          p_instance_id: string
+          p_range_end: string
+          p_range_start: string
+        }
+        Returns: {
+          course_instance_id: string | null
+          id: string
+          instance_number: number | null
+          is_generated: boolean | null
+          lesson_id: string | null
+          lesson_number: number | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "lesson_schedules"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_admin_emails: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           email: string
         }[]
@@ -1081,7 +1110,7 @@ export type Database = {
         }[]
       }
       get_current_user_role: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
       get_lessons_by_courses: {
@@ -1104,19 +1133,39 @@ export type Database = {
           status: string | null
           title: string
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "lessons"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
-      get_user_role_text: {
-        Args: Record<PropertyKey, never>
-        Returns: string
+      get_schedules_for_user_in_range_cached: {
+        Args: {
+          end_date_param: string
+          start_date_param: string
+          user_id_param: string
+        }
+        Returns: {
+          course_instance_id: string | null
+          id: string
+          instance_number: number | null
+          is_generated: boolean | null
+          lesson_id: string | null
+          lesson_number: number | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "lesson_schedules"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
-      is_admin_or_manager: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      report_work_hour: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      get_user_role_text: { Args: never; Returns: string }
+      is_admin_or_manager: { Args: never; Returns: boolean }
+      report_work_hour: { Args: never; Returns: undefined }
       update_user_auth_data: {
         Args: {
           new_email?: string
